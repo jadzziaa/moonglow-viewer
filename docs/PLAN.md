@@ -14,7 +14,7 @@ Decisions taken (2026-10-01):
 | --- | --- |
 | Language / UI | Rust (stable, 2024 edition), egui with eframe on wgpu |
 | Renderer | The toolset's `mg-render` (EE "enhanced lighting", matched to the client), extended here with overlays, picking and debug views (§4.5) |
-| Code reuse | The toolset's crates as a git dependency, pinned in `Cargo.lock`. Viewer work stays in this repository; changes the toolset itself needs are proposed in §10 |
+| Code reuse | The toolset's crates as a git dependency, pinned in `Cargo.lock`. Viewer work stays in this repository; changes the toolset itself needs are proposed in §10 and landed there when the owner says so (the first set landed 2026-10-01) |
 | Model tools | A native decompiler by default; nwnmdlcomp and the game's own model compiler as external back ends; a native compiler later (§4.6) |
 | Platforms | Linux, Windows, macOS; the toolset's release targets: AppImage, Flatpak, Windows installer, universal macOS app (§7) |
 | Licence | GPL-3.0-only (§8) |
@@ -25,11 +25,11 @@ Decisions taken (2026-10-01):
 | Phase | State |
 | --- | --- |
 | 0 Bootstrap | Done: workspace on the toolset's crates (git, pinned by `Cargo.lock`), lint and format settings as the toolset's, CI on three systems (with a read token for the toolset while it is private), the plan, `CLAUDE.md` |
-| 1 Headless core | Done: `mgv-library` (the game's load order with the opened folder, added folders and archives, editor buffers above; model cache; file watching), `mgv-stage` (actors with play-once, sequences and attachments, particles, dangly meshes, model lights, the camera, offscreen rendering, deterministic), `mgv render`, `mgv info`. Exit met: a game placeable with emitters renders the same twice; authored models' animation, attachment and reload are tested |
+| 1 Headless core | Done: `mgv-library` (the game's load order with the opened folder, added folders and archives, editor buffers above; model cache; file watching), `mgv-stage` (actors with play-once, sequences, transitions over `transtime` and attachments, particles, dangly meshes, model lights, the camera, offscreen rendering, deterministic), `mgv render`, `mgv info`. Exit met: a game placeable with emitters renders the same twice; authored models' animation, attachment and reload are tested |
 | 2 The application | Done: docked window (3D view, ASCII, texture, resources, nodes, inspector, animation, effects, lighting, log), the orbit camera with framing and views, opening files (dialog, drop, command line) and game resources, creatures by `appearance.2da` row with their look editable, settings kept, crash reports, the manual built in (Help, F1). `egui_kittest` flows cover opening, hot reload, decompiling, saving, creatures and effects |
 | 3 Model tools and the ASCII editor | Done but the native compiler (Phase 9): the native decompiler (all 25,597 binary models in the game read back the same, in 6 s; on a sample of 69, nwnmdlcomp's decompile agrees and nwnmdlcomp compiles ours back to the same model), diagnostics checked on the game's 7,235 ASCII models, the outline, the nwnmdlcomp and game-compiler back ends (background jobs, Compile and View), a virtualized editor (0.2 ms idle and 0.25 ms per keystroke at any size; `TextEdit` took 186 ms and 609 ms on `a_ba`), hot reload on edit and on file change, cursor and selection in step with the view. The game's compiler, run in the toolset's client sandbox, compiles the native ASCII of five sample models (placeable, tile, door, effect, animated self-illumination) back to the original model |
 | 4 Every visual file type | Done: models, walkmeshes (alone, on their model, and a model's own as an overlay), TGA/DDS/PLT textures with mip levels, channels, TXI and PLT colours, MTR materials on a sphere with their slots and parameters, tilesets (tiles listed, each shown on a click), blueprints (UTC, UTI, UTP, UTD), creatures by appearance row, haks, modules and folders. Not yet: SET tile groups and door placement shown together |
-| 5 Lighting, overlays and debug views | Mostly done: studio, `environment.2da` and custom area rigs (day, night, fog, tile main lights from `lightcolor.2da`), overlays (walkmesh faces by surface material, wireframe, normals, node tree, selection), picking by ray against posed meshes. To do: depth-tested overlays (§10), debug views (unlit, normals, UV checker), skyboxes |
+| 5 Lighting, overlays and debug views | Mostly done: studio, `environment.2da` and custom area rigs (day, night, fog, tile main lights from `lightcolor.2da`), overlays drawn in 3D against the scene's depths, faint where it hides them (walkmesh faces by surface material, wireframe, normals, grid and axes; the node tree and the selection over everything), picking by ray against posed meshes. To do: debug views (unlit, normals, UV checker), skyboxes |
 | 6 Emitters and visual effects | Mostly done: every `visualeffects.2da` row with a model applies (503, at three sizes) on hooks found by the target's kind, impact then duration, cessation on removal, from the window and `mgv render --vfx`. To do: `progfx.2da` (beams, node attachments, lights, glows) |
 | 7 Batch rendering and galleries | Done: `mgv gallery` over name patterns, 2DAs (placeables, appearance, visualeffects, doors), haks and folders; `index.html` and `manifest.json`, deterministic; re-runs skip unchanged items (all 1,289 placeables render in about 7 s at 256²; an unchanged re-run takes 3 s); `mgv turntable` (animated PNG or frames) |
 | 8 Hardening and release | In progress: packaging (the icon; the AppImage, 12.3 MB, built here and its command line run; the Flatpak bundle, 6.8 MB, built here; the Windows installer and macOS app left to CI), the release workflow, the user manual. To do: build the Windows and macOS packages on CI, performance budgets in CI |
@@ -244,12 +244,14 @@ translucent faces): the ground grid and axes, bones and hook nodes, normals,
 wireframe, bounding boxes, walkmesh faces by surface material, light radii,
 emitter gizmos and the selection outline.
 
-The renderer discards its depth buffer, so the viewer poses meshes on the CPU
-(rest pose, animation, skinning, animmesh and dangly vertices), which it needs
-for picking anyway, and draws them depth-only before the overlays. Picking
-casts the mouse ray against the posed triangles and selects the node, which
-selects it in the outliner and the ASCII editor. §10 proposes keeping the
-renderer's depth instead.
+The renderer keeps its depth buffer (§10), so the overlays (`mgv_stage::overlay`)
+are tested against the scene: what it hides shows at 30%, so a walkmesh
+under a floor or bones inside a body are still seen; the node tree and the
+selection's box show over everything; names and node markers are painted on
+top. The viewer poses meshes on the CPU (rest pose, animation, skinning,
+animmesh and dangly vertices) for the overlays' geometry and for picking:
+the mouse ray against the posed triangles selects the node, which selects
+it in the outliner and the ASCII editor.
 
 Debug views: lit (default), unlit textures, the material's diffuse colour
 (`DebugView::MaterialDiffuse`), normals as colours, and UV checker.
@@ -261,7 +263,7 @@ Decompile and compile go through back ends:
 | Back end | Decompile | Compile | Where | Notes |
 | --- | --- | --- | --- | --- |
 | Native | ✓ (default) | Phase 9 | All platforms, in process | Writes ASCII from `mg-mdl`'s model of a binary file: lossless for what binaries hold |
-| nwnmdlcomp | ✓ | ✓ | Linux (32-bit build), Windows | Torlack's compiler (BSD), found on `PATH`, in `NWN_TOOLS_BIN`, Neverblender's `tools/bin`, or set in the options. Predates EE: drops `normals` and `tangents`, drops `materialname` and `renderhint` silently (the viewer refuses, as Neverblender does), and allows 17 bones per skin (EE: 64). Decompiles EE-compiled models correctly. Always exits 0; errors are `Error:` lines |
+| nwnmdlcomp | ✓ | ✓ | Linux (32-bit build), Windows | Torlack's compiler (BSD), found on `PATH`, in `NWN_TOOLS_BIN`, Neverblender's `tools/bin`, or set in the options. Predates EE: drops `normals` and `tangents`, drops `materialname` and `renderhint` silently (the viewer refuses, as Neverblender does), stores Bézier keys in a layout the game reads differently (refused too), takes only 0 and 1 for `spawntype` (EE-compiled models hold −1: given to it as 0, drawn alike), and allows 17 bones per skin (EE: 64). Decompiles EE-compiled models correctly. Always exits 0; errors are `Error:` lines |
 | Engine | — | ✓ | Linux, Windows, macOS (the game ships `nwmain` for all three) | The game's own compiler: `nwmain -userdirectory SCRATCH compilemodel RESREF` with the model staged in the scratch user directory's `development/`, the result collected from `modelcompiler/`. Keeps EE features. Needs an OpenGL context: on Linux it runs inside `gamescope --backend headless`; elsewhere a window opens briefly. Cannot compile skin meshes from the command line. Success is the log's "Successfully compiled model" plus a fresh file. A scratch user directory always, never the real one |
 
 Compile picks a back end per model the way Neverblender's `nwn_compile.py`
@@ -271,8 +273,10 @@ folder; nothing is overwritten without asking. Compiler messages go to the
 log with their lines.
 
 Decompiled ASCII follows nwnmdlcomp's layout (Neverblender reads it), with
-EE fields (`materialname`, `renderhint`, `normals`, `tangents`) kept where the
-source has them. Self-illumination is written under both spellings,
+EE fields (`materialname`, `renderhint`, `normals`, `tangents`, Bézier keys)
+kept where the source has them: the game's compiler stores `materialname`
+in the `texture3` slot and generates tangents for a `renderhint`, which
+`mg-mdl` reads back. Self-illumination is written under both spellings,
 `setfillumcolor` (the only one nwnmdlcomp compiles) and `selfillumcolor`
 (the only one the game's compiler keeps; found by compiling in the game),
 at rest and keyed; each compiler skips the other's.
@@ -287,7 +291,9 @@ largest ASCII model at 126,000 lines, parses in 41 ms), and the stage swaps
 the actor's model, keeping camera, animation, time and selection.
 
 `mg-mdl`'s reader is as lenient as the game (it skips what it does not know
-and never fails), so diagnostics come from `mgv-mdl`'s own pass over the text:
+and never fails); its source map places every node of the model it reads,
+which keeps the cursor and the selection in step even where names repeat.
+Diagnostics come from `mgv-mdl`'s own pass over the text:
 unknown keywords, list counts that do not match, indices out of range,
 parents that do not exist, keywords nwnmdlcomp would drop. They are marked
 in the text and listed in the log.
@@ -450,20 +456,32 @@ user's install and never redistributed.
 | The toolset changes its APIs | Pinned commit; the pin moves deliberately, with the test suite |
 | The toolset repository is private | CI reads it with a token secret; the Flatpak build fetches it with the user's credentials |
 
-## 10. Proposed toolset changes
+## 10. Toolset changes
 
-Changes that belong in the toolset's crates, for its maintainers to land. The
-viewer works around each until then.
+Changes that belong in the toolset's crates are proposed here and landed
+there when its owner says so. The first set landed on 2026-10-01 (toolset
+`32fa513`), each settled where it could be against the game: probe models
+compiled by `nwmain compilemodel` and particles measured in the sandboxed
+client (the toolset's `notes_models.md` B.8, B.20, B.20a).
 
-| Crate | Change | Why | Viewer workaround |
-| --- | --- | --- | --- |
-| `mg-render` | Keep the depth buffer (`StoreOp::Store`) or accept an encoder, so callers can draw after the scene | Overlays with depth testing | Depth-only pass of CPU-posed meshes |
-| `mg-render` | Upload vertex colours, UV sets 1–3 and tangents | Models that use them | None (shown in the inspector) |
-| `mg-render` | Particles: mid values (`colorMid`, `alphaMid`, `sizeMid`, `percentStart/Mid/End`, which the engine reads though the wiki omits them), deadspace, bounce, wind, splat, tinting, two-sided | Fidelity of effects | None |
-| `mg-render` | Animation transitions (`transtime`), play-once | Effects and creatures | Viewer-side clamp and pose blending |
-| `mg-mdl` | Source line numbers on nodes and errors | Editor diagnostics and selection sync | `mgv-mdl` scans the text itself |
-| `mg-mdl` | Bezier keys; `materialname` and `renderhint` in binaries | Lossless decompile | Reported as unsupported |
-| `mg-mdl` | Read ASCII integers as C does (`-1` wraps to 0xFFFFFFFF; today it saturates to 0) | EE-compiled models hold −1 in `spawntype` | The decompiler writes 0 there (nwnmdlcomp accepts only 0 or 1) |
-| `mg-mdl` | Walkmesh files as their own type (root, use and door points) | Walkmesh views | Read through the ASCII reader, root fixed up |
-| `mg-resman` | Change layers in place (rescan a folder) | Hot reload of new files | Remove and add the layer |
-| `mg-preview` | A creature from an appearance row without a UTC | Creature browsing | Build a UTC struct in memory |
+| Crate | Change | Viewer use |
+| --- | --- | --- |
+| `mg-render` | The depth buffer kept after a frame (`DEPTH_FORMAT`) | Overlays tested against the scene (§4.5) |
+| `mg-render` | Normal maps on a model's own tangents (the stock shaders' frame), else screen-space derivatives | Drawn as the game draws them |
+| `mg-render` | Particles: `bounce` (measured: 0.8 of the speed kept, × `bounce_co` off the ground) and `m_isTinted` (the light at the emitter; the area's part matches the client exactly); gravity confirmed (mass × 9.8) | Effects and creatures |
+| `mg-render` | Animations played once hold their last frame; `anim::locals`, `compose` and `blend` for transitions | Players hold at the length; transitions over the new animation's `transtime` |
+| `mg-mdl` | Source maps (`ascii::read_mapped`): each node's and animation's lines, notes on what the reader skipped | Cursor and selection sync by node index |
+| `mg-mdl` | What the game's compiler writes, read back: `materialname` (texture3 slot), `renderhint` (+0xE4), tangents, Bézier keys (value and two handles), the emitters' three-stop IDs (448–472, not nwnmdlcomp's) | Lossless decompile |
+| `mg-mdl` | ASCII integers as C reads them (`spawntype -1` is 0xFFFFFFFF, as compiled) | The decompiler writes −1; the nwnmdlcomp back end gives that compiler 0 |
+| `mg-mdl` | Walkmesh files (`walkmesh::Walkmesh`): nodes under the object's root, surfaces per door state, use and door points | Walkmeshes alone and on their models |
+| `mg-resman` | Layers changed in place (`ResMan::rescan`, `replace`) | Rescans and editor buffers keep each layer's place |
+| `mg-preview` | Creatures by appearance alone (`CreatureLook`, `creature_look`) | Creature browsing (the right foot, which the viewer's own blueprint fields missed) |
+
+Not taken, because the game does not do them: uploading vertex colours and
+UV sets 1–3 (the stock shaders ignore them); the emitters' three-stop
+values (`colorMid`, `alphaMid`, `sizeMid`, `percentStart/Mid/End`: the
+client draws start to end whatever they hold); anything for `twosidedtex`
+(one-sided aligned particles show from both sides). Not measured, so not
+simulated: wind on particles, `splat`, `deadspace`, and the point lights'
+exact share of a tinted particle's light (within 20/255 in the one scene
+measured).

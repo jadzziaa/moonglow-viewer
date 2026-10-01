@@ -56,10 +56,13 @@ overlays, offscreen rendering), `mgv-gallery` (batch rendering), `mgv-ui`
 
 ## Rules
 
-- **Toolset changes stay out of this repository's sessions.** Build on the
-  toolset's public APIs here; when something belongs upstream, add it to
-  `docs/PLAN.md` §10 (with the viewer's workaround) for the user to land in
-  the toolset. Never commit to `~/Projects/moonglow-toolset` from here.
+- **Toolset changes stay out of this repository's sessions** unless the
+  user asks for them. Build on the toolset's public APIs here; when
+  something belongs upstream, add it to `docs/PLAN.md` §10 (with the
+  viewer's workaround). Commit to the toolset only when the user asks to
+  land those changes, then in a worktree of its own (another session may
+  be working in `~/Projects/moonglow-toolset`), following its `CLAUDE.md`,
+  with its whole suite passing before pushing; then move the pin here.
 - **Never write to the real NWN user folder** (`~/.local/share/Neverwinter
   Nights`) or the game install. Tests use scratch directories; the engine
   compiler back end always runs with a scratch user directory.
