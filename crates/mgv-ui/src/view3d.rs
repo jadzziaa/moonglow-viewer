@@ -250,7 +250,8 @@ fn grid(overlay: &mut Overlay, distance: f32) {
     }
 }
 
-/// X (red), Y (green, where models face) and Z (blue, up).
+/// X (red), Y (green: creatures face +Y, most placeables −Y) and Z (blue,
+/// up).
 fn axes(overlay: &mut Overlay, len: f32) {
     for (dir, color) in [
         (Vec3::X, egui::Color32::from_rgb(0xE5, 0x48, 0x4D)),

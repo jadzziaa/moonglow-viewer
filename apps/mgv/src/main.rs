@@ -145,9 +145,12 @@ struct ShotArgs {
     /// Steps per second.
     #[arg(long, default_value_t = 30.0)]
     fps: f32,
+    /// The side to look from, relative to the model's front (creatures
+    /// face +Y, placeables −Y).
     #[arg(long, value_enum, default_value_t = ViewArg::ThreeQuarter)]
     view: ViewArg,
-    /// Camera angle around the model, degrees (overrides --view).
+    /// Camera angle around the model, degrees from +X whichever way it
+    /// faces (90: from +Y; -90: from −Y; overrides --view).
     #[arg(long)]
     yaw: Option<f32>,
     /// Camera angle above the ground, degrees.
@@ -156,7 +159,7 @@ struct ShotArgs {
     /// Camera distance as a multiple of the framed distance.
     #[arg(long, default_value_t = 1.0)]
     zoom: f32,
-    /// Background colour, R,G,B in 0–1 (gamma space).
+    /// Background color, R,G,B in 0–1 (gamma space).
     #[arg(long)]
     background: Option<String>,
     /// Leave the model's own lights off.

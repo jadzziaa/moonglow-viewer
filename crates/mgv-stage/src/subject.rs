@@ -59,6 +59,37 @@ pub fn play_default(stage: &mut Stage, id: ActorId) {
 /// Puts what was opened on the (cleared) stage and starts its default
 /// animation.
 pub fn show(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown, StageError> {
+    let shown = show_kind(stage, lib, opened)?;
+    // Which way it faces, for the camera's views.
+    let restype = opened.key.map(|k| k.restype);
+    stage.front = match (opened.kind, restype) {
+        (Kind::Material, _) | (Kind::Blueprint, Some(ResType::UTC | ResType::UTI)) => FACING_Y,
+        _ => stage.actor(shown.base).map_or(FACING_Y, |a| front(&a.model.model, &a.animations)),
+    };
+    Ok(shown)
+}
+
+/// The yaw of +Y (radians around Z from +X): where creatures face.
+pub const FACING_Y: f32 = std::f32::consts::FRAC_PI_2;
+
+/// Which way a model faces, as a yaw (radians around Z from +X), for the
+/// camera's views: +Y for creatures (models that walk or stand idle, by
+/// their own animations or their supermodels'), tiles and effects; −Y for
+/// the others: the game's placeables face −Y (armoires' doors, chests'
+/// locks, chairs' and thrones' seats, a mirror's glass), though a model's
+/// +Y points along its object's facing in the game. Use points do not tell:
+/// a standing mirror's is behind its glass.
+pub fn front(model: &Model, animations: &Animations) -> f32 {
+    let creature =
+        ["walk", "cwalkf", "pause1", "cpause1"].iter().any(|n| animations.find(n).is_some());
+    match model.classification {
+        _ if creature => FACING_Y,
+        Classification::Tile | Classification::Effect => FACING_Y,
+        _ => -FACING_Y,
+    }
+}
+
+fn show_kind(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown, StageError> {
     stage.clear();
     match opened.kind {
         Kind::Model => {
@@ -74,11 +105,7 @@ pub fn show(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown, 
             play_default(stage, base);
             // Its walkmesh, for the overlay.
             if let Some((_, w)) = posed::walkmesh_for(lib, &opened.name()) {
-                stage.walkmeshes.push(posed::Walkmesh {
-                    name: opened.name(),
-                    model: w,
-                    host: Some(base),
-                });
+                stage.walkmeshes.push(posed::Walkmesh::new(&opened.name(), w, Some(base)));
             }
             Ok(Shown { base, parts: Vec::new(), missing: Vec::new() })
         }
@@ -91,8 +118,7 @@ pub fn show(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown, 
                 .unwrap_or("wok");
             let kind = WalkmeshKind::from_extension(ext).unwrap_or(WalkmeshKind::Tile);
             let walkmesh = Walkmesh::read(&opened.data, kind)
-                .map_err(|e| StageError::Unreadable(format!("{}: {e}", opened.name())))?
-                .model;
+                .map_err(|e| StageError::Unreadable(format!("{}: {e}", opened.name())))?;
             let model = lib.model(&opened.name()).unwrap_or_else(|| {
                 // Nothing to draw: a bare root for the view to hold on to.
                 Arc::new(Model {
@@ -105,11 +131,7 @@ pub fn show(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown, 
                 stage.actor_for(lib, &opened.name(), model, Placement::World(Mat4::IDENTITY));
             let base = stage.add(actor);
             play_default(stage, base);
-            stage.walkmeshes.push(posed::Walkmesh {
-                name: opened.name(),
-                model: Arc::new(walkmesh),
-                host: Some(base),
-            });
+            stage.walkmeshes.push(posed::Walkmesh::new(&opened.name(), walkmesh, Some(base)));
             Ok(Shown { base, parts: Vec::new(), missing: Vec::new() })
         }
         Kind::Blueprint => {
@@ -172,6 +194,7 @@ pub fn show_creature(
     stage.clear();
     let preview = creature_preview(lib, look)?;
     let added = stage.add_preview(lib, &preview, Mat4::IDENTITY)?;
+    stage.front = FACING_Y;
     Ok(Shown { base: added.base, parts: added.parts, missing: added.missing })
 }
 

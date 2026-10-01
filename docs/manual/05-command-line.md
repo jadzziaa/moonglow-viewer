@@ -22,7 +22,9 @@ mgv lint mymodel.mdl --notes
 
 - **Pictures** (`render`, `turntable`): `--anim` and `--time` choose the
   moment (emitters and animations run up to it, the same each time),
-  `--view`, `--yaw`, `--pitch` and `--zoom` the camera, `--light` the
+  `--view`, `--yaw`, `--pitch` and `--zoom` the camera (`--view` from
+  the model's front: creatures face +Y, placeables −Y; `--yaw` in degrees
+  from +X whatever the model, 90 from +Y, -90 from −Y), `--light` the
   lighting (`studio`, or `env:ROW` / `env:ROW:night`), `--fog`, `--vfx ROW`
   (repeatable) visual effects.
 - **Galleries** (`gallery`): a name pattern (`plc_*`), a 2DA

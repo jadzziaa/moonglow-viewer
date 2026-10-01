@@ -334,11 +334,17 @@ impl Fnv {
     }
 }
 
+/// Raised when the same inputs give other pictures, so galleries render
+/// again: 2, views from the model's front (placeables face −Y) and the
+/// toolset's particle bounce and tinting.
+const PICTURES: &str = "2";
+
 /// Everything that decides an item's picture: the shot, the model and its
 /// supermodels, and the textures its meshes name.
 fn input_hash(lib: &Library, item: &Item, shot: &Shot) -> String {
     let mut h = Fnv::new();
     h.add(env!("CARGO_PKG_VERSION").as_bytes());
+    h.add(PICTURES.as_bytes());
     h.add(format!("{shot:?}").as_bytes());
     h.add(format!("{:?}", item.what).as_bytes());
     let mut models: Vec<String> = match &item.what {

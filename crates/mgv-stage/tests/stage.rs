@@ -339,3 +339,29 @@ fn overlays_show_faintly_where_the_scene_hides_them() {
     assert_eq!(px(Vec3::new(0.2, 0.6, 0.0))[0], 255, "x-ray over the triangle");
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+/// Views are taken from the model's front: placeables face −Y (their doors,
+/// locks, seats and glass are there), creatures +Y.
+#[test]
+fn views_are_taken_from_the_models_front() {
+    use mg_core::ResType;
+    use mgv_stage::headless::Shot;
+    use mgv_stage::subject;
+    let root = mg_testkit::corpus!();
+    let Some(gpu) = gpu() else { return };
+    let lib = Library::open(Some(GameInstall::new(root, None, "en"))).unwrap();
+    let mut stage = Stage::new(gpu);
+    let mut front = |name: &str| {
+        let key = mg_resman::ResKey::parse(name, ResType::MDL).unwrap();
+        subject::show(&mut stage, &lib, &lib.open_resource(key).unwrap()).unwrap();
+        let eye = Shot::default().camera(&stage).camera().eye;
+        (stage.front.to_degrees().round(), eye)
+    };
+    let (armoire, eye) = front("plc_a01");
+    assert_eq!(armoire, -90.0);
+    assert!(eye.y < 0.0, "the default view shows its doors: {eye}");
+    // A standing mirror's glass faces −Y (its use point is behind it).
+    assert_eq!(front("px2_d04").0, -90.0);
+    assert_eq!(front("c_badger").0, 90.0);
+    assert_eq!(front("tcn01_a01_01").0, 90.0, "tiles as they are");
+}

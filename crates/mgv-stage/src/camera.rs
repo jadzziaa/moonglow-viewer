@@ -1,6 +1,8 @@
 //! The viewer's camera: orbiting a target, as the toolset's model viewer
 //! turns it (left drag orbits, right or middle drag pans, the wheel zooms).
-//! Z is up; models face +Y.
+//! Z is up. The views are taken from the shown model's front
+//! ([`OrbitCamera::front`]): creatures face +Y, most placeables −Y
+//! ([`crate::subject::front`]).
 
 use glam::Vec3;
 use mg_render::Camera;
@@ -29,6 +31,9 @@ pub struct OrbitCamera {
     pub pitch: f32,
     /// Vertical field of view, radians.
     pub fov_y: f32,
+    /// Which way the shown model faces (yaw, radians around Z from +X):
+    /// the views are taken from it.
+    pub front: f32,
 }
 
 impl Default for OrbitCamera {
@@ -39,6 +44,7 @@ impl Default for OrbitCamera {
             yaw: 0.0,
             pitch: 0.0,
             fov_y: 40f32.to_radians(),
+            front: crate::subject::FACING_Y,
         };
         c.set_view(View::ThreeQuarter);
         c
@@ -63,17 +69,26 @@ impl OrbitCamera {
         }
     }
 
+    /// Looks from a side of the model (relative to its front).
     pub fn set_view(&mut self, view: View) {
         let d = f32::to_radians;
-        (self.yaw, self.pitch) = match view {
-            View::Front => (d(90.0), 0.0),
-            View::Back => (d(-90.0), 0.0),
-            View::Left => (d(180.0), 0.0),
-            View::Right => (0.0, 0.0),
-            View::Top => (d(90.0), PITCH_LIMIT),
-            View::Bottom => (d(90.0), -PITCH_LIMIT),
-            View::ThreeQuarter => (d(60.0), d(20.0)),
+        let (turn, pitch) = match view {
+            View::Front => (0.0, 0.0),
+            View::Back => (d(180.0), 0.0),
+            View::Left => (d(90.0), 0.0),
+            View::Right => (d(-90.0), 0.0),
+            View::Top => (0.0, PITCH_LIMIT),
+            View::Bottom => (0.0, -PITCH_LIMIT),
+            View::ThreeQuarter => (d(-30.0), d(20.0)),
         };
+        (self.yaw, self.pitch) = (self.front + turn, pitch);
+    }
+
+    /// A model facing elsewhere: the camera turns with it, keeping its
+    /// angle to the front.
+    pub fn set_front(&mut self, front: f32) {
+        self.yaw += front - self.front;
+        self.front = front;
     }
 
     /// Fits a box in the view (its bounding sphere, with a margin).
@@ -113,9 +128,19 @@ mod tests {
     fn front_looks_at_the_models_face() {
         let mut c = OrbitCamera::default();
         c.set_view(View::Front);
+        // A creature faces +Y: the front view's eye is on +Y.
         let cam = c.camera();
-        // Models face +Y, so the front view's eye is on +Y.
         assert!(cam.eye.y > 4.9 && cam.eye.x.abs() < 1e-4, "{}", cam.eye);
+        // A placeable facing −Y: the camera turns with it.
+        c.set_front(-std::f32::consts::FRAC_PI_2);
+        let cam = c.camera();
+        assert!(cam.eye.y < -4.9 && cam.eye.x.abs() < 1e-4, "{}", cam.eye);
+        // Its left is +X (looking along −Y), and the three-quarter view
+        // stays on its front.
+        c.set_view(View::Left);
+        assert!(c.camera().eye.x > 4.9, "{}", c.camera().eye);
+        c.set_view(View::ThreeQuarter);
+        assert!(c.camera().eye.y < -3.0, "{}", c.camera().eye);
     }
 
     #[test]

@@ -648,6 +648,10 @@ impl Viewer {
         lighting::update(self);
         let Some(g) = &mut self.gfx else { return };
         g.stage.step(&self.lib, dt);
+        // A model facing elsewhere: the camera keeps its angle to the front.
+        if g.stage.front != self.camera.front {
+            self.camera.set_front(g.stage.front);
+        }
         if self.frame_pending {
             self.frame_pending = false;
             if let Some((min, max)) = g.stage.bounds_with_particles() {

@@ -18,7 +18,8 @@ pub struct Shot {
     /// Steps per second while getting there.
     pub fps: f32,
     pub view: View,
-    /// Overrides the view's angles (degrees).
+    /// Overrides the view's angles (degrees; the yaw around Z from +X,
+    /// whichever way the model faces).
     pub yaw: Option<f32>,
     pub pitch: Option<f32>,
     /// Distance as a multiple of the framed distance (1: the bounds fill
@@ -45,7 +46,7 @@ impl Default for Shot {
 impl Shot {
     /// The camera for the stage's current bounds.
     pub fn camera(&self, stage: &Stage) -> OrbitCamera {
-        let mut cam = OrbitCamera::default();
+        let mut cam = OrbitCamera { front: stage.front, ..OrbitCamera::default() };
         cam.set_view(self.view);
         if let Some(y) = self.yaw {
             cam.yaw = y.to_radians();

@@ -334,8 +334,13 @@ A 3D view in the middle, the resource browser and outliner on the left, the
 inspector on the right, the animation timeline and log at the bottom, and the
 ASCII editor as a tab beside the view (docked with `egui_dock`, so it can sit
 side by side). The camera orbits, pans and zooms as in the toolset's model
-viewer, with framing, front/side/top views and a fly mode. Open by File ›
-Open, drag and drop, the command line, or the browser.
+viewer, with framing, front/side/top views and a fly mode. Views are taken
+from the model's front: creatures face +Y, but the game's placeables face
+−Y (armoires' doors, chairs' and thrones' seats, a standing mirror's glass;
+checked on 16 common placeables), though Neverblender's notes say all
+models face +Y, and use points do not tell (a standing mirror's is behind
+its glass). Tiles and effects keep +Y. `--yaw` stays absolute. Open by
+File › Open, drag and drop, the command line, or the browser.
 
 ## 5. Phases
 

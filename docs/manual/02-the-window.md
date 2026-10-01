@@ -6,7 +6,9 @@ Reset Layout** puts them back):
 - **3D View**: what is open. Drag with the left button to turn around it,
   with the right or middle button to move, and turn the wheel to come
   closer. Double-click (or F) frames it. **View** jumps to the front,
-  back, sides, top or bottom. **Grid** shows the ground (1 m squares,
+  back, sides, top or bottom of what is open: creatures face +Y, the
+  game's placeables −Y (an armoire's doors, a chair's seat), and the
+  camera keeps its angle to the front from one model to the next. **Grid** shows the ground (1 m squares,
   10 m across, a tile's size), **Axes** shows X (red), Y (green, where
   models face) and Z (blue, up). **Overlays** adds the walkmesh (faces by
   surface material: green where creatures walk, red where they do not),

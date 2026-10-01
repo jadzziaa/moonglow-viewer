@@ -43,6 +43,12 @@ pub struct Walkmesh {
     pub host: Option<ActorId>,
 }
 
+impl Walkmesh {
+    pub fn new(name: &str, w: mg_mdl::walkmesh::Walkmesh, host: Option<ActorId>) -> Walkmesh {
+        Walkmesh { name: name.to_string(), model: Arc::new(w.model), host }
+    }
+}
+
 /// The inverse bind pose per bone of a skin, as the renderer makes it.
 fn inverse_binds(model: &Model, rest: &[Mat4], node: usize, mesh: &Mesh) -> Vec<Mat4> {
     let MeshExtra::Skin(s) = &mesh.extra else { return Vec::new() };
@@ -227,7 +233,7 @@ pub fn ray_hit(meshes: &[Posed], origin: Vec3, dir: Vec3) -> Option<(usize, f32)
 pub fn walkmesh_for(
     lib: &mgv_library::Library,
     name: &str,
-) -> Option<(mg_core::ResType, Arc<Model>)> {
+) -> Option<(mg_core::ResType, mg_mdl::walkmesh::Walkmesh)> {
     use mg_core::ResType;
     use mg_mdl::walkmesh::{Walkmesh, WalkmeshKind};
     for (t, kind) in [
@@ -239,7 +245,7 @@ pub fn walkmesh_for(
         if let Some(data) = lib.get(&key)
             && let Ok(w) = Walkmesh::read(&data, kind)
         {
-            return Some((t, Arc::new(w.model)));
+            return Some((t, w));
         }
     }
     None

@@ -77,6 +77,9 @@ pub struct Stage {
     /// Walkmeshes shown with the models (overlays only; the renderer does
     /// not draw them).
     pub walkmeshes: Vec<posed::Walkmesh>,
+    /// Which way what is shown faces (yaw, radians around Z from +X), for
+    /// the camera's views ([`subject::front`]).
+    pub front: f32,
 }
 
 impl Stage {
@@ -90,6 +93,7 @@ impl Stage {
             model_lights: true,
             elapsed: 0.0,
             walkmeshes: Vec::new(),
+            front: subject::FACING_Y,
         }
     }
 
@@ -104,6 +108,7 @@ impl Stage {
         self.chunk_models.clear();
         self.walkmeshes.clear();
         self.elapsed = 0.0;
+        self.front = subject::FACING_Y;
     }
 
     pub fn actors(&self) -> &[Actor] {
