@@ -1,0 +1,7 @@
+/target
+*.swp
+__pycache__/
+
+packaging/flatpak/vendor/
+packaging/flatpak/vendor-config.toml
+packaging/flatpak/THIRD-PARTY-LICENSES.txt

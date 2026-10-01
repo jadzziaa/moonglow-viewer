@@ -1,0 +1,9 @@
+# Windows builds carry the C runtime inside the executables, so they run
+# without the Visual C++ Redistributable installed.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]
+
+# The toolset's crates come from its git repository; fetching through the
+# git command line uses its credential helpers (the repository is private).
+[net]
+git-fetch-with-cli = true

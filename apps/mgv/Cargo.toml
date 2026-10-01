@@ -1,0 +1,25 @@
+[package]
+name = "mgv"
+description = "Moonglow Viewer's command-line tool: render models headless, build galleries, decompile, compile and check models"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+glam.workspace = true
+mg-core.workspace = true
+mg-mdl.workspace = true
+mg-render.workspace = true
+mg-resman.workspace = true
+mgv-gallery.workspace = true
+mgv-library.workspace = true
+mgv-mdl.workspace = true
+mgv-stage.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

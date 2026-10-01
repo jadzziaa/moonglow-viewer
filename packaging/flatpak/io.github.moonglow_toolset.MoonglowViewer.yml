@@ -1,0 +1,55 @@
+# Flatpak build of Moonglow Viewer.
+#
+# Builds offline from vendored crates (`cargo vendor`, which also takes in
+# the Moonglow Toolset crates from their git repository); run
+#
+#   packaging/flatpak/build-flatpak.sh
+#
+# (packaging/README.md has the details.)
+id: io.github.moonglow_toolset.MoonglowViewer
+runtime: org.freedesktop.Platform
+runtime-version: "25.08"
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: moonglow-viewer
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Models opened from anywhere, galleries and decompiled files written
+  # where the user says.
+  - --filesystem=home
+  # The game where Steam installs it, natively or as a Flatpak. Installs in
+  # other Steam libraries need their folder added (flatpak override
+  # --filesystem=PATH:ro).
+  - --filesystem=~/.local/share/Steam/steamapps/common/Neverwinter Nights:ro
+  - --filesystem=~/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/Neverwinter Nights:ro
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/moonglow-viewer/cargo
+    CARGO_NET_OFFLINE: "true"
+modules:
+  - name: moonglow-viewer
+    buildsystem: simple
+    build-commands:
+      - mkdir -p cargo && cp packaging/flatpak/vendor-config.toml cargo/config.toml
+      - cargo --offline build --profile dist --locked -p moonglow-viewer -p mgv
+      - install -Dm755 target/dist/moonglow-viewer -t /app/bin/
+      - install -Dm755 target/dist/mgv -t /app/bin/
+      - install -Dm644 packaging/linux/io.github.moonglow_toolset.MoonglowViewer.desktop -t /app/share/applications/
+      - install -Dm644 packaging/linux/io.github.moonglow_toolset.MoonglowViewer.metainfo.xml -t /app/share/metainfo/
+      - install -Dm644 packaging/linux/moonglow-viewer-mime.xml /app/share/mime/packages/io.github.moonglow_toolset.MoonglowViewer.xml
+      - install -Dm644 packaging/icons/moonglow-viewer.svg /app/share/icons/hicolor/scalable/apps/io.github.moonglow_toolset.MoonglowViewer.svg
+      - for s in 16 24 32 48 64 128 256 512; do install -Dm644 packaging/icons/moonglow-viewer-$s.png /app/share/icons/hicolor/${s}x$s/apps/io.github.moonglow_toolset.MoonglowViewer.png; done
+      - install -Dm644 LICENSE -t /app/share/doc/moonglow-viewer/
+      - install -Dm644 packaging/flatpak/THIRD-PARTY-LICENSES.txt -t /app/share/doc/moonglow-viewer/
+      - cp -r docs/manual /app/share/doc/moonglow-viewer/manual
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - .git
+          - target

@@ -1,0 +1,22 @@
+[package]
+name = "moonglow-viewer"
+description = "Moonglow Viewer: a model viewer for Neverwinter Nights: Enhanced Edition"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eframe.workspace = true
+egui.workspace = true
+egui-wgpu.workspace = true
+mgv-ui.workspace = true
+rfd.workspace = true
+wgpu.workspace = true
+
+[build-dependencies]
+winresource = "0.1"
+
+[lints]
+workspace = true

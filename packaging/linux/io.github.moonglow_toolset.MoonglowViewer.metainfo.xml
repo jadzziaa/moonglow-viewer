@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.moonglow_toolset.MoonglowViewer</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>Moonglow Viewer</name>
+  <developer id="io.github.moonglow_toolset">
+    <name>The Moonglow Toolset contributors</name>
+  </developer>
+  <summary>View, decompile and edit Neverwinter Nights: Enhanced Edition models</summary>
+  <description>
+    <p>
+      Moonglow Viewer opens every visual file Neverwinter Nights: Enhanced
+      Edition uses (models, walkmeshes, textures, materials, blueprints) and
+      lights them as the game does, with emitters and visual effects
+      running. It decompiles and compiles models in one click, edits a
+      model's ASCII source with the view following every edit, and renders
+      stills, turntables and galleries from the command line.
+    </p>
+    <p>
+      Moonglow Viewer reads the game's data from your installation; most of
+      it needs a copy of Neverwinter Nights: Enhanced Edition.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.moonglow_toolset.MoonglowViewer.desktop</launchable>
+  <provides>
+    <binary>moonglow-viewer</binary>
+    <binary>mgv</binary>
+    <mediatype>model/x-nwn-mdl</mediatype>
+  </provides>
+  <categories>
+    <category>Graphics</category>
+    <category>3DGraphics</category>
+    <category>Viewer</category>
+  </categories>
+  <keywords>
+    <keyword>Neverwinter Nights</keyword>
+    <keyword>MDL</keyword>
+    <keyword>model viewer</keyword>
+  </keywords>
+  <requires>
+    <display_length compare="ge">1024</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-10-01">
+      <description>
+        <p>First release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

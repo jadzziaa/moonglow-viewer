@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Neverwinter Nights models, binary and ASCII (other formats use .mdl too,
+     hence the low weight). -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="model/x-nwn-mdl">
+    <comment>Neverwinter Nights model</comment>
+    <glob pattern="*.mdl" weight="40"/>
+    <magic priority="40">
+      <match type="string" value="newmodel" offset="0:2048"/>
+    </magic>
+  </mime-type>
+</mime-info>

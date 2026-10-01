@@ -1,0 +1,78 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "GPL-3.0-only"
+publish = false
+
+[workspace.dependencies]
+# Moonglow Viewer crates
+mgv-gallery = { path = "crates/mgv-gallery" }
+mgv-library = { path = "crates/mgv-library" }
+mgv-mdl = { path = "crates/mgv-mdl" }
+mgv-stage = { path = "crates/mgv-stage" }
+mgv-ui = { path = "crates/mgv-ui" }
+
+# Moonglow Toolset crates, pinned by Cargo.lock: move the pin with
+# `cargo update -p mg-core` (all of them move together).
+mg-2da = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-core = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-erf = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-gff = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-image = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-mdl = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-preview = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-render = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-resman = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-rules = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-set = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-testkit = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+mg-tlk = { git = "https://github.com/jadzziaa/moonglow-toolset", branch = "develop" }
+
+# Third party (the toolset's versions)
+anyhow = "1"
+bytemuck = { version = "1", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
+eframe = { version = "0.36", default-features = false, features = ["wgpu", "default_fonts", "links", "wayland", "x11", "persistence"] }
+egui = "0.36"
+egui-wgpu = "0.36"
+egui_commonmark = { version = "0.25", default-features = false, features = ["pulldown_cmark"] }
+egui_dock = "0.21"
+egui_kittest = "0.36"
+glam = { version = "0.30", features = ["bytemuck"] }
+notify = "8"
+png = "0.18"
+rayon = "1"
+rfd = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+wgpu = "30"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+undocumented_unsafe_blocks = "warn"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.test]
+opt-level = 1
+
+# The packages' build (packaging/): smaller and a little faster than
+# release. Function names stay, for crash reports' backtraces.
+[profile.dist]
+inherits = "release"
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"

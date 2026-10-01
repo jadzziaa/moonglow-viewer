@@ -1,0 +1,53 @@
+name: CI
+
+# Not for documentation alone, but for the manual (built into the app).
+on:
+  push:
+    paths: ["**", "!docs/**", "!**.md", "docs/manual/**"]
+  pull_request:
+    paths: ["**", "!docs/**", "!**.md", "docs/manual/**"]
+
+# A newer push to the same branch cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # The Moonglow Toolset crates come from git through the git command line
+  # (see the token step).
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Moonglow Toolset access
+        # While github.com/jadzziaa/moonglow-toolset is private, the
+        # TOOLSET_TOKEN secret (a read-only token for it) lets Cargo fetch
+        # its crates. Without the secret, the repository must be public.
+        shell: bash
+        env:
+          TOOLSET_TOKEN: ${{ secrets.TOOLSET_TOKEN }}
+        run: |
+          if [ -n "$TOOLSET_TOKEN" ]; then
+            git config --global url."https://x-access-token:${TOOLSET_TOKEN}@github.com/jadzziaa/moonglow-toolset".insteadOf \
+              "https://github.com/jadzziaa/moonglow-toolset"
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        # Corpus and GPU tests skip without a game install or a GPU.
+        run: cargo test --workspace

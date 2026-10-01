@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Moonglow Viewer
+GenericName=Model Viewer
+Comment=View, decompile and edit Neverwinter Nights: Enhanced Edition models
+Exec=moonglow-viewer %f
+Icon=io.github.moonglow_toolset.MoonglowViewer
+Terminal=false
+Categories=Graphics;3DGraphics;Viewer;Development;
+Keywords=Neverwinter Nights;NWN;MDL;model;viewer;texture;
+MimeType=model/x-nwn-mdl;
+StartupWMClass=io.github.moonglow_toolset.MoonglowViewer

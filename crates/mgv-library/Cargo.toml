@@ -1,0 +1,23 @@
+[package]
+name = "mgv-library"
+description = "Where the viewer's resources come from: the game's load order, extra folders and archives, the opened file's folder, editor buffers, and file watching"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+mg-core.workspace = true
+mg-mdl.workspace = true
+mg-resman.workspace = true
+mg-rules.workspace = true
+mg-tlk.workspace = true
+notify.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+mg-testkit.workspace = true
+
+[lints]
+workspace = true

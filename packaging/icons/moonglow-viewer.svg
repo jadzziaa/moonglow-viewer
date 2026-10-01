@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Moonglow Viewer's icon: a model's wireframe under a crescent moon. GPL-3.0. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#14233f"/>
+      <stop offset="1" stop-color="#1f4a5c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.4" stop-color="#bfe8ff" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#bfe8ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="moon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#cfeaff"/>
+    </linearGradient>
+    <mask id="crescent">
+      <rect width="512" height="512" fill="black"/>
+      <circle cx="176" cy="168" r="96" fill="white"/>
+      <circle cx="222" cy="134" r="84" fill="black"/>
+    </mask>
+    <clipPath id="tile">
+      <rect x="16" y="16" width="480" height="480" rx="96"/>
+    </clipPath>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="url(#sky)"/>
+  <g clip-path="url(#tile)">
+    <circle cx="176" cy="168" r="160" fill="url(#glow)"/>
+    <g fill="#e8f4ff">
+      <circle cx="420" cy="104" r="5"/>
+      <circle cx="372" cy="70" r="3"/>
+      <circle cx="96" cy="300" r="4"/>
+      <path d="M408 196 l7 18 l18 7 l-18 7 l-7 18 l-7 -18 l-18 -7 l18 -7 z"/>
+    </g>
+    <rect width="512" height="512" fill="url(#moon)" mask="url(#crescent)"/>
+    <!-- An isometric cube: three shaded faces and its edges. -->
+    <g stroke-linejoin="round">
+      <path d="M318 222 L420 281 L318 340 L216 281 Z" fill="#7fd6e8" fill-opacity="0.55"/>
+      <path d="M216 281 L318 340 L318 458 L216 399 Z" fill="#3f9fb8" fill-opacity="0.6"/>
+      <path d="M420 281 L318 340 L318 458 L420 399 Z" fill="#2b7590" fill-opacity="0.6"/>
+      <g fill="none" stroke="#e8f8ff" stroke-width="9">
+        <path d="M318 222 L420 281 L420 399 L318 458 L216 399 L216 281 Z"/>
+        <path d="M216 281 L318 340 L420 281 M318 340 L318 458"/>
+      </g>
+      <g fill="none" stroke="#e8f8ff" stroke-width="4" stroke-dasharray="10 10" stroke-opacity="0.6">
+        <path d="M318 222 L318 340 M216 281 L420 399 M420 281 L216 399"/>
+      </g>
+      <g fill="#ffffff">
+        <circle cx="318" cy="222" r="10"/>
+        <circle cx="420" cy="281" r="10"/>
+        <circle cx="216" cy="281" r="10"/>
+        <circle cx="318" cy="340" r="10"/>
+        <circle cx="420" cy="399" r="10"/>
+        <circle cx="216" cy="399" r="10"/>
+        <circle cx="318" cy="458" r="10"/>
+      </g>
+    </g>
+  </g>
+</svg>
