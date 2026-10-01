@@ -175,6 +175,9 @@ fn weld(m: &Mesh, anim: &AnimSets<'_>, use_normals: bool) -> Welded {
         if use_normals && let Some(nv) = m.normals.get(v) {
             key.extend(bits3(*nv));
         }
+        if use_normals && let Some(t) = m.tangents.get(v) {
+            key.extend(t.map(f32::to_bits));
+        }
         if let Some(c) = m.colors.get(v) {
             key.push(u32::from_le_bytes(*c));
         }
@@ -414,14 +417,9 @@ impl Writer {
                 }
                 self.line(&format!("  renderorder {}", int(e.render_order)));
                 // 0 (per second) or 1 (per metre moved, a trail); some
-                // EE-compiled models hold −1, which nwnmdlcomp refuses.
-                if e.spawntype > 1 {
-                    self.line(&format!("  # spawntype {} stored: written as 0", int(e.spawntype)));
-                }
-                self.line(&format!(
-                    "  spawntype {}",
-                    if e.spawntype > 1 { 0 } else { e.spawntype }
-                ));
+                // EE-compiled models hold −1 (which the nwnmdlcomp back end
+                // gives that compiler as 0, all it accepts besides 1).
+                self.line(&format!("  spawntype {}", int(e.spawntype)));
                 self.line(&format!("  update {}", word(&e.update)));
                 self.line(&format!("  render {}", word(&e.render)));
                 self.line(&format!("  blend {}", word(&e.blend)));
@@ -526,6 +524,13 @@ impl Writer {
                 self.line(&format!("  normals {}", w.verts.len()));
                 for &v in &w.verts {
                     self.line(&format!("    {}", vec(&m.normals[v])));
+                }
+            }
+            if self.opts.normals && m.tangents.len() >= m.vertices.len() {
+                self.line(&format!("  tangents {}", w.verts.len()));
+                for &v in &w.verts {
+                    let t = m.tangents[v];
+                    self.line(&format!("    {} {}", vec(&[t[0], t[1], t[2]]), num(t[3])));
                 }
             }
         }
@@ -692,17 +697,25 @@ impl Writer {
             } else {
                 &[controller_keyword(&c.name)]
             };
+            // Bézier keys: each key's value, then its two handles.
+            let bezier = c.is_bezier() && c.handles.len() == c.values.len() * 2;
+            let kind = if bezier { "bezierkey" } else { "key" };
             for keyword in keywords {
-                self.line(&format!("  {keyword}key {}", c.times.len()));
+                self.line(&format!("  {keyword}{kind} {}", c.times.len()));
                 for (i, t) in c.times.iter().enumerate() {
                     let mut line = format!("    {}", num(*t));
-                    if c.name == "orientation" && c.columns == 4 {
-                        let r = c.row(i);
-                        let q = [r[0], r[1], r[2], r[3]];
-                        let _ = write!(line, " {}", quat(q));
-                    } else {
-                        for v in c.row(i) {
-                            let _ = write!(line, " {}", num(*v));
+                    let mut parts = vec![c.row(i)];
+                    if bezier {
+                        let h = 2 * c.columns;
+                        parts.extend(c.handles[i * h..(i + 1) * h].chunks(c.columns));
+                    }
+                    for part in parts {
+                        if c.name == "orientation" && part.len() == 4 {
+                            let _ = write!(line, " {}", quat([part[0], part[1], part[2], part[3]]));
+                        } else {
+                            for v in part {
+                                let _ = write!(line, " {}", num(*v));
+                            }
                         }
                     }
                     self.line(&line);
@@ -762,6 +775,7 @@ fn word(s: &str) -> &str {
 /// `renderhint` values in the game's spelling.
 fn renderhint(h: &str) -> &str {
     match h {
+        "none" => "None",
         "normalandspecmapped" => "NormalAndSpecMapped",
         "normaltangents" => "NormalTangents",
         h => h,

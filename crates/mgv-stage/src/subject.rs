@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 use glam::Mat4;
 use mg_core::{ResRef, ResType};
-use mg_gff::{Gff, Struct, Value};
+use mg_gff::Gff;
+use mg_mdl::walkmesh::{Walkmesh, WalkmeshKind};
 use mg_mdl::{Classification, Model};
 use mg_resman::ResKey;
 use mgv_library::{Kind, Library, Opened};
@@ -83,8 +84,15 @@ pub fn show(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown, 
         }
         Kind::Walkmesh => {
             // On the model it belongs to (same name), else alone.
-            let walkmesh = Model::read(&opened.data)
-                .map_err(|e| StageError::Unreadable(format!("{}: {e}", opened.name())))?;
+            let ext = opened
+                .key
+                .and_then(|k| k.restype.extension())
+                .or_else(|| opened.path.as_deref()?.extension()?.to_str())
+                .unwrap_or("wok");
+            let kind = WalkmeshKind::from_extension(ext).unwrap_or(WalkmeshKind::Tile);
+            let walkmesh = Walkmesh::read(&opened.data, kind)
+                .map_err(|e| StageError::Unreadable(format!("{}: {e}", opened.name())))?
+                .model;
             let model = lib.model(&opened.name()).unwrap_or_else(|| {
                 // Nothing to draw: a bare root for the view to hold on to.
                 Arc::new(Model {
@@ -142,87 +150,16 @@ pub fn show(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown, 
     }
 }
 
-/// A creature by `appearance.2da` row, without a blueprint: bare (part-based
-/// bodies get body parts 1 and head `head`), default colours.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CreatureLook {
-    pub appearance: u16,
-    /// 0 male, 1 female.
-    pub gender: u8,
-    pub phenotype: u8,
-    pub head: u16,
-    /// PLT colour rows.
-    pub skin: u8,
-    pub hair: u8,
-    pub tattoo1: u8,
-    pub tattoo2: u8,
-    /// `wingmodel.2da` and `tailmodel.2da` rows (0: none).
-    pub wings: u32,
-    pub tail: u32,
-}
-
-impl CreatureLook {
-    pub fn new(appearance: u16) -> CreatureLook {
-        CreatureLook {
-            appearance,
-            gender: 0,
-            phenotype: 0,
-            head: 1,
-            skin: 0,
-            hair: 0,
-            tattoo1: 0,
-            tattoo2: 0,
-            wings: 0,
-            tail: 0,
-        }
-    }
-
-    /// The creature as a blueprint's fields.
-    pub fn utc(&self) -> Struct {
-        let mut utc = Struct::new(0);
-        utc.set("Appearance_Type", Value::Word(self.appearance));
-        utc.set("Gender", Value::Byte(self.gender));
-        utc.set("Phenotype", Value::Int(i32::from(self.phenotype)));
-        utc.set("Appearance_Head", Value::Byte(self.head.min(255) as u8));
-        for f in [
-            "BodyPart_RFoot",
-            "BodyPart_LFoot",
-            "BodyPart_RShin",
-            "BodyPart_LShin",
-            "BodyPart_LThigh",
-            "BodyPart_RThigh",
-            "BodyPart_Pelvis",
-            "BodyPart_Torso",
-            "BodyPart_Neck",
-            "BodyPart_RFArm",
-            "BodyPart_LFArm",
-            "BodyPart_RBicep",
-            "BodyPart_LBicep",
-            "BodyPart_RHand",
-            "BodyPart_LHand",
-        ] {
-            utc.set(f, Value::Byte(1));
-        }
-        for (f, v) in [
-            ("Color_Skin", self.skin),
-            ("Color_Hair", self.hair),
-            ("Color_Tattoo1", self.tattoo1),
-            ("Color_Tattoo2", self.tattoo2),
-        ] {
-            utc.set(f, Value::Byte(v));
-        }
-        utc.set("Wings_New", Value::Dword(self.wings));
-        utc.set("Tail_New", Value::Dword(self.tail));
-        utc
-    }
-}
+/// A creature by `appearance.2da` row, without a blueprint (the toolset's
+/// preview of one).
+pub use mg_preview::CreatureLook;
 
 /// What a creature of an appearance row looks like.
 pub fn creature_preview(
     lib: &Library,
     look: &CreatureLook,
 ) -> Result<mg_preview::Preview, StageError> {
-    mg_preview::creature(lib.game(), &look.utc(), &|_| None)
+    mg_preview::creature_look(lib.game(), look)
         .map_err(|e| StageError::Unreadable(format!("appearance {}: {e}", look.appearance)))
 }
 

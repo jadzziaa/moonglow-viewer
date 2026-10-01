@@ -70,3 +70,65 @@ fn the_games_compiler_takes_native_ascii() {
     }
     assert!(failed.is_empty(), "{failed:?}");
 }
+
+/// What the game's compiler keeps of EE fields reads back the same: an
+/// authored model with `materialname`, `renderhint`, tangents and a Bézier
+/// key, compiled in the game, then decompiled natively and compiled again.
+#[test]
+#[ignore]
+fn ee_fields_survive_the_games_compiler() {
+    let root = mg_testkit::corpus!();
+    let display = std::env::var("DISPLAY").unwrap_or_default();
+    assert!(!display.is_empty() && display != ":0", "an off-screen DISPLAY, never the desktop");
+    let toolset = std::env::var_os("MOONGLOW_TOOLSET").map(PathBuf::from).unwrap_or_else(|| {
+        PathBuf::from(std::env::var_os("HOME").unwrap()).join("Projects/moonglow-toolset")
+    });
+    let scratch =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/test-output/engine-ee");
+    let _ = std::fs::remove_dir_all(&scratch);
+    std::fs::create_dir_all(&scratch).unwrap();
+    let scratch = scratch.canonicalize().unwrap();
+    let mut compiler = EngineCompiler::new(&root, scratch.join("user"), None).unwrap();
+    compiler.launcher = Some((
+        toolset.join("tools/nwclient/run-client.sh"),
+        vec![scratch.to_string_lossy().into_owned()],
+    ));
+    compiler.timeout = std::time::Duration::from_secs(90);
+    let ascii = "newmodel mgvee\nsetsupermodel mgvee NULL\nclassification Character\n\
+        beginmodelgeom mgvee\nnode dummy mgvee\n  parent NULL\nendnode\n\
+        node trimesh quad\n  parent mgvee\n  bitmap mgvtex\n  texture1 mgvtex_n\n\
+          materialname mgvmat\n  renderhint NormalAndSpecMapped\n\
+          verts 4\n    0 0 0\n    1 0 0\n    1 1 0\n    0 1 0\n\
+          tverts 4\n    0 0 0\n    1 0 0\n    1 1 0\n    0 1 0\n\
+          tangents 4\n    0 1 0 -1\n    0 1 0 -1\n    0 1 0 -1\n    0 1 0 -1\n\
+          faces 2\n    0 1 2 1 0 1 2 1\n    0 2 3 1 0 2 3 1\nendnode\n\
+        node emitter em\n  parent mgvee\n  update Fountain\n  render Normal\n  blend Normal\n\
+          texture mgvtex\n  spawntype -1\nendnode\nendmodelgeom mgvee\n\
+        newanim go mgvee\n  length 2\n  transtime 0.25\n  animroot mgvee\n\
+          node dummy mgvee\n    parent NULL\n  endnode\n\
+          node trimesh quad\n    parent mgvee\n    positionbezierkey 2\n\
+            0 0 0 0 0.1 0.2 0.3 0.4 0.5 0.6\n      2 1 1 1 0.7 0.8 0.9 1.1 1.2 1.3\n    endlist\n\
+          endnode\ndoneanim go mgvee\ndonemodel mgvee\n";
+    let first = compiler.compile(ascii, "mgvee").expect("the game compiles it");
+    let check = |binary: &[u8], what: &str| {
+        let m = Model::read(binary).unwrap();
+        let quad = m.nodes[m.node("quad").unwrap()].mesh().unwrap();
+        assert_eq!(quad.material.as_deref(), Some("mgvmat"), "{what}");
+        assert_eq!(quad.renderhint.as_deref(), Some("normalandspecmapped"), "{what}");
+        assert_eq!(quad.tangents, [[0.0, 1.0, 0.0, -1.0]; 4], "{what}");
+        let key = &m.animation("go").unwrap().nodes[1].controllers[0];
+        assert!(key.is_bezier(), "{what}");
+        assert_eq!(key.handles[6..], [0.7, 0.8, 0.9, 1.1, 1.2, 1.3], "{what}");
+        let mg_mdl::NodeKind::Emitter(e) = &m.nodes[m.node("em").unwrap()].kind else {
+            panic!("{what}: emitter")
+        };
+        assert_eq!(e.spawntype, u32::MAX, "{what}");
+        m
+    };
+    let original = check(&first, "compiled");
+    // Decompiled natively and compiled again: the same model.
+    let again = compiler.compile(&mgv_mdl::decompile(&first).unwrap(), "mgvee").unwrap();
+    let back = check(&again, "decompiled and compiled again");
+    let d = common::compare(&original, &back, false);
+    assert!(d.is_empty(), "{d:?}");
+}

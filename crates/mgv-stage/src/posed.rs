@@ -222,18 +222,24 @@ pub fn ray_hit(meshes: &[Posed], origin: Vec3, dir: Vec3) -> Option<(usize, f32)
 }
 
 /// The walkmesh files that go with a model, by its name (tiles `.wok`,
-/// placeables `.pwk`, doors `.dwk`), first found.
+/// placeables `.pwk`, doors `.dwk`), first found: its nodes under the
+/// object's root.
 pub fn walkmesh_for(
     lib: &mgv_library::Library,
     name: &str,
 ) -> Option<(mg_core::ResType, Arc<Model>)> {
     use mg_core::ResType;
-    for t in [ResType::WOK, ResType::PWK, ResType::DWK] {
+    use mg_mdl::walkmesh::{Walkmesh, WalkmeshKind};
+    for (t, kind) in [
+        (ResType::WOK, WalkmeshKind::Tile),
+        (ResType::PWK, WalkmeshKind::Placeable),
+        (ResType::DWK, WalkmeshKind::Door),
+    ] {
         let Some(key) = mg_resman::ResKey::parse(name, t) else { continue };
         if let Some(data) = lib.get(&key)
-            && let Ok(m) = Model::read(&data)
+            && let Ok(w) = Walkmesh::read(&data, kind)
         {
-            return Some((t, Arc::new(m)));
+            return Some((t, Arc::new(w.model)));
         }
     }
     None

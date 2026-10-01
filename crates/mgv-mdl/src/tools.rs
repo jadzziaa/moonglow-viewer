@@ -4,7 +4,10 @@
 //!   program (Linux and Windows). It predates EE: it drops `normals` and
 //!   `tangents` (the game recomputes them), silently drops `materialname`
 //!   and `renderhint` (refused here, as Neverblender's `nwn_compile.py`
-//!   refuses them), and compiles at most 17 bones per skin (EE: 64).
+//!   refuses them), stores Bézier keys in a layout the game reads
+//!   differently (refused too), compiles at most 17 bones per skin (EE:
+//!   64), and takes only 0 and 1 for `spawntype` (EE-compiled models hold
+//!   −1, given to it as 0, which the game draws alike: not a trail).
 //! - **The game's own compiler**: `nwmain -userdirectory DIR compilemodel
 //!   NAME` compiles `DIR/development/NAME.mdl` into `DIR/modelcompiler/`.
 //!   It keeps EE features but needs an OpenGL context (on Linux it runs in
@@ -146,6 +149,7 @@ impl Nwnmdlcomp {
         search: &[PathBuf],
     ) -> Result<Vec<u8>, ToolError> {
         check_for_nwnmdlcomp(ascii)?;
+        let ascii = &spawntypes_for_nwnmdlcomp(ascii);
         let tmp = TempDir::new("nwnmdlcomp")?;
         let file = format!("{}.mdl", name.to_ascii_lowercase());
         std::fs::write(tmp.0.join(&file), ascii).map_err(|e| io(&tmp.0, e))?;
@@ -155,6 +159,32 @@ impl Nwnmdlcomp {
         std::fs::read(&out)
             .map_err(|_| ToolError::Failed { tool: "nwnmdlcomp", message: "no output".into() })
     }
+}
+
+/// `spawntype` values other than 0 and 1 (EE-compiled models hold −1) as 0,
+/// the others as written: nwnmdlcomp refuses them ("Attribute only allows a
+/// value of 0 or 1").
+fn spawntypes_for_nwnmdlcomp(ascii: &str) -> String {
+    let mut out = String::with_capacity(ascii.len());
+    for line in ascii.split_inclusive('\n') {
+        let mut words = line.split('#').next().unwrap_or("").split_whitespace();
+        let other = words.next().is_some_and(|w| w.eq_ignore_ascii_case("spawntype"))
+            && words.next().is_some_and(|v| v != "0" && v != "1");
+        if other {
+            let indent = &line[..line.len() - line.trim_start().len()];
+            let end = if line.ends_with("\r\n") {
+                "\r\n"
+            } else if line.ends_with('\n') {
+                "\n"
+            } else {
+                ""
+            };
+            out.push_str(&format!("{indent}spawntype 0{end}"));
+        } else {
+            out.push_str(line);
+        }
+    }
+    out
 }
 
 /// The supermodel an ASCII model names (`setsupermodel NAME SUPER`).
@@ -215,6 +245,18 @@ fn check_for_nwnmdlcomp(ascii: &str) -> Result<(), ToolError> {
             "uses {}, which nwnmdlcomp would drop; use the game's compiler, or name the \
              material with \"bitmap <mtr name>\" (the game loads an MTR of the texture's name)",
             used.join(" and ")
+        )));
+    }
+    // nwnmdlcomp counts a Bézier key's handles as columns; the game takes
+    // the column count as the value's (the toolset's notes_models.md B.8).
+    let bezier = ascii
+        .lines()
+        .filter_map(|l| l.split('#').next()?.split_whitespace().next())
+        .find(|w| w.to_ascii_lowercase().ends_with("bezierkey"));
+    if let Some(w) = bezier {
+        return Err(ToolError::Refused(format!(
+            "uses {w}: nwnmdlcomp stores Bézier keys in a layout the game reads differently; \
+             use the game's compiler"
         )));
     }
     if let Ok(model) = Model::read(ascii.as_bytes()) {
@@ -465,6 +507,17 @@ mod tests {
         assert!(matches!(check_for_nwnmdlcomp(ee), Err(ToolError::Refused(_))));
         let commented = "newmodel x\nnode trimesh m\n  # materialname foo\nendnode\n";
         assert!(check_for_nwnmdlcomp(commented).is_ok());
+        let bezier = "newanim a x\nnode dummy x\n  positionBezierKey 1\n    0 0 0 0 0 0 0 0 0 0\n";
+        assert!(matches!(check_for_nwnmdlcomp(bezier), Err(ToolError::Refused(_))));
+    }
+
+    #[test]
+    fn spawntypes_nwnmdlcomp_takes() {
+        let ascii = "node emitter e\r\n  spawntype -1\r\n  SpawnType 1\n  spawntype 0 # x\nendnode";
+        assert_eq!(
+            spawntypes_for_nwnmdlcomp(ascii),
+            "node emitter e\r\n  spawntype 0\r\n  SpawnType 1\n  spawntype 0 # x\nendnode"
+        );
     }
 
     #[test]

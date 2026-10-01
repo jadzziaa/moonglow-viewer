@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+bytemuck.workspace = true
 glam.workspace = true
 mg-2da.workspace = true
 mg-core.workspace = true

@@ -1,9 +1,13 @@
 //! The 3D view: the stage drawn into a texture the window shows, turned by
 //! dragging (left: orbit; right or middle: pan; wheel: zoom; double-click:
-//! frame), with the ground grid, axes and the selected node drawn over it.
+//! frame), with the ground grid, axes, overlays and the selected node drawn
+//! over it: in 3D, tested against the scene's depths (faint where hidden),
+//! the skeleton and the selection over everything, and names and node
+//! markers painted on top.
 
 use glam::{Mat4, Vec3, Vec4};
 use mgv_stage::camera::View;
+use mgv_stage::overlay::Overlay;
 use mgv_stage::{Stage, Viewport};
 
 use crate::{Action, Selection, Viewer};
@@ -59,21 +63,6 @@ impl Projector {
         let c = self.clip(p);
         (c.w > 1e-4).then(|| self.to_screen(c))
     }
-
-    /// A segment on screen, cut at the near plane.
-    pub(crate) fn segment(&self, a: Vec3, b: Vec3) -> Option<[egui::Pos2; 2]> {
-        let (mut ca, mut cb) = (self.clip(a), self.clip(b));
-        const NEAR: f32 = 1e-3;
-        if ca.w < NEAR && cb.w < NEAR {
-            return None;
-        }
-        if ca.w < NEAR {
-            ca = ca + (cb - ca) * ((NEAR - ca.w) / (cb.w - ca.w));
-        } else if cb.w < NEAR {
-            cb = cb + (ca - cb) * ((NEAR - cb.w) / (ca.w - cb.w));
-        }
-        Some([self.to_screen(ca), self.to_screen(cb)])
-    }
 }
 
 /// The 3D view tab.
@@ -92,6 +81,38 @@ pub fn ui(app: &mut Viewer, ui: &mut egui::Ui) {
     let scene = g.stage.scene(camera.view());
     let gpu = g.stage.gpu().clone();
     g.viewport.draw(&gpu, app.lib.resman(), &scene, &camera, px);
+    let mut overlay = Overlay::default();
+    if app.settings.show_grid {
+        grid(&mut overlay, app.camera.distance);
+    }
+    if app.settings.show_axes {
+        axes(&mut overlay, app.camera.distance * 0.15);
+    }
+    let walkmesh_doc =
+        app.doc.as_ref().is_some_and(|d| d.opened.kind == mgv_library::Kind::Walkmesh);
+    let o = app.settings.overlays;
+    if o.walkmesh || walkmesh_doc {
+        let materials = mgv_stage::posed::surface_materials(&app.lib);
+        let mut meshes = g.stage.posed_walkmeshes();
+        meshes.extend(g.stage.posed(true).into_iter().filter(|m| m.walkmesh));
+        walkmeshes(&mut overlay, &meshes, &materials);
+    }
+    if o.wireframe || o.normals {
+        let meshes = g.stage.posed(false);
+        if o.wireframe {
+            wireframe(&mut overlay, &meshes);
+        }
+        if o.normals {
+            normals(&mut overlay, &meshes, app.camera.distance * 0.02);
+        }
+    }
+    if o.skeleton {
+        skeleton(&mut overlay, &g.stage);
+    }
+    if let Some(sel) = app.selection {
+        selected_box(&mut overlay, &g.stage, sel);
+    }
+    g.viewport.draw_overlay(&gpu, &overlay, &camera);
     let targets = g.viewport.current().expect("drawn above");
     let id = match g.texture {
         Some((id, s)) if s == px => id,
@@ -122,32 +143,8 @@ pub fn ui(app: &mut Viewer, ui: &mut egui::Ui) {
     let rect = response.rect;
     let proj = Projector::new(&camera, rect);
     let painter = ui.painter_at(rect);
-    if app.settings.show_grid {
-        grid(&painter, &proj, app.camera.distance);
-    }
-    if app.settings.show_axes {
-        axes(&painter, &proj, app.camera.distance * 0.15);
-    }
-    let walkmesh_doc =
-        app.doc.as_ref().is_some_and(|d| d.opened.kind == mgv_library::Kind::Walkmesh);
-    let o = app.settings.overlays;
-    if o.walkmesh || walkmesh_doc {
-        let materials = mgv_stage::posed::surface_materials(&app.lib);
-        let mut meshes = g.stage.posed_walkmeshes();
-        meshes.extend(g.stage.posed(true).into_iter().filter(|m| m.walkmesh));
-        walkmeshes(&painter, &proj, &camera, &meshes, &materials);
-    }
-    if o.wireframe || o.normals {
-        let meshes = g.stage.posed(false);
-        if o.wireframe {
-            wireframe(&painter, &proj, &meshes);
-        }
-        if o.normals {
-            normals(&painter, &proj, &meshes, app.camera.distance * 0.02);
-        }
-    }
     if o.skeleton {
-        skeleton(&painter, &proj, &g.stage);
+        skeleton_markers(&painter, &proj, &g.stage);
     }
     if let Some(sel) = app.selection {
         selected(&painter, &proj, &g.stage, sel);
@@ -225,9 +222,15 @@ fn toolbar(app: &mut Viewer, ui: &mut egui::Ui) {
     });
 }
 
+/// A colour for the overlay (gamma space, alpha).
+fn rgba(c: egui::Color32) -> [f32; 4] {
+    let [r, g, b, a] = c.to_srgba_unmultiplied();
+    [r, g, b, a].map(|v| f32::from(v) / 255.0)
+}
+
 /// The ground grid: 1 m cells over a 10 m tile, finer or coarser with
 /// distance.
-fn grid(painter: &egui::Painter, proj: &Projector, distance: f32) {
+fn grid(overlay: &mut Overlay, distance: f32) {
     let step: f32 = if distance > 60.0 {
         10.0
     } else if distance < 2.0 {
@@ -237,32 +240,24 @@ fn grid(painter: &egui::Painter, proj: &Projector, distance: f32) {
     };
     let half = (step * 10.0).max(5.0);
     let n = (half / step).round() as i32;
-    let weak = egui::Color32::from_white_alpha(28);
-    let strong = egui::Color32::from_white_alpha(60);
+    let weak = rgba(egui::Color32::from_white_alpha(40));
+    let strong = rgba(egui::Color32::from_white_alpha(80));
     for i in -n..=n {
         let v = i as f32 * step;
         let color = if i == 0 { strong } else { weak };
-        for (a, b) in [
-            (Vec3::new(v, -half, 0.0), Vec3::new(v, half, 0.0)),
-            (Vec3::new(-half, v, 0.0), Vec3::new(half, v, 0.0)),
-        ] {
-            if let Some([p, q]) = proj.segment(a, b) {
-                painter.line_segment([p, q], egui::Stroke::new(1.0, color));
-            }
-        }
+        overlay.line(Vec3::new(v, -half, 0.0), Vec3::new(v, half, 0.0), color);
+        overlay.line(Vec3::new(-half, v, 0.0), Vec3::new(half, v, 0.0), color);
     }
 }
 
 /// X (red), Y (green, where models face) and Z (blue, up).
-fn axes(painter: &egui::Painter, proj: &Projector, len: f32) {
+fn axes(overlay: &mut Overlay, len: f32) {
     for (dir, color) in [
         (Vec3::X, egui::Color32::from_rgb(0xE5, 0x48, 0x4D)),
         (Vec3::Y, egui::Color32::from_rgb(0x4C, 0xC3, 0x5A)),
         (Vec3::Z, egui::Color32::from_rgb(0x4A, 0x8E, 0xE8)),
     ] {
-        if let Some([p, q]) = proj.segment(Vec3::ZERO, dir * len) {
-            painter.line_segment([p, q], egui::Stroke::new(2.0, color));
-        }
+        overlay.line(Vec3::ZERO, dir * len, rgba(color));
     }
 }
 
@@ -272,48 +267,51 @@ pub(crate) fn node_world(stage: &Stage, sel: Selection) -> Option<Mat4> {
     Some(a.world() * *a.pose().get(sel.node)?)
 }
 
-/// The selected node: its mesh's box, or a cross where it is, and its name.
+const SELECTED: egui::Color32 = egui::Color32::from_rgb(0xFF, 0xB0, 0x2E);
+
+/// The selected mesh's box, over everything.
+fn selected_box(overlay: &mut Overlay, stage: &Stage, sel: Selection) {
+    let Some(a) = stage.actor(sel.actor) else { return };
+    let Some(world) = node_world(stage, sel) else { return };
+    let Some(m) = a.model.meshes.iter().find(|m| m.node == sel.node) else { return };
+    let corner = |i: usize| {
+        world.transform_point3(Vec3::new(
+            if i & 1 == 0 { m.min.x } else { m.max.x },
+            if i & 2 == 0 { m.min.y } else { m.max.y },
+            if i & 4 == 0 { m.min.z } else { m.max.z },
+        ))
+    };
+    let edges = [
+        (0, 1),
+        (2, 3),
+        (4, 5),
+        (6, 7),
+        (0, 2),
+        (1, 3),
+        (4, 6),
+        (5, 7),
+        (0, 4),
+        (1, 5),
+        (2, 6),
+        (3, 7),
+    ];
+    for (i, j) in edges {
+        overlay.xray_line(corner(i), corner(j), rgba(SELECTED));
+    }
+}
+
+/// The selected node's name, and a cross where it is if it has no mesh.
 fn selected(painter: &egui::Painter, proj: &Projector, stage: &Stage, sel: Selection) {
     let Some(a) = stage.actor(sel.actor) else { return };
     let Some(world) = node_world(stage, sel) else { return };
-    let color = egui::Color32::from_rgb(0xFF, 0xB0, 0x2E);
+    let color = SELECTED;
     let stroke = egui::Stroke::new(1.5, color);
-    let mesh = a.model.meshes.iter().find(|m| m.node == sel.node);
-    match mesh {
-        Some(m) => {
-            let corner = |i: usize| {
-                world.transform_point3(Vec3::new(
-                    if i & 1 == 0 { m.min.x } else { m.max.x },
-                    if i & 2 == 0 { m.min.y } else { m.max.y },
-                    if i & 4 == 0 { m.min.z } else { m.max.z },
-                ))
-            };
-            for (i, j) in [
-                (0, 1),
-                (2, 3),
-                (4, 5),
-                (6, 7),
-                (0, 2),
-                (1, 3),
-                (4, 6),
-                (5, 7),
-                (0, 4),
-                (1, 5),
-                (2, 6),
-                (3, 7),
-            ] {
-                if let Some(s) = proj.segment(corner(i), corner(j)) {
-                    painter.line_segment(s, stroke);
-                }
-            }
-        }
-        None => {
-            if let Some(p) = proj.point(world.w_axis.truncate()) {
-                let r = 6.0;
-                painter.line_segment([p - egui::vec2(r, 0.0), p + egui::vec2(r, 0.0)], stroke);
-                painter.line_segment([p - egui::vec2(0.0, r), p + egui::vec2(0.0, r)], stroke);
-            }
-        }
+    if !a.model.meshes.iter().any(|m| m.node == sel.node)
+        && let Some(p) = proj.point(world.w_axis.truncate())
+    {
+        let r = 6.0;
+        painter.line_segment([p - egui::vec2(r, 0.0), p + egui::vec2(r, 0.0)], stroke);
+        painter.line_segment([p - egui::vec2(0.0, r), p + egui::vec2(0.0, r)], stroke);
     }
     let name = &a.model.model.nodes[sel.node].name;
     if let Some(p) = proj.point(world.w_axis.truncate()) {
@@ -382,42 +380,33 @@ fn surface_color(material: u32, materials: &[(String, bool)]) -> egui::Color32 {
     }
 }
 
-/// Walkmesh faces, far ones first so near ones lie over them.
+/// Walkmesh faces, filled by surface material, and their edges.
 fn walkmeshes(
-    painter: &egui::Painter,
-    proj: &Projector,
-    camera: &mg_render::Camera,
+    overlay: &mut Overlay,
     meshes: &[mgv_stage::posed::Posed],
     materials: &[(String, bool)],
 ) {
-    let mut faces: Vec<(f32, [egui::Pos2; 3], u32)> = Vec::new();
     for m in meshes {
         for (f, mat) in m.faces.iter().zip(&m.materials) {
             let [Some(a), Some(b), Some(c)] = f.map(|i| m.positions.get(i as usize).copied())
             else {
                 continue;
             };
-            let (Some(pa), Some(pb), Some(pc)) = (proj.point(a), proj.point(b), proj.point(c))
-            else {
-                continue;
-            };
-            let depth = ((a + b + c) / 3.0 - camera.eye).length();
-            faces.push((depth, [pa, pb, pc], *mat));
+            let fill = surface_color(*mat, materials);
+            overlay.triangle(a, b, c, rgba(fill));
+            let edge = rgba(fill.gamma_multiply(2.0).to_opaque().gamma_multiply(0.8));
+            for (p, q) in [(a, b), (b, c), (c, a)] {
+                overlay.line(p, q, edge);
+            }
         }
-    }
-    faces.sort_by(|x, y| y.0.total_cmp(&x.0));
-    for (_, pts, mat) in faces {
-        let fill = surface_color(mat, materials);
-        let edge = egui::Stroke::new(1.0, fill.gamma_multiply(2.0).to_opaque().gamma_multiply(0.8));
-        painter.add(egui::Shape::convex_polygon(pts.to_vec(), fill, edge));
     }
 }
 
-/// The most edges drawn as a wireframe (egui paints each as a quad).
-const MAX_EDGES: usize = 80_000;
+/// The most edges drawn as a wireframe.
+const MAX_EDGES: usize = 1_000_000;
 
-fn wireframe(painter: &egui::Painter, proj: &Projector, meshes: &[mgv_stage::posed::Posed]) {
-    let stroke = egui::Stroke::new(1.0, egui::Color32::from_white_alpha(70));
+fn wireframe(overlay: &mut Overlay, meshes: &[mgv_stage::posed::Posed]) {
+    let color = rgba(egui::Color32::from_white_alpha(90));
     let mut drawn = 0;
     for m in meshes {
         let mut edges = std::collections::HashSet::new();
@@ -434,49 +423,41 @@ fn wireframe(painter: &egui::Painter, proj: &Projector, meshes: &[mgv_stage::pos
             else {
                 continue;
             };
-            if let Some(s) = proj.segment(*p, *q) {
-                painter.line_segment(s, stroke);
-                drawn += 1;
-            }
+            overlay.line(*p, *q, color);
+            drawn += 1;
         }
     }
 }
 
-fn normals(
-    painter: &egui::Painter,
-    proj: &Projector,
-    meshes: &[mgv_stage::posed::Posed],
-    len: f32,
-) {
-    let stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(0x5B, 0xC8, 0xF0));
-    let mut drawn = 0;
+fn normals(overlay: &mut Overlay, meshes: &[mgv_stage::posed::Posed], len: f32) {
+    let color = rgba(egui::Color32::from_rgb(0x5B, 0xC8, 0xF0));
     for m in meshes {
         for (p, n) in m.positions.iter().zip(&m.normals) {
-            if drawn >= MAX_EDGES / 4 {
-                return;
-            }
-            if let Some(s) = proj.segment(*p, *p + *n * len) {
-                painter.line_segment(s, stroke);
-                drawn += 1;
+            overlay.line(*p, *p + *n * len, color);
+        }
+    }
+}
+
+/// Every node joined to its parent, over everything.
+fn skeleton(overlay: &mut Overlay, stage: &Stage) {
+    let color = rgba(egui::Color32::from_rgba_unmultiplied(255, 214, 102, 170));
+    for a in stage.actors().iter().filter(|a| a.visible) {
+        let at = |i: usize| a.pose().get(i).map(|m| (a.world() * *m).w_axis.truncate());
+        for (i, n) in a.model.model.nodes.iter().enumerate() {
+            if let (Some(p), Some(q)) = (at(i), n.parent.and_then(at)) {
+                overlay.xray_line(q, p, color);
             }
         }
     }
 }
 
-/// Every node joined to its parent; lights and emitters marked.
-fn skeleton(painter: &egui::Painter, proj: &Projector, stage: &Stage) {
-    let line = egui::Stroke::new(1.5, egui::Color32::from_rgba_unmultiplied(255, 214, 102, 170));
+/// The nodes as dots: lights, emitters, meshes and others in their colours.
+fn skeleton_markers(painter: &egui::Painter, proj: &Projector, stage: &Stage) {
     for a in stage.actors().iter().filter(|a| a.visible) {
-        let model = &a.model.model;
-        let at = |i: usize| a.pose().get(i).map(|m| (a.world() * *m).w_axis.truncate());
-        for (i, n) in model.nodes.iter().enumerate() {
-            let Some(p) = at(i) else { continue };
-            if let Some(parent) = n.parent
-                && let Some(q) = at(parent)
-                && let Some(s) = proj.segment(q, p)
-            {
-                painter.line_segment(s, line);
-            }
+        for (i, n) in a.model.model.nodes.iter().enumerate() {
+            let Some(p) = a.pose().get(i).map(|m| (a.world() * *m).w_axis.truncate()) else {
+                continue;
+            };
             let Some(sp) = proj.point(p) else { continue };
             let color = match n.kind {
                 mg_mdl::NodeKind::Light(_) => egui::Color32::from_rgb(255, 240, 150),
@@ -494,7 +475,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn projection_and_near_clipping() {
+    fn projection() {
         let cam = mg_render::Camera::orbit(Vec3::ZERO, 10.0, 0.0, 0.0);
         let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(200.0, 100.0));
         let p = Projector::new(&cam, rect);
@@ -502,7 +483,5 @@ mod tests {
         assert!((centre.x - 100.0).abs() < 1e-3 && (centre.y - 50.0).abs() < 1e-3);
         // Behind the camera (the eye is at +X 10).
         assert!(p.point(Vec3::new(20.0, 0.0, 0.0)).is_none());
-        // A segment through the eye's plane is cut, not dropped.
-        assert!(p.segment(Vec3::ZERO, Vec3::new(20.0, 1.0, 0.0)).is_some());
     }
 }

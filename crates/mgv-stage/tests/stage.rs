@@ -239,3 +239,103 @@ fn every_visual_effect_applies() {
     eprintln!("{} effects; models not found: {missing:?}", effects.len());
     assert!(missing.len() < 20, "{} missing", missing.len());
 }
+
+#[test]
+fn a_new_animation_blends_in_over_its_transtime() {
+    let Some(gpu) = gpu() else { return };
+    let dir = scratch("transition");
+    let two = MOVER.replace("donemodel mover", "")
+        + "newanim lift mover\n  length 1\n  transtime 0.5\n\
+  node dummy mover\n    parent NULL\n  endnode\n\
+  node trimesh tri\n    parent mover\n    positionkey\n      0 0 0 2\n      1 0 0 2\n    endlist\n  endnode\n\
+doneanim lift mover\ndonemodel mover\n";
+    std::fs::write(dir.join("mover.mdl"), two).unwrap();
+    let mut lib = Library::open(None).unwrap();
+    lib.open_file(&dir.join("mover.mdl")).unwrap();
+    let mut stage = Stage::new(gpu);
+    let id = stage.add_model(&lib, "mover", Mat4::IDENTITY).unwrap();
+    let tri = stage.actor(id).unwrap().model.model.node("tri").unwrap();
+    let height = |s: &Stage| s.actor(id).unwrap().pose()[tri].w_axis.z;
+    stage.actor_mut(id).unwrap().player.play(Some("rise"), PlayMode::Once);
+    stage.step(&lib, 0.0);
+    stage.step(&lib, 2.0);
+    assert!((height(&stage) - 1.0).abs() < 1e-3, "{}", height(&stage));
+    // From 1 m to lift's 2 m over half a second.
+    stage.actor_mut(id).unwrap().player.play(Some("lift"), PlayMode::Loop);
+    stage.step(&lib, 0.25);
+    assert!((height(&stage) - 1.5).abs() < 1e-3, "halfway: {}", height(&stage));
+    stage.step(&lib, 0.5);
+    assert!((height(&stage) - 2.0).abs() < 1e-3, "{}", height(&stage));
+    // No transtime: at once.
+    stage.actor_mut(id).unwrap().player.play(Some("rise"), PlayMode::Once);
+    stage.step(&lib, 0.25);
+    assert!((height(&stage) - 0.25).abs() < 1e-3, "{}", height(&stage));
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// Overlays are tested against the scene's depths: hidden parts faint,
+/// others full, x-ray ones over everything.
+#[test]
+fn overlays_show_faintly_where_the_scene_hides_them() {
+    use mgv_stage::overlay::{HIDDEN_ALPHA, Overlay};
+    let Some(gpu) = gpu() else { return };
+    let dir = scratch("overlay");
+    std::fs::write(dir.join("mover.mdl"), MOVER).unwrap();
+    let mut lib = Library::open(None).unwrap();
+    lib.open_file(&dir.join("mover.mdl")).unwrap();
+    let mut stage = Stage::new(gpu.clone());
+    stage.add_model(&lib, "mover", Mat4::IDENTITY).unwrap();
+    stage.settle(&lib, 0.0, 30.0);
+    stage.lighting.background = [0.0; 3];
+    let mut cam = OrbitCamera::default();
+    cam.set_view(View::Top);
+    cam.frame(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(2.0, 2.0, 0.0));
+    let camera = cam.camera();
+    let mut vp = Viewport::new(&gpu);
+    let size = 128;
+    vp.draw(&gpu, lib.resman(), &stage.scene(camera.view()), &camera, (size, size));
+    // A green band under the triangle (z −0.5) across it, and a red one
+    // over everything at y 0.6.
+    let band = |o: &mut Overlay, y: f32, z: f32, color: [f32; 4], xray: bool| {
+        let (a, b, c, d) = (
+            Vec3::new(-1.0, y - 0.05, z),
+            Vec3::new(2.0, y - 0.05, z),
+            Vec3::new(2.0, y + 0.05, z),
+            Vec3::new(-1.0, y + 0.05, z),
+        );
+        if xray {
+            for k in -4..=4 {
+                let dy = k as f32 * 0.01;
+                o.xray_line(a + Vec3::Y * (0.05 + dy), b + Vec3::Y * (0.05 + dy), color);
+            }
+        } else {
+            o.triangle(a, b, c, color);
+            o.triangle(a, c, d, color);
+        }
+    };
+    let mut overlay = Overlay::default();
+    band(&mut overlay, 0.2, -0.5, [0.0, 1.0, 0.0, 1.0], false);
+    band(&mut overlay, 0.6, 0.5, [1.0, 0.0, 0.0, 1.0], true);
+    vp.draw_overlay(&gpu, &overlay, &camera);
+    let img = gpu.read_rgba(&vp.current().unwrap().color);
+    let view_proj = camera.projection(1.0) * camera.view();
+    let px = |p: Vec3| {
+        let n = view_proj.project_point3(p);
+        let (x, y) =
+            (((n.x + 1.0) * 0.5 * size as f32) as u32, ((1.0 - n.y) * 0.5 * size as f32) as u32);
+        let i = ((y * size + x) * 4) as usize;
+        [img.data[i], img.data[i + 1], img.data[i + 2]]
+    };
+    let outside = px(Vec3::new(-0.5, 0.2, -0.5));
+    let under = px(Vec3::new(0.3, 0.2, -0.5));
+    let tri = px(Vec3::new(0.3, 0.4, 0.0));
+    eprintln!("band outside {outside:?}, under the triangle {under:?}, triangle {tri:?}");
+    assert_eq!(outside, [0, 255, 0], "full where nothing hides it");
+    let faint = |c: u8, over: u8| {
+        (f32::from(over) * (1.0 - HIDDEN_ALPHA) + f32::from(c) * HIDDEN_ALPHA).round()
+    };
+    assert!((f32::from(under[1]) - faint(255, tri[1])).abs() <= 2.0, "faint under the triangle");
+    assert!((f32::from(under[0]) - faint(0, tri[0])).abs() <= 2.0);
+    assert_eq!(px(Vec3::new(0.2, 0.6, 0.0))[0], 255, "x-ray over the triangle");
+    std::fs::remove_dir_all(&dir).unwrap();
+}

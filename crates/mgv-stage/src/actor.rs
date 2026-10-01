@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use glam::{Mat4, Vec3};
 use mg_mdl::{Animation, Model};
+use mg_render::anim::Local;
 use mg_render::dangly::Dangly;
 use mg_render::particles::Particles;
 use mg_render::{GpuModel, MeshState, PointLight, anim};
@@ -137,6 +138,10 @@ pub struct Actor {
     pub(crate) dangly: Dangly,
     // What the last step computed.
     pub(crate) world: Mat4,
+    /// The nodes' transforms relative to their parents, for transitions.
+    pub(crate) locals: Vec<Local>,
+    /// A transition into the current animation.
+    pub(crate) transition: Option<Transition>,
     pub(crate) pose: Arc<Vec<Mat4>>,
     pub(crate) state: Arc<MeshState>,
     pub(crate) lights: Vec<PointLight>,
@@ -145,6 +150,14 @@ pub struct Actor {
     /// Lights the actor carries besides its model's (a placeable
     /// blueprint's light): offset from its origin, colour, radius.
     pub carried: Vec<(Vec3, Vec3, f32)>,
+}
+
+/// A transition from a pose into an animation over its `transtime`.
+#[derive(Debug, Clone)]
+pub(crate) struct Transition {
+    pub(crate) from: Vec<Local>,
+    pub(crate) elapsed: f32,
+    pub(crate) length: f32,
 }
 
 /// The animation an actor's last step used: its name, the model that owns
@@ -185,6 +198,8 @@ impl Actor {
             particles,
             dangly,
             world: Mat4::IDENTITY,
+            locals: Vec::new(),
+            transition: None,
             pose,
             state,
             lights: Vec::new(),
@@ -200,6 +215,8 @@ impl Actor {
         self.dangly = Dangly::new(&model);
         self.pose = Arc::new(model.rest.clone());
         self.state = Arc::new(MeshState::new(&model));
+        self.locals.clear();
+        self.transition = None;
         self.model = model;
         self.animations = animations;
     }
@@ -256,20 +273,48 @@ impl Actor {
                     p.mode = mode;
                     continue;
                 }
-                // Hold the last frame (the renderer wraps time at the
-                // length).
-                return Some((name, (a.length - 1e-4).max(0.0)));
+                // Hold the last frame (times within the animation, its
+                // length included, are taken as they are).
+                return Some((name, a.length));
             }
             return Some((name, p.time));
         }
     }
 
-    /// The model-space pose and mesh state for an animation at a time.
-    pub(crate) fn sample(&self, anim: Option<&Animation>, t: f32) -> (Vec<Mat4>, MeshState) {
+    /// The nodes' transforms (relative to their parents) and the mesh state
+    /// for an animation at a time.
+    pub(crate) fn sample(&self, anim: Option<&Animation>, t: f32) -> (Vec<Local>, MeshState) {
         match anim {
-            Some(a) => (anim::pose(&self.model.model, a, t), anim::mesh_state(&self.model, a, t)),
-            None => (self.model.rest.clone(), MeshState::new(&self.model)),
+            Some(a) => (anim::locals(&self.model.model, a, t), anim::mesh_state(&self.model, a, t)),
+            None => (anim::rest_locals(&self.model.model), MeshState::new(&self.model)),
         }
+    }
+
+    /// The pose for this step: `locals`, or on the way to them from the
+    /// last pose when the animation changed (over the new one's
+    /// `transtime`, as the game blends).
+    pub(crate) fn transition(
+        &mut self,
+        changed_to: Option<Option<&Animation>>,
+        mut locals: Vec<Local>,
+        dt: f32,
+    ) -> Vec<Mat4> {
+        if let Some(anim) = changed_to {
+            let length = anim.map_or(0.0, |a| a.transtime);
+            self.transition = (length > 0.0 && self.locals.len() == locals.len())
+                .then(|| Transition { from: self.locals.clone(), elapsed: 0.0, length });
+        }
+        if let Some(t) = &mut self.transition {
+            t.elapsed += dt;
+            if t.elapsed >= t.length {
+                self.transition = None;
+            } else {
+                locals = anim::blend(&t.from, &locals, t.elapsed / t.length);
+            }
+        }
+        let pose = anim::compose(&self.model.model, &locals);
+        self.locals = locals;
+        pose
     }
 
     /// Model bounds in world space for the last step's pose (meshes' boxes

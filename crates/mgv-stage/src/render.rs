@@ -7,6 +7,8 @@ use std::path::Path;
 use mg_image::Rgba;
 use mg_render::{Assets, Camera, Gpu, Renderer, Scene, Targets};
 
+use crate::overlay::{Overlay, OverlayPass};
+
 /// The colour format the viewer draws in. The renderer writes gamma-space
 /// values itself, so the target is not sRGB.
 pub const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
@@ -18,12 +20,17 @@ pub const SAMPLES: u32 = 4;
 #[derive(Debug)]
 pub struct Viewport {
     renderer: Renderer,
+    overlays: OverlayPass,
     targets: Option<Targets>,
 }
 
 impl Viewport {
     pub fn new(gpu: &Gpu) -> Viewport {
-        Viewport { renderer: Renderer::new(gpu, FORMAT, SAMPLES), targets: None }
+        Viewport {
+            renderer: Renderer::new(gpu, FORMAT, SAMPLES),
+            overlays: OverlayPass::new(gpu),
+            targets: None,
+        }
     }
 
     pub fn renderer(&mut self) -> &mut Renderer {
@@ -72,6 +79,14 @@ impl Viewport {
             t.size,
         );
         t
+    }
+
+    /// Draws overlays over the last frame (drawn with `camera`), tested
+    /// against its depths.
+    pub fn draw_overlay(&self, gpu: &Gpu, overlay: &Overlay, camera: &Camera) {
+        if let Some(t) = &self.targets {
+            self.overlays.draw(gpu, overlay, camera, t);
+        }
     }
 
     /// Draws a scene and reads it back (rows top first).

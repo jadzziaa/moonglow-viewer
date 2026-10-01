@@ -50,8 +50,10 @@ pub fn same_rotation(a: Quat, b: Quat, eps: f32) -> bool {
 /// Header integers written signed (−1 in EE-compiled models): `mg-mdl`'s
 /// ASCII reader reads −1 as 0 (a saturating conversion; see the plan's
 /// proposed toolset changes).
+/// A header integer: as stored, or 0 for a negative one (nwnmdlcomp takes
+/// only 0 and 1 for `spawntype`, so it gets 0 for −1).
 fn same_int(bin: u32, asc: u32) -> bool {
-    (bin as i32).max(0) as u32 == asc
+    bin == asc || (bin as i32) < 0 && asc == 0
 }
 
 fn same_word(a: &str, b: &str) -> bool {

@@ -8,8 +8,11 @@ Reset Layout** puts them back):
   closer. Double-click (or F) frames it. **View** jumps to the front,
   back, sides, top or bottom. **Grid** shows the ground (1 m squares,
   10 m across, a tile's size), **Axes** shows X (red), Y (green, where
-  models face) and Z (blue, up). Click a part of the model to select its
-  node.
+  models face) and Z (blue, up). **Overlays** adds the walkmesh (faces by
+  surface material: green where creatures walk, red where they do not),
+  the wireframe, the normals and the node tree. What the model hides shows
+  faintly; the node tree and the selected node's box show over everything.
+  Click a part of the model to select its node.
 - **ASCII**: the model's text (see [Editing models](03-editing-models.md)).
 - **Texture**: textures you open.
 - **Resources**: the game's resources (see [Getting started](01-getting-started.md)).

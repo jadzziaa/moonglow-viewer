@@ -673,8 +673,30 @@ impl Viewer {
         }
         let Some(a) = g.stage.actor(sel.actor) else { return };
         let name = &a.model.model.nodes[sel.node].name;
-        if let Some(n) = buffer.outline.find_node(name, None) {
+        if let Some(line) = buffer.node_line(sel.node, name) {
+            self.jump_to_line = Some(line);
+        } else if let Some(n) = buffer.outline.find_node(name, None) {
             self.jump_to_line = Some(n.lines.start);
+        }
+    }
+
+    /// Selects the base model's node `index` (from the editor: the text's
+    /// node there), when the model on the stage has it by that name; else
+    /// the node of that name.
+    pub fn select_node_at(&mut self, index: usize, name: &str) {
+        let Some(base) = self.doc.as_ref().and_then(|d| d.shown.as_ref()).map(|s| s.base) else {
+            return;
+        };
+        let same = self
+            .gfx
+            .as_ref()
+            .and_then(|g| g.stage.actor(base))
+            .and_then(|a| a.model.model.nodes.get(index))
+            .is_some_and(|n| n.name.eq_ignore_ascii_case(name));
+        if same {
+            self.select(Some(Selection { actor: base, node: index }), true);
+        } else {
+            self.select_node_named(name);
         }
     }
 

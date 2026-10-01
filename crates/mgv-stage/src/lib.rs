@@ -17,6 +17,7 @@ pub mod actor;
 pub mod camera;
 pub mod headless;
 pub mod lighting;
+pub mod overlay;
 pub mod posed;
 pub mod render;
 pub mod subject;
@@ -249,7 +250,10 @@ impl Stage {
             };
             let anim = current.as_ref().and_then(Current::animation);
             let t = current.as_ref().map_or(0.0, |c| c.time);
-            let (pose, mut state) = actor.sample(anim, t);
+            let (locals, mut state) = actor.sample(anim, t);
+            let name = |c: &Option<Current>| c.as_ref().map(|c| c.name.to_ascii_lowercase());
+            let changed = (name(&current) != name(&actor.current)).then_some(anim);
+            let pose = actor.transition(changed, locals, step_dt);
 
             let world = match (actor.placement, parent) {
                 (Placement::World(m), _) => m,

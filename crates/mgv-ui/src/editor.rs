@@ -37,6 +37,9 @@ pub struct Buffer {
     /// The file's line ends were CRLF.
     crlf: bool,
     pub outline: Outline,
+    /// Where the reader put each node: its lines (the toolset's source
+    /// map) and its name, by its index in the model read from the text.
+    pub source: Option<(mg_mdl::ascii::SourceMap, Vec<String>)>,
     pub diagnostics: Vec<Diagnostic>,
     /// When the text last changed (window clock), until it is applied.
     edited_at: Option<f64>,
@@ -65,6 +68,7 @@ impl Buffer {
             new,
             crlf,
             outline: Outline::default(),
+            source: None,
             diagnostics: Vec::new(),
             edited_at: None,
             delay: 0.15,
@@ -90,11 +94,30 @@ impl Buffer {
         self.new || self.editor.revision != self.saved_revision
     }
 
-    /// Recomputes the outline and diagnostics.
+    /// Recomputes the outline, the source map and the diagnostics.
     pub fn refresh_analysis(&mut self) {
         let text = self.text();
         self.outline = mgv_mdl::outline(&text);
+        self.source = mg_mdl::ascii::read_mapped(text.as_bytes())
+            .ok()
+            .map(|(m, map)| (map, m.nodes.into_iter().map(|n| n.name).collect()));
         self.diagnostics = mgv_mdl::lint::check(&text);
+    }
+
+    /// The model node whose block holds a line (0-based), and its name.
+    pub fn node_at(&self, line: usize) -> Option<(usize, &str)> {
+        let (map, names) = self.source.as_ref()?;
+        let i = map.node_at(line + 1)?;
+        Some((i, names.get(i)?.as_str()))
+    }
+
+    /// The first line (0-based) of the block of model node `index`, if it
+    /// is named `name` (the text read as the model on the stage was).
+    pub fn node_line(&self, index: usize, name: &str) -> Option<usize> {
+        let (map, names) = self.source.as_ref()?;
+        let span = map.nodes.get(index).filter(|s| s.start > 0)?;
+        names.get(index).filter(|n| n.eq_ignore_ascii_case(name))?;
+        Some(span.start - 1)
     }
 
     /// Notes an edit at `now`.
@@ -360,11 +383,14 @@ pub fn ui(app: &mut Viewer, ui: &mut Ui) {
     let cursor_line = Some(buffer.editor.cursor.line);
     if cursor_line != buffer.cursor_line {
         buffer.cursor_line = cursor_line;
-        if let Some(line) = cursor_line
-            && let Some(n) = buffer.outline.node_at(line).filter(|n| n.animation.is_none())
-        {
-            let name = n.name.clone();
-            app.select_node_named(&name);
+        if let Some(line) = cursor_line {
+            if let Some((index, name)) = buffer.node_at(line) {
+                let name = name.to_string();
+                app.select_node_at(index, &name);
+            } else if let Some(n) = buffer.outline.node_at(line).filter(|n| n.animation.is_none()) {
+                let name = n.name.clone();
+                app.select_node_named(&name);
+            }
         }
     }
 }
@@ -372,6 +398,22 @@ pub fn ui(app: &mut Viewer, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Nodes of the same name: the cursor's block is the node of its
+    /// place in the model, not the first of the name.
+    #[test]
+    fn the_source_map_tells_nodes_of_one_name_apart() {
+        let text = "newmodel m\nbeginmodelgeom m\nnode dummy m\n  parent NULL\nendnode\n\
+                    node dummy a\n  parent m\nendnode\nnode dummy dup\n  parent a\nendnode\n\
+                    node dummy dup\n  parent m\nendnode\nendmodelgeom m\n";
+        let b = Buffer::new(text.into(), None, None, false);
+        // Pre-order: m, a, dup (under a), dup (under m).
+        assert_eq!(b.node_at(9), Some((2, "dup")));
+        assert_eq!(b.node_at(12), Some((3, "dup")));
+        assert_eq!(b.node_line(3, "dup"), Some(11));
+        assert_eq!(b.node_line(3, "other"), None, "a model read from other text");
+        assert_eq!(b.node_at(0), None);
+    }
 
     #[test]
     fn highlighting_keeps_every_character() {

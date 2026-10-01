@@ -313,21 +313,18 @@ impl Library {
         &self.archives
     }
 
-    /// Re-reads the folder layers' listings (files added or removed).
+    /// Re-reads the folder layers' listings (files added or removed) and
+    /// the archives (written again), in place: each layer keeps its place
+    /// among its equals. An archive that does not read keeps what it had.
     pub fn rescan(&mut self) {
-        if let Some(f) = self.opened_folder.clone() {
-            self.game.resman.remove(OPENED_LABEL);
-            self.game.resman.add(
-                OPENED,
-                OPENED_LABEL,
-                LayerClass::Directory,
-                DirContainer::open(&f),
-            );
+        let mut labels: Vec<String> = Vec::new();
+        if self.opened_folder.is_some() {
+            labels.push(OPENED_LABEL.into());
         }
-        for f in self.folders.clone() {
-            let label = folder_label(&f);
-            self.game.resman.remove(&label);
-            self.game.resman.add(FOLDERS, label, LayerClass::Directory, DirContainer::open(&f));
+        labels.extend(self.folders.iter().map(|f| folder_label(f)));
+        labels.extend(self.archives.iter().map(|a| archive_label(a)));
+        for label in labels {
+            let _ = self.game.resman.rescan(&label);
         }
         self.changed();
     }
@@ -338,12 +335,11 @@ impl Library {
             Some(d) => self.buffers.insert(key, d),
             None => self.buffers.remove(&key),
         };
-        self.game.resman.remove(BUFFERS_LABEL);
-        if !self.buffers.is_empty() {
-            let mut mem = MemContainer::new();
-            for (k, d) in &self.buffers {
-                mem.insert(*k, d.clone());
-            }
+        let mut mem = MemContainer::new();
+        for (k, d) in &self.buffers {
+            mem.insert(*k, d.clone());
+        }
+        if self.game.resman.replace(BUFFERS_LABEL, mem.clone()).is_none() {
             self.game.resman.add(BUFFERS, BUFFERS_LABEL, LayerClass::Directory, mem);
         }
         self.changed();
@@ -431,6 +427,23 @@ mod tests {
         assert!(lib.model("box").unwrap().node("plane").is_some());
         lib.remove_folder(&b);
         assert_eq!(lib.folders().len(), 0);
+        std::fs::remove_dir_all(&a).unwrap();
+        std::fs::remove_dir_all(&b).unwrap();
+    }
+
+    /// Added folders keep their order through a rescan (the first added
+    /// wins).
+    #[test]
+    fn rescans_keep_the_folders_order() {
+        let (a, b) = (scratch("order-a"), scratch("order-b"));
+        std::fs::write(a.join("box.mdl"), CUBE).unwrap();
+        std::fs::write(b.join("box.mdl"), CUBE.replace("plane", "other")).unwrap();
+        let mut lib = Library::open(None).unwrap();
+        lib.add_folder(&a);
+        lib.add_folder(&b);
+        assert!(lib.model("box").unwrap().node("plane").is_some());
+        lib.rescan();
+        assert!(lib.model("box").unwrap().node("plane").is_some(), "still the first folder's");
         std::fs::remove_dir_all(&a).unwrap();
         std::fs::remove_dir_all(&b).unwrap();
     }
