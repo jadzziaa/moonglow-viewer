@@ -125,7 +125,7 @@ pub(crate) fn ui(app: &mut Viewer, ui: &mut Ui) {
             egui::Grid::new("custom-light").num_columns(2).show(ui, |ui| {
                 rgb(ui, "Ambient", &mut c.ambient);
                 rgb(ui, "Diffuse", &mut c.diffuse);
-                rgb(ui, "Fog colour", &mut c.fog_color);
+                rgb(ui, "Fog color", &mut c.fog_color);
                 ui.label("Fog amount");
                 ui.add(egui::Slider::new(&mut c.fog_amount, 0..=15));
                 ui.end_row();

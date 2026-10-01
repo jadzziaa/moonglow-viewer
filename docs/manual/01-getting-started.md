@@ -21,7 +21,7 @@ OpenGL 3.3.
   walkmeshes, materials) and double-click.
 - **Creatures** in Resources lists `appearance.2da`: double-click a row to
   see that creature bare; the Inspector then changes its gender,
-  phenotype, head, colours, wings and tail.
+  phenotype, head, body parts, colors, wings and tail.
 
 A file opened from disk brings its folder along: textures, materials and
 supermodels beside it win over the game's, as an override folder would.
@@ -34,7 +34,7 @@ folders and archives above the game; the viewer remembers them.
 | --- | --- |
 | `.mdl` (compiled or ASCII) | The model, playing what the game plays for its kind (a creature's pause, a placeable's default, a visual effect's impact then duration) |
 | `.wok`, `.pwk`, `.dwk` | The walkmesh |
-| `.tga`, `.dds`, `.plt` | The texture, with its mip levels, channels and TXI; a PLT with its layers coloured |
+| `.tga`, `.dds`, `.plt` | The texture, with its mip levels, channels and TXI; a PLT with its layers colored |
 | `.utc`, `.uti`, `.utp`, `.utd` | The creature, item, placeable or door, assembled as the game shows it |
 
 Nothing you open is changed on disk unless you save it.

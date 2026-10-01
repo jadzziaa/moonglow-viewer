@@ -6,12 +6,12 @@ The view lights models as the game's enhanced lighting does: the sun or
 moon, the model's own lights (switch them off under **Lighting**), tile
 lights, fog, environment maps and EE materials. **Lighting** chooses:
 
-- **Studio**: a neutral daylight on a plain background (pick its colour in
+- **Studio**: a neutral daylight on a plain background (pick its color in
   the 3D view's toolbar). The default.
 - **An area preset**: the area wizard's lighting schemes
   (`environment.2da`), by day or by night, with or without fog. Tiles'
-  main lights take the scheme's colours.
-- **Custom area**: the sun or moon's ambient and diffuse colours, the fog
+  main lights take the scheme's colors.
+- **Custom area**: the sun or moon's ambient and diffuse colors, the fog
   and the tile lights, as an area's properties hold them.
 
 ## Visual effects

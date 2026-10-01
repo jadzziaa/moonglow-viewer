@@ -62,7 +62,7 @@ reads back the same; every visual effect applies); differential tests
 against nwnmdlcomp; offscreen renders; and the window's flows driven
 through `egui_kittest`.
 
-## Licence
+## License
 
 Moonglow Viewer is free software under the
 [GNU General Public License, version 3](LICENSE). Game assets, including

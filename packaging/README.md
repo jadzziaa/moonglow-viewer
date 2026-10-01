@@ -3,7 +3,7 @@
 Moonglow Viewer ships as an AppImage and a Flatpak for Linux, an installer
 for Windows, and a universal app in a disk image for macOS. Each package
 holds both programs: `moonglow-viewer` (the window) and `mgv` (the command
-line), with the licence, the third-party licence notices
+line), with the license, the third-party license notices
 (`third_party_licenses.py`) and the user manual.
 
 | Package | Script | Where it runs | Output (`target/dist/`) |

@@ -8,7 +8,7 @@ camera, the animation and the selection; the file on disk is only written
 when you save (Ctrl+S). The editor stays quick on the largest models (the
 game's `a_ba` animation library is 90,000 lines decompiled).
 
-- Keywords, node types, numbers and comments are coloured.
+- Keywords, node types, numbers and comments are colored.
 - **Problems** are listed under the text and marked beside their lines:
   keywords the game does not know (it skips them), list counts that do not
   match, faces naming vertices that do not exist, parents that are not

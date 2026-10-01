@@ -7,8 +7,8 @@ $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"' | Select
 
 cargo build --profile dist --locked -p moonglow-viewer -p mgv
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-python packaging\third_party_licenses.py --target x86_64-pc-windows-msvc |
-    Out-File -Encoding utf8 target\dist\THIRD-PARTY-LICENSES.txt
+python packaging\third_party_licenses.py --target x86_64-pc-windows-msvc `
+    --output target\dist\THIRD-PARTY-LICENSES.txt
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source

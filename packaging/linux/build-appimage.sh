@@ -31,7 +31,7 @@ for s in 16 24 32 48 64 128 256 512; do
     install -m 644 packaging/icons/moonglow-viewer-$s.png "$d/$ID.png"
 done
 install -m 644 LICENSE "$DOC/"
-python3 packaging/third_party_licenses.py > "$DOC/THIRD-PARTY-LICENSES.txt"
+python3 packaging/third_party_licenses.py --output "$DOC/THIRD-PARTY-LICENSES.txt"
 cp -r docs/manual "$DOC/manual"
 
 # The AppImage's top: the desktop entry, its icon and the start script.

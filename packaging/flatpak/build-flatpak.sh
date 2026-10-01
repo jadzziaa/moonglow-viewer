@@ -20,8 +20,8 @@ BUILD=/run/build/moonglow-viewer
 rm -rf "$VENDOR"
 cargo vendor --locked --versioned-dirs "$VENDOR" |
     sed "s#^directory = .*#directory = \"$BUILD/$VENDOR\"#" > packaging/flatpak/vendor-config.toml
-# Licence notices need cargo metadata, which needs the network: made here.
-python3 packaging/third_party_licenses.py > packaging/flatpak/THIRD-PARTY-LICENSES.txt
+# License notices need cargo metadata, which needs the network: made here.
+python3 packaging/third_party_licenses.py --output packaging/flatpak/THIRD-PARTY-LICENSES.txt
 flatpak-builder --user --install-deps-from=flathub --force-clean \
     --state-dir=target/flatpak-builder --repo=target/flatpak-repo \
     target/flatpak-build packaging/flatpak/$ID.yml

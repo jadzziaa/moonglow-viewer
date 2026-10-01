@@ -205,7 +205,7 @@ fn toolbar(app: &mut Viewer, ui: &mut egui::Ui) {
         ui.menu_button("Overlays", |ui| {
             let o = &mut app.settings.overlays;
             ui.checkbox(&mut o.walkmesh, "Walkmesh")
-                .on_hover_text("Faces coloured by surface material: green walkable, red not");
+                .on_hover_text("Faces colored by surface material: green walkable, red not");
             ui.checkbox(&mut o.wireframe, "Wireframe");
             ui.checkbox(&mut o.normals, "Normals");
             ui.checkbox(&mut o.skeleton, "Nodes")
