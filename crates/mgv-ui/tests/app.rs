@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
 use mg_core::ResType;
 use mg_resman::ResKey;
 use mgv_ui::{Action, Dialogs, Settings, Viewer};
@@ -227,4 +228,38 @@ fn materials_and_tilesets() {
     let v = h.state();
     assert_eq!(v.doc.as_ref().unwrap().opened.kind, mgv_library::Kind::Tileset);
     assert!(v.log.iter().any(|l| l.text.contains("tiles are listed")));
+}
+
+/// A click in the resource list opens what it names; a loop of one frame
+/// (placeables' `default`) shows as a pose, not on a slider thrown from
+/// end to end every frame.
+#[test]
+fn a_click_opens_and_one_frame_loops_are_a_pose() {
+    let Some(mut h) = harness(false, Box::new(Answer(None))) else { return };
+    let dir = scratch("click");
+    std::fs::write(dir.join("tri.mdl"), MODEL).unwrap();
+    let posed = MODEL.replace("donemodel tri", "")
+        + "newanim default other\n  length 0.0333333\n  transtime 0\n\
+           node dummy other\n    parent NULL\n  endnode\ndoneanim default other\n\
+           newanim spin other\n  length 1\n  transtime 0\n\
+           node dummy other\n    parent NULL\n  endnode\ndoneanim spin other\n\
+           donemodel other\n";
+    std::fs::write(dir.join("other.mdl"), posed.replace(" tri", " other")).unwrap();
+    h.state_mut().actions.push(Action::Open(dir.join("tri.mdl")));
+    h.run_steps(3);
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "tri");
+    h.get_by_label("other.mdl").click();
+    h.run_steps(3);
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "other", "one click opens it");
+    // It plays its one-frame default.
+    assert!(h.query_by_label_contains("A single pose").is_some());
+    let base = h.state().doc.as_ref().unwrap().shown.as_ref().unwrap().base;
+    let set = |h: &mut Harness<'_, Viewer>, anim: &str| {
+        let g = h.state_mut().gfx.as_mut().unwrap();
+        g.stage.actor_mut(base).unwrap().player.play(Some(anim), mgv_stage::PlayMode::Loop);
+    };
+    set(&mut h, "spin");
+    h.run_steps(2);
+    assert!(h.query_by_label_contains("A single pose").is_none(), "a second's loop slides");
+    std::fs::remove_dir_all(&dir).unwrap();
 }

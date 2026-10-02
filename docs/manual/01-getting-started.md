@@ -18,8 +18,8 @@ OpenGL 3.3.
   the command line: `moonglow-viewer path/to/model.mdl`.
 - **Resources**: everything the game has, in the game's load order. Type
   part of a name, pick a kind (models, creatures, textures, blueprints,
-  walkmeshes, materials) and double-click.
-- **Creatures** in Resources lists `appearance.2da`: double-click a row to
+  walkmeshes, materials) and click one to open it.
+- **Creatures** in Resources lists `appearance.2da`: click a row to
   see that creature bare; the Inspector then changes its gender,
   phenotype, head, body parts, colors, wings and tail.
 

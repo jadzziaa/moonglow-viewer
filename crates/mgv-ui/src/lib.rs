@@ -312,7 +312,11 @@ impl Viewer {
         if !self.confirm_discard() {
             return;
         }
-        self.lib.set_opened_folder(None);
+        // The opened file's folder stays when the resource is one of its
+        // files (the browser lists them).
+        if !self.lib.from_opened_folder(&key) {
+            self.lib.set_opened_folder(None);
+        }
         match self.lib.open_resource(key) {
             Ok(opened) => self.show(opened),
             Err(e) => self.error(format!("{e}")),

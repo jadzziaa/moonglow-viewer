@@ -240,6 +240,11 @@ impl Library {
         })
     }
 
+    /// Whether a resource comes from the opened file's folder.
+    pub fn from_opened_folder(&self, key: &ResKey) -> bool {
+        self.origin(key) == Some(OPENED_LABEL)
+    }
+
     /// Sets (or clears) the opened file's folder.
     pub fn set_opened_folder(&mut self, folder: Option<&Path>) {
         if self.opened_folder.as_deref() == folder && folder.is_some() {

@@ -83,6 +83,8 @@ impl Browser {
 }
 
 pub(crate) fn browser(app: &mut Viewer, ui: &mut Ui) {
+    // What is shown, so a click on it does not open it again.
+    let shown = app.doc.as_ref().and_then(|d| d.opened.key.filter(|_| d.creature.is_none()));
     let b = &mut app.browser;
     ui.horizontal(|ui| {
         ui.add(
@@ -126,12 +128,12 @@ pub(crate) fn browser(app: &mut Viewer, ui: &mut Ui) {
                 let selected = b.selected == Some(*key);
                 let r = ui
                     .selectable_label(selected, key.to_string())
-                    .on_hover_text(format!("from {layer}\ndouble-click to open"));
+                    .on_hover_text(format!("from {layer}\nclick to open"));
                 if r.clicked() {
                     b.selected = Some(*key);
-                }
-                if r.double_clicked() {
-                    open = Some(*key);
+                    if shown != Some(*key) {
+                        open = Some(*key);
+                    }
                 }
             }
         },
@@ -141,7 +143,7 @@ pub(crate) fn browser(app: &mut Viewer, ui: &mut Ui) {
     }
 }
 
-/// `appearance.2da` rows; double-click shows the creature.
+/// `appearance.2da` rows; a click shows the creature.
 fn creatures(app: &mut Viewer, ui: &mut Ui) {
     let q = app.browser.query.to_ascii_lowercase();
     let Ok(t) = app.lib.game().table("appearance") else {
@@ -157,6 +159,8 @@ fn creatures(app: &mut Viewer, ui: &mut Ui) {
         })
         .collect();
     ui.weak(format!("{} creatures", rows.len()));
+    // The appearance shown, so a click on it does not show it again.
+    let shown = app.doc.as_ref().and_then(|d| d.creature).map(|c| usize::from(c.appearance));
     let row = ui.text_style_height(&egui::TextStyle::Body) + 2.0;
     let mut open = None;
     egui::ScrollArea::vertical().auto_shrink([false, false]).show_rows(
@@ -165,10 +169,9 @@ fn creatures(app: &mut Viewer, ui: &mut Ui) {
         rows.len(),
         |ui, range| {
             for (r, text) in &rows[range] {
-                if ui
-                    .selectable_label(false, text)
-                    .on_hover_text("double-click to show")
-                    .double_clicked()
+                let selected = shown == Some(*r);
+                if ui.selectable_label(selected, text).on_hover_text("click to show").clicked()
+                    && !selected
                 {
                     open = Some(*r);
                 }
@@ -546,6 +549,10 @@ fn fmt3(v: [f32; 3]) -> String {
 }
 
 /// Playing the base model's animations.
+/// Animations shorter than this (a frame or two at 30 fps, as placeables'
+/// `default` and `dead`) are shown as a pose, not on a slider.
+const SINGLE_POSE: f32 = 0.1;
+
 pub(crate) fn timeline(app: &mut Viewer, ui: &mut Ui) {
     let Some(g) = &mut app.gfx else { return };
     let Some(base) = app.doc.as_ref().and_then(|d| d.shown.as_ref()).map(|s| s.base) else {
@@ -587,7 +594,11 @@ pub(crate) fn timeline(app: &mut Viewer, ui: &mut Ui) {
         ui.selectable_value(&mut a.player.mode, PlayMode::Once, "Once");
         ui.add(egui::Slider::new(&mut a.player.speed, 0.05..=4.0).logarithmic(true).text("speed"));
     });
-    if length > 0.0 {
+    if length > 0.0 && length < SINGLE_POSE {
+        // A loop of a frame or two would throw the slider from end to end
+        // every frame.
+        ui.weak(format!("A single pose ({length:.2} s)"));
+    } else if length > 0.0 {
         let mut t = if a.player.mode == PlayMode::Loop {
             a.player.time.rem_euclid(length)
         } else {
