@@ -949,7 +949,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1759,8 +1759,8 @@ dependencies = [
 
 [[package]]
 name = "mg-2da"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "mg-core",
  "thiserror 2.0.21",
@@ -1768,8 +1768,8 @@ dependencies = [
 
 [[package]]
 name = "mg-core"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "encoding_rs",
  "thiserror 2.0.21",
@@ -1777,8 +1777,8 @@ dependencies = [
 
 [[package]]
 name = "mg-erf"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "mg-core",
  "ruzstd",
@@ -1787,8 +1787,8 @@ dependencies = [
 
 [[package]]
 name = "mg-gff"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "base64",
  "mg-core",
@@ -1798,8 +1798,8 @@ dependencies = [
 
 [[package]]
 name = "mg-image"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "mg-core",
  "thiserror 2.0.21",
@@ -1807,8 +1807,8 @@ dependencies = [
 
 [[package]]
 name = "mg-key"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "memmap2",
  "mg-core",
@@ -1817,8 +1817,8 @@ dependencies = [
 
 [[package]]
 name = "mg-mdl"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "mg-core",
  "thiserror 2.0.21",
@@ -1826,8 +1826,8 @@ dependencies = [
 
 [[package]]
 name = "mg-preview"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "glam",
  "mg-2da",
@@ -1842,8 +1842,8 @@ dependencies = [
 
 [[package]]
 name = "mg-render"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "bytemuck",
  "glam",
@@ -1858,8 +1858,8 @@ dependencies = [
 
 [[package]]
 name = "mg-resman"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "memmap2",
  "mg-core",
@@ -1870,8 +1870,8 @@ dependencies = [
 
 [[package]]
 name = "mg-rules"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "fastrand",
  "mg-2da",
@@ -1884,8 +1884,8 @@ dependencies = [
 
 [[package]]
 name = "mg-set"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "mg-core",
  "thiserror 2.0.21",
@@ -1893,13 +1893,13 @@ dependencies = [
 
 [[package]]
 name = "mg-testkit"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 
 [[package]]
 name = "mg-tlk"
-version = "0.1.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?branch=develop#b39e581624a6160cc74cba9ac4eb262d35e614fb"
+version = "0.4.0"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v0.4.0#ae72501541dac7966a143f5e2702a0e096ef8258"
 dependencies = [
  "mg-core",
  "thiserror 2.0.21",
@@ -2983,7 +2983,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3291,7 +3291,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.5",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4008,7 +4008,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

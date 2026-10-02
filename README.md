@@ -39,7 +39,8 @@ installation.
 
 You need a stable Rust toolchain (1.98 or newer; `rust-toolchain.toml`
 selects it with rustup). The Moonglow Toolset crates are fetched from
-their git repository (pinned by `Cargo.lock`); while it is private, your
+their git repository at a release tag (the commit in `Cargo.lock`); while
+it is private, your
 git credentials must reach it (`.cargo/config.toml` has Cargo fetch through
 the `git` command line).
 

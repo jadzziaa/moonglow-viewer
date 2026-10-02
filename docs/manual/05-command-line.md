@@ -3,7 +3,8 @@
 `mgv` does without a window what the viewer does: pictures, galleries,
 decompiling, compiling and checking. It needs a graphics card for
 pictures, but no display. (In the AppImage: `./MoonglowViewer.AppImage mgv
-…`; on macOS: `"Moonglow Viewer.app/Contents/MacOS/mgv"`.)
+…`, or through a link to the AppImage named `mgv`; on macOS: `"Moonglow
+Viewer.app/Contents/MacOS/mgv"`.)
 
 Inputs are files or the game's resources: `plc_a01`, `nw_chicken.utc`,
 `appearance:6` (a creature by `appearance.2da` row).

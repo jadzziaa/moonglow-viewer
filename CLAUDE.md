@@ -10,10 +10,11 @@ architecture and phases are in `docs/PLAN.md`.
 It builds on the sister project **moonglow-toolset** (`~/Projects/moonglow-toolset`,
 github.com/jadzziaa/moonglow-toolset, private): its crates (`mg-core`,
 `mg-mdl`, `mg-image`, `mg-resman`, `mg-rules`, `mg-render`, `mg-preview`,
-`mg-testkit`, …) are git dependencies pinned by `Cargo.lock`. Their sources
-are in `~/.cargo/git/checkouts/moonglow-toolset-*/<commit>/`. Move the pin
-with `cargo update -p mg-core` (all move together) and run the whole test
-suite.
+`mg-testkit`, …) are git dependencies on a toolset release tag (`tag =
+"vX.Y.Z"` in `Cargo.toml`, its commit in `Cargo.lock`). Their sources are in
+`~/.cargo/git/checkouts/moonglow-toolset-*/<commit>/`. Move to another
+release by changing the tag on all of them, then `cargo update -p mg-core`
+(only the toolset crates move) and the whole test suite.
 
 ## Commands
 

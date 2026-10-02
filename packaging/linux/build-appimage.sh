@@ -41,7 +41,13 @@ ln -s usr/share/icons/hicolor/256x256/apps/$ID.png "$APPDIR/$ID.png"
 ln -s $ID.png "$APPDIR/.DirIcon"
 cat > "$APPDIR/AppRun" <<'RUN'
 #!/bin/sh
+# The command-line tool when started through a link named mgv, or with mgv
+# as the first argument; else the GUI. (The AppImage's runtime gives the
+# name it was started by as $ARGV0.)
 HERE=$(dirname "$(readlink -f "$0")")
+case "$(basename "${ARGV0:-$0}")" in
+    mgv) exec "$HERE/usr/bin/mgv" "$@" ;;
+esac
 if [ "${1:-}" = mgv ]; then
     shift
     exec "$HERE/usr/bin/mgv" "$@"
