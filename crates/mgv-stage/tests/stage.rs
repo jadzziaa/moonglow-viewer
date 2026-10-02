@@ -365,3 +365,51 @@ fn views_are_taken_from_the_models_front() {
     assert_eq!(front("c_badger").0, 90.0);
     assert_eq!(front("tcn01_a01_01").0, 90.0, "tiles as they are");
 }
+
+/// A 2 m panel facing −Y with no ambient colour (as many exported models
+/// have): out of the sun it is black whatever the area's ambient light.
+const PANEL: &str = "newmodel panel\nsetsupermodel panel NULL\nclassification character\n\
+beginmodelgeom panel\n\
+node dummy panel\n  parent NULL\nendnode\n\
+node trimesh face\n  parent panel\n  ambient 0 0 0\n  diffuse 1 1 1\n  verts 4\n\
+    -1 0 0\n    1 0 0\n    1 0 2\n    -1 0 2\n\
+  faces 2\n    0 1 2 1 0 0 0 0\n    0 2 3 1 0 0 0 0\nendnode\n\
+endmodelgeom panel\n\
+donemodel panel\n";
+
+/// The key light lights what the camera sees: a panel with no ambient
+/// colour, facing away from the studio sun, is black without it and lit
+/// with it.
+#[test]
+fn the_key_light_lights_the_side_in_view() {
+    use mgv_stage::headless::{self, Shot};
+    let Some(gpu) = gpu() else { return };
+    let dir = scratch("keylight");
+    std::fs::write(dir.join("panel.mdl"), PANEL).unwrap();
+    let mut lib = Library::open(None).unwrap();
+    lib.open_file(&dir.join("panel.mdl")).unwrap();
+    let mut stage = Stage::new(gpu.clone());
+    stage.add_model(&lib, "panel", Mat4::IDENTITY).unwrap();
+    let mut vp = Viewport::new(&gpu);
+    // From −Y, level: the panel fills the middle of the picture; the sun
+    // shines on its back.
+    let mut centre = |key_light: f32| {
+        let shot = Shot {
+            size: (64, 64),
+            yaw: Some(-90.0),
+            pitch: Some(0.0),
+            background: Some([0.5, 0.5, 0.5]),
+            key_light,
+            ..Shot::default()
+        };
+        let img = headless::still(&mut stage, &mut vp, &lib, &shot);
+        let p = &img.data[(32 * 64 + 32) * 4..][..3];
+        p.iter().map(|&c| u32::from(c)).sum::<u32>() / 3
+    };
+    let dark = centre(0.0);
+    let lit = centre(0.3);
+    assert!(dark < 20, "out of the sun, no ambient: black ({dark})");
+    assert!(lit > 100, "the key light reaches it ({lit})");
+    assert!(centre(0.6) > lit, "stronger with more");
+    std::fs::remove_dir_all(&dir).unwrap();
+}

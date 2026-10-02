@@ -14,6 +14,13 @@ lights, fog, environment maps and EE materials. **Lighting** chooses:
 - **Custom area**: the sun or moon's ambient and diffuse colors, the fog
   and the tile lights, as an area's properties hold them.
 
+The sun and moon always come from the game's direction, behind a
+placeable's front (placeables face −Y). Meshes whose material has no
+ambient color, common in exported custom content, are black where the sun
+doesn't reach, in the game as here. For pictures of such models the
+command line can add a **key light** at the camera (`mgv render
+--key-light 0.3`; see [The command line](05-command-line.md)).
+
 ## Visual effects
 
 **Effects** lists the game's visual effects (`visualeffects.2da`).

@@ -3,6 +3,7 @@
 
 use glam::Vec3;
 use mg_image::Rgba;
+use mg_render::PointLight;
 use mgv_library::Library;
 
 use crate::camera::{OrbitCamera, View};
@@ -26,7 +27,16 @@ pub struct Shot {
     /// the picture).
     pub zoom: f32,
     pub background: Option<[f32; 3]>,
+    /// A light at the camera, so the sides in view are lit whatever the
+    /// sun's direction (a mesh with no ambient colour is black out of the
+    /// sun): its linear strength, 0 (none) to 1. About 0.3 is as strong as
+    /// the studio sun. It reaches `KEY_LIGHT_REACH` times the camera's
+    /// distance, so it falls off little across the model.
+    pub key_light: f32,
 }
+
+/// How far the key light reaches, as a multiple of the camera's distance.
+pub const KEY_LIGHT_REACH: f32 = 10.0;
 
 impl Default for Shot {
     fn default() -> Shot {
@@ -39,6 +49,7 @@ impl Default for Shot {
             pitch: None,
             zoom: 1.0,
             background: None,
+            key_light: 0.0,
         }
     }
 }
@@ -59,6 +70,19 @@ impl Shot {
         cam.frame(min, max);
         cam.distance *= self.zoom.max(0.01);
         cam
+    }
+
+    /// The key light for a camera, when the shot has one: white, at the
+    /// camera, the highest priority (kept however many lights the models
+    /// bring).
+    pub fn key_light(&self, cam: &OrbitCamera) -> Option<PointLight> {
+        (self.key_light > 0.0).then(|| PointLight {
+            position: cam.camera().eye,
+            color: Vec3::splat(self.key_light.min(1.0)),
+            cutoff: cam.distance * KEY_LIGHT_REACH,
+            ambient_only: false,
+            priority: 1,
+        })
     }
 }
 
@@ -81,6 +105,7 @@ pub fn picture(
     if let Some(bg) = shot.background {
         scene.background = bg;
     }
+    scene.lights.extend(shot.key_light(cam));
     viewport.image(stage.gpu(), lib.resman(), &scene, &camera, shot.size)
 }
 
@@ -137,6 +162,19 @@ fn frame_delay(fps: f32) -> (u16, u16) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn key_light_sits_at_the_camera() {
+        let cam = OrbitCamera { distance: 4.0, ..OrbitCamera::default() };
+        assert_eq!(Shot::default().key_light(&cam), None);
+        let shot = Shot { key_light: 2.0, ..Shot::default() };
+        let light = shot.key_light(&cam).unwrap();
+        assert_eq!(light.position, cam.camera().eye);
+        assert_eq!(light.color, Vec3::ONE, "at most 1");
+        assert_eq!(light.cutoff, 4.0 * KEY_LIGHT_REACH);
+        assert!(!light.ambient_only);
+        assert_eq!(light.priority, 1);
+    }
 
     #[test]
     fn delays() {

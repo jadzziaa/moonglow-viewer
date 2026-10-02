@@ -25,8 +25,10 @@ mgv lint mymodel.mdl --notes
   `--view`, `--yaw`, `--pitch` and `--zoom` the camera (`--view` from
   the model's front: creatures face +Y, placeables −Y; `--yaw` in degrees
   from +X whatever the model, 90 from +Y, -90 from −Y), `--light` the
-  lighting (`studio`, or `env:ROW` / `env:ROW:night`), `--fog`, `--vfx ROW`
-  (repeatable) visual effects.
+  lighting (`studio`, or `env:ROW` / `env:ROW:night`), `--key-light`
+  a light at the camera (0 to 1; about 0.3 is as strong as the studio
+  sun) so the sides in view are lit whatever the sun's direction, `--fog`,
+  `--vfx ROW` (repeatable) visual effects. These apply to galleries too.
 - **Galleries** (`gallery`): a name pattern (`plc_*`), a 2DA
   (`placeables`, `appearance`, `visualeffects`, `doors`), a hak, module or
   ERF, or a folder. Writes `images/`, `index.html` (a page to browse and

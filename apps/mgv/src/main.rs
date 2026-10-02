@@ -175,6 +175,11 @@ struct ShotArgs {
     /// The area light's fog.
     #[arg(long)]
     fog: bool,
+    /// A light at the camera, so the sides in view are lit whatever the
+    /// sun's direction: strength 0 (none) to 1; about 0.3 matches the
+    /// studio sun.
+    #[arg(long, default_value_t = 0.0)]
+    key_light: f32,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -457,6 +462,7 @@ impl ShotArgs {
             pitch: self.pitch,
             zoom: self.zoom,
             background,
+            key_light: self.key_light.clamp(0.0, 1.0),
         })
     }
 }
