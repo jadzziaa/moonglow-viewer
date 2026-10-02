@@ -251,6 +251,13 @@ fn a_click_opens_and_one_frame_loops_are_a_pose() {
     h.get_by_label("other.mdl").click();
     h.run_steps(3);
     assert_eq!(h.state().doc.as_ref().unwrap().name(), "other", "one click opens it");
+    // The arrows then step through the list (other, tri) and open as they go.
+    h.key_press(egui::Key::ArrowDown);
+    h.run_steps(3);
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "tri", "down: the next");
+    h.key_press(egui::Key::ArrowUp);
+    h.run_steps(3);
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "other", "up: back");
     // It plays its one-frame default.
     assert!(h.query_by_label_contains("A single pose").is_some());
     let base = h.state().doc.as_ref().unwrap().shown.as_ref().unwrap().base;

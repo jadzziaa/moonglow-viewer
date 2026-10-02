@@ -316,6 +316,15 @@ fn overlays_show_faintly_where_the_scene_hides_them() {
     let mut overlay = Overlay::default();
     band(&mut overlay, 0.2, -0.5, [0.0, 1.0, 0.0, 1.0], false);
     band(&mut overlay, 0.6, 0.5, [1.0, 0.0, 0.0, 1.0], true);
+    // The grid's kind: a blue line under the triangle at y 0.3, hidden there.
+    for k in -4..=4 {
+        let y = 0.3 + k as f32 * 0.01;
+        overlay.culled_line(
+            Vec3::new(-1.0, y, -0.5),
+            Vec3::new(2.0, y, -0.5),
+            [0.0, 0.0, 1.0, 1.0],
+        );
+    }
     vp.draw_overlay(&gpu, &overlay, &camera);
     let img = gpu.read_rgba(&vp.current().unwrap().color);
     let view_proj = camera.projection(1.0) * camera.view();
@@ -337,6 +346,8 @@ fn overlays_show_faintly_where_the_scene_hides_them() {
     assert!((f32::from(under[1]) - faint(255, tri[1])).abs() <= 2.0, "faint under the triangle");
     assert!((f32::from(under[0]) - faint(0, tri[0])).abs() <= 2.0);
     assert_eq!(px(Vec3::new(0.2, 0.6, 0.0))[0], 255, "x-ray over the triangle");
+    assert_eq!(px(Vec3::new(-0.5, 0.3, -0.5)), [0, 0, 255], "culled lines show in the open");
+    assert_eq!(px(Vec3::new(0.3, 0.3, -0.5)), tri, "and not at all behind the model");
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

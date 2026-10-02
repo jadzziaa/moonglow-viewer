@@ -37,6 +37,9 @@ pub struct Overlay {
     pub triangles: Vec<OverlayVertex>,
     /// Segments over everything.
     pub xray: Vec<OverlayVertex>,
+    /// Segments only where the scene does not hide them (the ground grid
+    /// and axes: hidden behind models, as in a modelling program).
+    pub culled: Vec<OverlayVertex>,
 }
 
 fn vertex(p: Vec3, color: [f32; 4]) -> OverlayVertex {
@@ -52,12 +55,19 @@ impl Overlay {
         self.xray.extend([vertex(a, color), vertex(b, color)]);
     }
 
+    pub fn culled_line(&mut self, a: Vec3, b: Vec3, color: [f32; 4]) {
+        self.culled.extend([vertex(a, color), vertex(b, color)]);
+    }
+
     pub fn triangle(&mut self, a: Vec3, b: Vec3, c: Vec3, color: [f32; 4]) {
         self.triangles.extend([vertex(a, color), vertex(b, color), vertex(c, color)]);
     }
 
     pub fn is_empty(&self) -> bool {
-        self.lines.is_empty() && self.triangles.is_empty() && self.xray.is_empty()
+        self.lines.is_empty()
+            && self.triangles.is_empty()
+            && self.xray.is_empty()
+            && self.culled.is_empty()
     }
 }
 
@@ -220,11 +230,12 @@ impl OverlayPass {
             })
         };
         let (shown, hidden) = (group(1.0), group(HIDDEN_ALPHA));
-        let vertices: Vec<OverlayVertex> = [&overlay.triangles, &overlay.lines, &overlay.xray]
-            .into_iter()
-            .flatten()
-            .copied()
-            .collect();
+        let vertices: Vec<OverlayVertex> =
+            [&overlay.triangles, &overlay.lines, &overlay.xray, &overlay.culled]
+                .into_iter()
+                .flatten()
+                .copied()
+                .collect();
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("overlay"),
             contents: bytemuck::cast_slice(&vertices),
@@ -233,6 +244,7 @@ impl OverlayPass {
         let t = overlay.triangles.len() as u32;
         let l = t + overlay.lines.len() as u32;
         let x = l + overlay.xray.len() as u32;
+        let c = x + overlay.culled.len() as u32;
         let mut encoder = device.create_command_encoder(&Default::default());
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -265,6 +277,10 @@ impl OverlayPass {
                 pass.draw(t..l, 0..1);
             }
             pass.set_bind_group(0, &shown, &[]);
+            if c > x {
+                pass.set_pipeline(&self.lines[0]);
+                pass.draw(x..c, 0..1);
+            }
             if t > 0 {
                 pass.set_pipeline(&self.triangles[0]);
                 pass.draw(0..t, 0..1);

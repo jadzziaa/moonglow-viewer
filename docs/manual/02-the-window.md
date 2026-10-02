@@ -9,11 +9,12 @@ Reset Layout** puts them back):
   back, sides, top or bottom of what is open: creatures face +Y, the
   game's placeables −Y (an armoire's doors, a chair's seat), and the
   camera keeps its angle to the front from one model to the next. **Grid** shows the ground (1 m squares,
-  10 m across, a tile's size), **Axes** shows X (red), Y (green, where
-  models face) and Z (blue, up). **Overlays** adds the walkmesh (faces by
+  10 m across, a tile's size), **Axes** shows X (red), Y (green;
+  creatures face +Y, placeables −Y) and Z (blue, up); both hide behind
+  models. **Overlays** adds the walkmesh (faces by
   surface material: green where creatures walk, red where they do not),
-  the wireframe, the normals and the node tree. What the model hides shows
-  faintly; the node tree and the selected node's box show over everything.
+  the wireframe, the normals and the node tree. Of these, what the model
+  hides shows faintly; the node tree and the selected node's box show over everything.
   Click a part of the model to select its node.
 - **ASCII**: the model's text (see [Editing models](03-editing-models.md)).
 - **Texture**: textures you open.
@@ -39,4 +40,5 @@ Reset Layout** puts them back):
 | Ctrl+B, Ctrl+Shift+B | Compile, Compile and View |
 | F5 | Re-read everything from disk |
 | F | Frame (in the 3D view) |
+| ↑ ↓, Page Up/Down, Home, End | Step through Resources, opening each (after a click in it) |
 | Ctrl+Q | Quit |

@@ -245,8 +245,8 @@ fn grid(overlay: &mut Overlay, distance: f32) {
     for i in -n..=n {
         let v = i as f32 * step;
         let color = if i == 0 { strong } else { weak };
-        overlay.line(Vec3::new(v, -half, 0.0), Vec3::new(v, half, 0.0), color);
-        overlay.line(Vec3::new(-half, v, 0.0), Vec3::new(half, v, 0.0), color);
+        overlay.culled_line(Vec3::new(v, -half, 0.0), Vec3::new(v, half, 0.0), color);
+        overlay.culled_line(Vec3::new(-half, v, 0.0), Vec3::new(half, v, 0.0), color);
     }
 }
 
@@ -258,7 +258,7 @@ fn axes(overlay: &mut Overlay, len: f32) {
         (Vec3::Y, egui::Color32::from_rgb(0x4C, 0xC3, 0x5A)),
         (Vec3::Z, egui::Color32::from_rgb(0x4A, 0x8E, 0xE8)),
     ] {
-        overlay.line(Vec3::ZERO, dir * len, rgba(color));
+        overlay.culled_line(Vec3::ZERO, dir * len, rgba(color));
     }
 }
 

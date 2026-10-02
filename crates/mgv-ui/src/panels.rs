@@ -65,6 +65,64 @@ impl Filter {
 /// filter.
 type Listed = (u64, String, Filter);
 
+/// Keys in a list that a click gave the keyboard (its `id`, registered by
+/// [`list_widget`]): Up and Down step, Page Up and Down move a page, Home
+/// and End go to the ends. The row to go to, if it moved.
+fn step_keys(
+    ui: &Ui,
+    id: egui::Id,
+    current: Option<usize>,
+    len: usize,
+    page: usize,
+) -> Option<usize> {
+    if len == 0 || !ui.memory(|m| m.has_focus(id)) {
+        return None;
+    }
+    let filter = egui::EventFilter { vertical_arrows: true, ..Default::default() };
+    ui.memory_mut(|m| m.set_focus_lock_filter(id, filter));
+    use egui::Key;
+    let pressed = |k| ui.input(|i| i.key_pressed(k));
+    let last = len - 1;
+    let page = page.max(1);
+    let next = match current {
+        _ if pressed(Key::Home) => 0,
+        _ if pressed(Key::End) => last,
+        None if [Key::ArrowDown, Key::ArrowUp, Key::PageDown, Key::PageUp]
+            .into_iter()
+            .any(pressed) =>
+        {
+            0
+        }
+        Some(c) if pressed(Key::ArrowDown) => (c + 1).min(last),
+        Some(c) if pressed(Key::ArrowUp) => c.saturating_sub(1),
+        Some(c) if pressed(Key::PageDown) => (c + page).min(last),
+        Some(c) if pressed(Key::PageUp) => c.saturating_sub(page),
+        _ => return None,
+    };
+    (Some(next) != current).then_some(next)
+}
+
+/// The list as a widget that can hold the keyboard (focus only, so the rows
+/// still take the clicks; a focused widget needs an accessibility node).
+fn list_widget(ui: &mut Ui, id: egui::Id, rect: egui::Rect, label: &str) {
+    let r = ui.interact(rect, id, egui::Sense::focusable_noninteractive());
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, label));
+}
+
+/// The scroll offset that brings row `index` into a view at `offset` of
+/// `height` (rows `pitch` apart), if it is out of it.
+fn keep_visible(view: (f32, f32), index: usize, pitch: f32) -> Option<f32> {
+    let (offset, height) = view;
+    let (top, bottom) = (index as f32 * pitch, (index + 1) as f32 * pitch);
+    if top < offset {
+        Some(top)
+    } else if bottom > offset + height {
+        Some((bottom - height).max(0.0))
+    } else {
+        None
+    }
+}
+
 /// The resource browser's state.
 #[derive(Debug, Default)]
 pub struct Browser {
@@ -73,6 +131,10 @@ pub struct Browser {
     /// The listing and what it was made for (generation, query, filter).
     listing: Option<(Listed, Vec<(ResKey, String)>)>,
     selected: Option<ResKey>,
+    /// The list's scroll offset and height last frame.
+    view: (f32, f32),
+    /// A row was clicked: the list takes the keyboard.
+    take_keys: bool,
 }
 
 impl Browser {
@@ -118,26 +180,44 @@ pub(crate) fn browser(app: &mut Viewer, ui: &mut Ui) {
     let items = &b.listing.as_ref().expect("made above").1;
     ui.weak(format!("{} resources", items.len()));
     let row = ui.text_style_height(&egui::TextStyle::Body) + 2.0;
+    let pitch = row + ui.spacing().item_spacing.y;
     let mut open = None;
-    egui::ScrollArea::vertical().auto_shrink([false, false]).show_rows(
-        ui,
-        row,
-        items.len(),
-        |ui, range| {
-            for (key, layer) in &items[range] {
-                let selected = b.selected == Some(*key);
-                let r = ui
-                    .selectable_label(selected, key.to_string())
-                    .on_hover_text(format!("from {layer}\nclick to open"));
-                if r.clicked() {
-                    b.selected = Some(*key);
-                    if shown != Some(*key) {
-                        open = Some(*key);
-                    }
+    // After a click, the arrow keys step through the list. (The list takes
+    // the keyboard the frame after: egui gives a click's frame to the row.)
+    let list = ui.id().with("resource-list");
+    if std::mem::take(&mut b.take_keys) {
+        ui.memory_mut(|m| m.request_focus(list));
+    }
+    let index = b.selected.and_then(|k| items.iter().position(|(x, _)| *x == k));
+    let page = (b.view.1 / pitch) as usize;
+    let stepped = step_keys(ui, list, index, items.len(), page.saturating_sub(1));
+    let mut area = egui::ScrollArea::vertical().auto_shrink([false, false]);
+    if let Some(offset) = stepped.and_then(|i| keep_visible(b.view, i, pitch)) {
+        area = area.vertical_scroll_offset(offset);
+    }
+    if let Some(i) = stepped {
+        b.selected = Some(items[i].0);
+        if shown != Some(items[i].0) {
+            open = Some(items[i].0);
+        }
+    }
+    let out = area.show_rows(ui, row, items.len(), |ui, range| {
+        for (key, layer) in &items[range] {
+            let selected = b.selected == Some(*key);
+            let r = ui
+                .selectable_label(selected, key.to_string())
+                .on_hover_text(format!("from {layer}\nclick to open; then ↑ ↓ step"));
+            if r.clicked() {
+                b.selected = Some(*key);
+                b.take_keys = true;
+                if shown != Some(*key) {
+                    open = Some(*key);
                 }
             }
-        },
-    );
+        }
+    });
+    b.view = (out.state.offset.y, out.inner_rect.height());
+    list_widget(ui, list, out.inner_rect, "Resources");
     if let Some(k) = open {
         app.actions.push(Action::OpenResource(k));
     }
@@ -162,22 +242,40 @@ fn creatures(app: &mut Viewer, ui: &mut Ui) {
     // The appearance shown, so a click on it does not show it again.
     let shown = app.doc.as_ref().and_then(|d| d.creature).map(|c| usize::from(c.appearance));
     let row = ui.text_style_height(&egui::TextStyle::Body) + 2.0;
+    let pitch = row + ui.spacing().item_spacing.y;
     let mut open = None;
-    egui::ScrollArea::vertical().auto_shrink([false, false]).show_rows(
-        ui,
-        row,
-        rows.len(),
-        |ui, range| {
-            for (r, text) in &rows[range] {
-                let selected = shown == Some(*r);
-                if ui.selectable_label(selected, text).on_hover_text("click to show").clicked()
-                    && !selected
-                {
+    let list = ui.id().with("creature-list");
+    if std::mem::take(&mut app.browser.take_keys) {
+        ui.memory_mut(|m| m.request_focus(list));
+    }
+    let view = app.browser.view;
+    let index = shown.and_then(|s| rows.iter().position(|(r, _)| *r == s));
+    let page = ((view.1 / pitch) as usize).saturating_sub(1);
+    let stepped = step_keys(ui, list, index, rows.len(), page);
+    let mut take_keys = false;
+    let mut area = egui::ScrollArea::vertical().auto_shrink([false, false]);
+    if let Some(i) = stepped {
+        open = Some(rows[i].0);
+        if let Some(offset) = keep_visible(view, i, pitch) {
+            area = area.vertical_scroll_offset(offset);
+        }
+    }
+    let out = area.show_rows(ui, row, rows.len(), |ui, range| {
+        for (r, text) in &rows[range] {
+            let selected = shown == Some(*r);
+            let click =
+                ui.selectable_label(selected, text).on_hover_text("click to show; then ↑ ↓ step");
+            if click.clicked() {
+                take_keys = true;
+                if !selected {
                     open = Some(*r);
                 }
             }
-        },
-    );
+        }
+    });
+    app.browser.view = (out.state.offset.y, out.inner_rect.height());
+    app.browser.take_keys |= take_keys;
+    list_widget(ui, list, out.inner_rect, "Creatures");
     if let Some(r) = open {
         app.actions.push(Action::OpenCreature(mgv_stage::subject::CreatureLook::new(r as u16)));
     }
