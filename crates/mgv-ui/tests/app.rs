@@ -270,3 +270,26 @@ fn a_click_opens_and_one_frame_loops_are_a_pose() {
     assert!(h.query_by_label_contains("A single pose").is_none(), "a second's loop slides");
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+/// WASD drives the camera once the view has the keyboard.
+#[test]
+fn wasd_moves_the_camera() {
+    let Some(mut h) = harness(false, Box::new(Answer(None))) else { return };
+    let dir = scratch("wasd");
+    std::fs::write(dir.join("tri.mdl"), MODEL).unwrap();
+    h.state_mut().actions.push(Action::Open(dir.join("tri.mdl")));
+    h.run_steps(3);
+    h.get_by_role(egui::accesskit::Role::Image).click();
+    h.run_steps(2);
+    let before = h.state().camera.target;
+    h.key_down(egui::Key::W);
+    h.run_steps(5);
+    h.key_up(egui::Key::W);
+    h.run_steps(1);
+    let camera = h.state().camera;
+    let moved = camera.target - before;
+    // Forward: along the ground, away from the eye.
+    let ahead = glam::Vec3::new(-camera.yaw.cos(), -camera.yaw.sin(), 0.0);
+    assert!(moved.length() > 1e-3 && moved.normalize().dot(ahead) > 0.99, "{moved}");
+    std::fs::remove_dir_all(&dir).unwrap();
+}

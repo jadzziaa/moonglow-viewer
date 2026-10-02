@@ -80,7 +80,8 @@ pub fn ui(app: &mut Viewer, ui: &mut egui::Ui) {
     let camera = app.camera.camera();
     let scene = g.stage.scene(camera.view());
     let gpu = g.stage.gpu().clone();
-    g.viewport.draw(&gpu, app.lib.resman(), &scene, &camera, px);
+    let textures = mgv_stage::textures::Textures(app.lib.resman());
+    g.viewport.draw(&gpu, &textures, &scene, &camera, px);
     let mut overlay = Overlay::default();
     if app.settings.show_grid {
         grid(&mut overlay, app.camera.distance);
@@ -166,8 +167,19 @@ pub fn ui(app: &mut Viewer, ui: &mut egui::Ui) {
         if scroll != 0.0 {
             app.camera.zoom(scroll);
         }
+    }
+    // Keys: the view's once clicked, or under the pointer while nothing else
+    // holds the keyboard (the ASCII editor and the resource list keep theirs).
+    if response.clicked() || response.drag_started() {
+        response.request_focus();
+    }
+    let keys = response.has_focus() || response.hovered() && ui.memory(|m| m.focused().is_none());
+    if keys {
         if ui.input(|i| i.key_pressed(egui::Key::F)) {
             app.actions.push(Action::Frame);
+        }
+        if walk(&mut app.camera, ui) {
+            ui.ctx().request_repaint();
         }
     }
     if response.double_clicked() {
@@ -178,6 +190,25 @@ pub fn ui(app: &mut Viewer, ui: &mut egui::Ui) {
         let picked = pick(&g.stage, &proj, &camera, rect, at);
         app.select(picked, false);
     }
+}
+
+/// WASD moves the camera along the ground (W forward, S back, A and D to the
+/// sides), Q and E down and up, as fast as the view is far (Shift: three
+/// times); whether it moved.
+fn walk(camera: &mut mgv_stage::OrbitCamera, ui: &egui::Ui) -> bool {
+    use egui::Key;
+    let (dt, shift, k) = ui.input(|i| {
+        let k = [Key::W, Key::S, Key::D, Key::A, Key::E, Key::Q].map(|k| i.key_down(k));
+        (i.stable_dt.min(0.1), i.modifiers.shift, k)
+    });
+    let axis = |plus: bool, minus: bool| f32::from(u8::from(plus)) - f32::from(u8::from(minus));
+    let (forward, right, up) = (axis(k[0], k[1]), axis(k[2], k[3]), axis(k[4], k[5]));
+    if forward == 0.0 && right == 0.0 && up == 0.0 {
+        return false;
+    }
+    let speed = camera.distance * if shift { 3.0 } else { 1.0 };
+    camera.walk(forward, right, up, speed * dt);
+    true
 }
 
 fn toolbar(app: &mut Viewer, ui: &mut egui::Ui) {

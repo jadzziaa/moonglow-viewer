@@ -5,7 +5,7 @@ Reset Layout** puts them back):
 
 - **3D View**: what is open. Drag with the left button to turn around it,
   with the right or middle button to move, and turn the wheel to come
-  closer. Double-click (or F) frames it. **View** jumps to the front,
+  closer; W, A, S and D move it along the ground, Q and E down and up. Double-click (or F) frames it. **View** jumps to the front,
   back, sides, top or bottom of what is open: creatures face +Y, the
   game's placeables −Y (an armoire's doors, a chair's seat), and the
   camera keeps its angle to the front from one model to the next. **Grid** shows the ground (1 m squares,
@@ -40,5 +40,6 @@ Reset Layout** puts them back):
 | Ctrl+B, Ctrl+Shift+B | Compile, Compile and View |
 | F5 | Re-read everything from disk |
 | F | Frame (in the 3D view) |
+| W A S D, Q E | Move the camera along the ground where it looks, to the sides, down and up (in the 3D view; Shift: faster) |
 | ↑ ↓, Page Up/Down, Home, End | Step through Resources, opening each (after a click in it) |
 | Ctrl+Q | Quit |

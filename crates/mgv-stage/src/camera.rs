@@ -114,6 +114,16 @@ impl OrbitCamera {
         self.target += (-right * dx + up * dy) * scale;
     }
 
+    /// Moves what it orbits by `amount` metres along the ground where it
+    /// looks (`forward`), to its right (`right`) and up (`up`), each −1 to
+    /// 1; the angle and distance stay.
+    pub fn walk(&mut self, forward: f32, right: f32, up: f32, amount: f32) {
+        let ahead = Vec3::new(-self.yaw.cos(), -self.yaw.sin(), 0.0);
+        let side = Vec3::new(-self.yaw.sin(), self.yaw.cos(), 0.0);
+        let dir = ahead * forward + side * right + Vec3::Z * up;
+        self.target += dir.normalize_or_zero() * amount;
+    }
+
     /// Zooms by a wheel movement (positive: closer).
     pub fn zoom(&mut self, scroll: f32) {
         self.distance = (self.distance * (-scroll * 0.002).exp()).clamp(0.02, 5000.0);
@@ -141,6 +151,22 @@ mod tests {
         assert!(c.camera().eye.x > 4.9, "{}", c.camera().eye);
         c.set_view(View::ThreeQuarter);
         assert!(c.camera().eye.y < -3.0, "{}", c.camera().eye);
+    }
+
+    #[test]
+    fn walking_goes_where_the_camera_looks() {
+        let mut c = OrbitCamera::default();
+        c.set_view(View::Front);
+        // From +Y looking at −Y: forward is −Y, right is −X.
+        c.walk(1.0, 0.0, 0.0, 2.0);
+        assert!((c.target - Vec3::new(0.0, -2.0, 0.0)).length() < 1e-5, "{}", c.target);
+        c.walk(0.0, 1.0, 0.0, 1.0);
+        assert!((c.target - Vec3::new(-1.0, -2.0, 0.0)).length() < 1e-5, "{}", c.target);
+        c.walk(0.0, 0.0, 1.0, 0.5);
+        assert!((c.target.z - 0.5).abs() < 1e-5);
+        let eye = c.camera().eye - c.target;
+        c.walk(1.0, 1.0, 0.0, 3.0);
+        assert!((c.camera().eye - c.target - eye).length() < 1e-4, "the angle and distance stay");
     }
 
     #[test]

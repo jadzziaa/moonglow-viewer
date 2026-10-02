@@ -482,6 +482,12 @@ client (the toolset's `notes_models.md` B.8, B.20, B.20a).
 | `mg-resman` | Layers changed in place (`ResMan::rescan`, `replace`) | Rescans and editor buffers keep each layer's place |
 | `mg-preview` | Creatures by appearance alone (`CreatureLook`, `creature_look`) | Creature browsing (the right foot, which the viewer's own blueprint fields missed) |
 
+Proposed since:
+
+| Crate | Change | Why | Viewer workaround |
+| --- | --- | --- | --- |
+| `mg-render` | A coloured texture name (`name#c0,…`, an object with PLT colours) takes the PLT before a TGA or DDS of the name | The game colours a dwarf's head (`pmd0_head001` is a PLT and a plain gray TGA) and hands with the creature's skin; the toolset's creature previews draw them gray | `mgv_stage::textures::Textures` looks for the PLT first and leaves the rest to the toolset's lookup |
+
 Not taken, because the game does not do them: uploading vertex colours and
 UV sets 1–3 (the stock shaders ignore them); the emitters' three-stop
 values (`colorMid`, `alphaMid`, `sizeMid`, `percentStart/Mid/End`: the

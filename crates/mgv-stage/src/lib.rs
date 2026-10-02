@@ -21,6 +21,7 @@ pub mod overlay;
 pub mod posed;
 pub mod render;
 pub mod subject;
+pub mod textures;
 pub mod vfx;
 
 use std::collections::HashMap;

@@ -424,3 +424,20 @@ fn the_key_light_lights_the_side_in_view() {
     assert!(centre(0.6) > lit, "stronger with more");
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+/// An object with PLT colours takes the PLT of a name that is also a TGA:
+/// a dwarf's head is coloured by its skin, not the TGA's gray.
+#[test]
+fn coloured_parts_take_the_plt() {
+    use mg_render::{Assets, colored_name};
+    let root = mg_testkit::corpus!();
+    let lib = Library::open(Some(GameInstall::new(root, None, "en"))).unwrap();
+    let textures = mgv_stage::textures::Textures(lib.resman());
+    let pixels = |colors: [u8; 10]| {
+        let t = textures.texture(&colored_name("pmd0_head001", colors)).unwrap();
+        t.texture.to_rgba().data
+    };
+    assert_ne!(pixels([0; 10]), pixels([20; 10]), "the skin colour shows");
+    // Without colours, the toolset's lookup as before (the TGA).
+    assert!(textures.texture("pmd0_head001").is_some());
+}

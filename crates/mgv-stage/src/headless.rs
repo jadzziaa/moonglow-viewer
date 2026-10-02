@@ -106,7 +106,13 @@ pub fn picture(
         scene.background = bg;
     }
     scene.lights.extend(shot.key_light(cam));
-    viewport.image(stage.gpu(), lib.resman(), &scene, &camera, shot.size)
+    viewport.image(
+        stage.gpu(),
+        &crate::textures::Textures(lib.resman()),
+        &scene,
+        &camera,
+        shot.size,
+    )
 }
 
 /// `frames` pictures turning once around the stage, the animation running
