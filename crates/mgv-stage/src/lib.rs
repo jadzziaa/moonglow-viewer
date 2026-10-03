@@ -178,7 +178,6 @@ impl Stage {
         let mut base =
             self.actor_for(lib, &base_part.model, model.clone(), Placement::World(transform));
         base.look = look(base_part);
-        part_textures(&mut base.look, lib, &base_part.model, &model);
         if let Some(idle) = &preview.idle
             && base.animations.find(idle).is_some()
         {
@@ -195,8 +194,7 @@ impl Stage {
             };
             let node = p.attach.as_deref().and_then(|a| model.node(a));
             let placement = Placement::On { parent: base, node, scale: p.scale, follow: true };
-            let mut part_look = look(p);
-            part_textures(&mut part_look, lib, &p.model, &m);
+            let part_look = look(p);
             let mut actor = if p.animated {
                 self.actor_for(lib, &p.model, m, placement)
             } else {
@@ -353,6 +351,7 @@ impl Stage {
             env_map: self.lighting.env_map.clone(),
             sky: None,
             sky_fade: None,
+            lines: Vec::new(),
         }
     }
 

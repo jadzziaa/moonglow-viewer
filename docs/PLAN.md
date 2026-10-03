@@ -482,14 +482,14 @@ client (the toolset's `notes_models.md` B.8, B.20, B.20a).
 | `mg-resman` | Layers changed in place (`ResMan::rescan`, `replace`) | Rescans and editor buffers keep each layer's place |
 | `mg-preview` | Creatures by appearance alone (`CreatureLook`, `creature_look`) | Creature browsing (the right foot, which the viewer's own blueprint fields missed) |
 
-Proposed since:
-
-| Crate | Change | Why | Viewer workaround |
-| --- | --- | --- | --- |
-| `mg-render` | A coloured texture name (`name#c0,…`, an object with PLT colours) takes the PLT before a TGA or DDS of the name | The game colours a dwarf's head (`pmd0_head001` is a PLT and a plain gray TGA) and hands with the creature's skin; the toolset's creature previews draw them gray | `mgv_stage::textures::Textures` looks for the PLT first and leaves the rest to the toolset's lookup |
-| `mg-preview` | A body part whose mesh names a texture that does not exist takes the texture of the part model's own name (then the fallbacks `plt_fallbacks` already tries, from the model's name) | nwn.wiki (PLT): the game applies the part's own PLT; 60 base-game part meshes name a missing texture beside one of their own name (`pfh0_belt063` names `beltmerged`), and custom clothing does too. Whether the game also replaces a name that exists is not known | `mgv_stage::textures::part_fallbacks`, for bare part models and blueprint previews |
-
-Landed since: the PLT-before-TGA lookup above (toolset `bdd5818`, after v0.4.0); the viewer's `Textures` goes when it moves to a release with it.
+Landed since, in v0.7.0 (the viewer's pin): a coloured texture name takes
+the PLT before a TGA or DDS of the name (`mg-render`, toolset `bdd5818`;
+the game colours a dwarf's head, a PLT and a plain gray TGA, with the
+creature's skin), and a body part whose mesh names a texture that does not
+exist takes the one of the part model's own name (`mg-preview`, toolset
+`8b7e31f`; `pfh0_belt063` names `beltmerged`). The viewer's wrappers for
+both are gone; `mgv_stage::textures::part_fallbacks` stays for a part
+model opened on its own, which is no preview.
 
 Not taken, because the game does not do them: uploading vertex colours and
 UV sets 1–3 (the stock shaders ignore them); the emitters' three-stop

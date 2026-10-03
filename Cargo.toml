@@ -19,19 +19,19 @@ mgv-ui = { path = "crates/mgv-ui" }
 
 # Moonglow Toolset crates, pinned by Cargo.lock: move the pin with
 # `cargo update -p mg-core` (all of them move together).
-mg-2da = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-core = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-erf = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-gff = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-image = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-mdl = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-preview = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-render = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-resman = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-rules = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-set = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-testkit = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
-mg-tlk = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.4.0" }
+mg-2da = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-core = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-erf = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-gff = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-image = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-mdl = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-preview = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-render = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-resman = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-rules = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-set = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-testkit = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
+mg-tlk = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v0.7.0" }
 
 # Third party (the toolset's versions)
 anyhow = "1"

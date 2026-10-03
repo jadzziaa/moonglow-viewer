@@ -432,14 +432,14 @@ fn coloured_parts_take_the_plt() {
     use mg_render::{Assets, colored_name};
     let root = mg_testkit::corpus!();
     let lib = Library::open(Some(GameInstall::new(root, None, "en"))).unwrap();
-    let textures = mgv_stage::textures::Textures(lib.resman());
+    let texture = |name: &str| Assets::texture(lib.resman(), name);
     let pixels = |colors: [u8; 10]| {
-        let t = textures.texture(&colored_name("pmd0_head001", colors)).unwrap();
+        let t = texture(&colored_name("pmd0_head001", colors)).unwrap();
         t.texture.to_rgba().data
     };
     assert_ne!(pixels([0; 10]), pixels([20; 10]), "the skin colour shows");
     // Without colours, the toolset's lookup as before (the TGA).
-    assert!(textures.texture("pmd0_head001").is_some());
+    assert!(texture("pmd0_head001").is_some());
 }
 
 /// A body part whose texture names nothing takes the texture of its own

@@ -80,8 +80,7 @@ pub fn ui(app: &mut Viewer, ui: &mut egui::Ui) {
     let camera = app.camera.camera();
     let scene = g.stage.scene(camera.view());
     let gpu = g.stage.gpu().clone();
-    let textures = mgv_stage::textures::Textures(app.lib.resman());
-    g.viewport.draw(&gpu, &textures, &scene, &camera, px);
+    g.viewport.draw(&gpu, app.lib.resman(), &scene, &camera, px);
     let mut overlay = Overlay::default();
     if app.settings.show_grid {
         grid(&mut overlay, app.camera.distance);
