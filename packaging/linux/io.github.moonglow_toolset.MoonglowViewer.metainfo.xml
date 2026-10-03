@@ -47,6 +47,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.2" date="2026-10-03">
+      <description>
+        <p>Arrow keys step through the lists and W, A, S, D move the camera; the grid hides behind models; colored body parts take their skin and clothing colors.</p>
+      </description>
+    </release>
     <release version="0.1.1" date="2026-10-02">
       <description>
         <p>A click opens from the resource list; one-frame animations show as a pose.</p>
