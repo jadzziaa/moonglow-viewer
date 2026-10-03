@@ -457,3 +457,31 @@ fn parts_fall_back_to_their_own_names_texture() {
     assert!(of("pmd0_handl001").is_empty());
     assert!(of("plc_a01").is_empty());
 }
+
+/// A PLT on a model shows its colors: a base model's stand-in body does,
+/// a placeable has none.
+#[test]
+fn plt_models_are_told_apart_and_take_colors() {
+    use mgv_stage::textures::uses_plt;
+    let root = mg_testkit::corpus!();
+    let mut lib = Library::open(Some(GameInstall::new(root, None, "en"))).unwrap();
+    let of = |name: &str| uses_plt(lib.resman(), &lib.model(name).unwrap(), None);
+    assert!(of("a_halforc"));
+    assert!(!of("plc_a01"));
+    // The belt's own texture, a PLT, through its replacement only.
+    let belt = lib.model("pfh0_belt063").unwrap();
+    assert!(!uses_plt(lib.resman(), &belt, None));
+    let renamed = mgv_stage::textures::part_fallbacks(lib.resman(), &belt, "pfh0_belt063");
+    assert!(uses_plt(lib.resman(), &belt, Some(&renamed)));
+
+    let Some(gpu) = gpu() else { return };
+    let mut stage = Stage::new(gpu.clone());
+    let mut viewport = Viewport::new(&gpu);
+    let opened = lib.open_input("a_halforc").unwrap();
+    let shown = mgv_stage::subject::show(&mut stage, &lib, &opened).unwrap();
+    let shot = mgv_stage::headless::Shot { size: (128, 128), ..Default::default() };
+    let plain = mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &shot);
+    stage.actor_mut(shown.base).unwrap().look.colors = Some([60; 10]);
+    let colored = mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &shot);
+    assert_ne!(plain.data, colored.data, "the colors show");
+}

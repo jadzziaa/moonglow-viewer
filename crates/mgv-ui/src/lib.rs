@@ -63,6 +63,8 @@ pub enum Action {
     OpenResource(ResKey),
     /// A creature by `appearance.2da` row, bare.
     OpenCreature(mgv_stage::subject::CreatureLook),
+    /// The PLT colours of the model shown on its own (`None`: as opened).
+    SetColors(Option<[u8; 10]>),
     /// Applies a `visualeffects.2da` row to what is shown.
     ApplyEffect(usize),
     /// Ends an applied effect (its cessation plays).
@@ -516,6 +518,15 @@ impl Viewer {
             Action::Open(p) => self.open(&p),
             Action::OpenResource(k) => self.open_resource(k),
             Action::OpenCreature(look) => self.open_creature(look),
+            Action::SetColors(colors) => {
+                if let (Some(g), Some(base)) = (
+                    &mut self.gfx,
+                    self.doc.as_ref().and_then(|d| d.shown.as_ref()).map(|s| s.base),
+                ) && let Some(a) = g.stage.actor_mut(base)
+                {
+                    a.look.colors = colors;
+                }
+            }
             Action::ApplyEffect(row) => self.apply_effect(row),
             Action::RemoveEffect(i) => {
                 if let (Some(a), Some(g)) = (self.effects.applied.get(i), &mut self.gfx) {

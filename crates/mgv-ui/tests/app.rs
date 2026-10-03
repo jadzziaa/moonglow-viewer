@@ -293,3 +293,34 @@ fn wasd_moves_the_camera() {
     assert!(moved.length() > 1e-3 && moved.normalize().dot(ahead) > 0.99, "{moved}");
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+/// A model with PLT textures opened on its own has colors to set (a
+/// creature would give them); a model without has none.
+#[test]
+fn bare_plt_models_take_colors() {
+    let Some(mut h) = harness(true, Box::new(Answer(None))) else { return };
+    let look = |h: &Harness<'_, Viewer>| {
+        let v = h.state();
+        let base = v.doc.as_ref().unwrap().shown.as_ref().unwrap().base;
+        v.gfx.as_ref().unwrap().stage.actor(base).unwrap().look.colors
+    };
+    h.state_mut()
+        .actions
+        .push(Action::OpenResource(ResKey::parse("a_halforc", ResType::MDL).unwrap()));
+    h.run_steps(3);
+    assert!(h.query_by_label("PLT colors").is_some());
+    assert_eq!(look(&h), None);
+    let mut colors = [0; 10];
+    colors[2] = 40;
+    h.state_mut().actions.push(Action::SetColors(Some(colors)));
+    h.run_steps(2);
+    assert_eq!(look(&h), Some(colors));
+    h.get_by_label("Reset colors").click();
+    h.run_steps(2);
+    assert_eq!(look(&h), None);
+    h.state_mut()
+        .actions
+        .push(Action::OpenResource(ResKey::parse("plc_a01", ResType::MDL).unwrap()));
+    h.run_steps(3);
+    assert!(h.query_by_label("PLT colors").is_none());
+}

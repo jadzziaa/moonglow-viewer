@@ -415,6 +415,37 @@ pub(crate) fn inspector(app: &mut Viewer, ui: &mut Ui) {
                 app.actions.push(Action::OpenCreature(look));
             }
         }
+        // A model on its own with PLT textures: their colours, which a
+        // creature or an item would give them.
+        if doc.creature.is_none()
+            && doc.opened.kind == Kind::Model
+            && let Some(a) =
+                app.gfx.as_ref().zip(doc.shown.as_ref()).and_then(|(g, s)| g.stage.actor(s.base))
+            && mgv_stage::textures::uses_plt(
+                app.lib.resman(),
+                &a.model.model,
+                a.look.textures.as_deref(),
+            )
+        {
+            ui.separator();
+            ui.label("PLT colors");
+            let before = a.look.colors;
+            let mut colors = before.unwrap_or_default();
+            egui::Grid::new("plt colors").num_columns(2).show(ui, |ui| {
+                for (label, c) in mgv_stage::textures::PLT_LAYERS.iter().zip(&mut colors) {
+                    ui.label(*label);
+                    ui.add(egui::DragValue::new(c).range(0..=175));
+                    ui.end_row();
+                }
+            });
+            let mut after = (before.is_some() || colors != [0; 10]).then_some(colors);
+            if ui.add_enabled(before.is_some(), egui::Button::new("Reset colors")).clicked() {
+                after = None;
+            }
+            if after != before {
+                app.actions.push(Action::SetColors(after));
+            }
+        }
         match doc.opened.kind {
             Kind::Material => material(ui, &doc.opened.data),
             Kind::Tileset => {

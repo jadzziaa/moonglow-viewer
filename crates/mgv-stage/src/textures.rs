@@ -1,9 +1,40 @@
 //! Textures for body part models opened on their own: the toolset's
 //! creature previews give a part naming a missing texture the one of its
-//! own name (`mg-preview`), and this does the same for a bare part model.
+//! own name (`mg-preview`), and this does the same for a bare part model;
+//! and whether a model has PLT textures to colour.
 
 use mg_core::{ResRef, ResType};
 use mg_resman::{ResKey, ResMan};
+
+/// The names of a PLT's layers, in its order (the order of a look's
+/// colours).
+pub const PLT_LAYERS: [&str; 10] = [
+    "Skin",
+    "Hair",
+    "Metal 1",
+    "Metal 2",
+    "Cloth 1",
+    "Cloth 2",
+    "Leather 1",
+    "Leather 2",
+    "Tattoo 1",
+    "Tattoo 2",
+];
+
+/// Whether any of a model's drawn meshes wears a PLT (through `renamed`,
+/// a look's replacements): its colours then show.
+pub fn uses_plt(
+    rm: &ResMan,
+    model: &mg_mdl::Model,
+    renamed: Option<&std::collections::HashMap<String, String>>,
+) -> bool {
+    model.nodes.iter().any(|n| {
+        n.mesh().filter(|m| m.render).and_then(|m| m.textures[0].as_ref()).is_some_and(|t| {
+            let t = renamed.and_then(|r| r.get(&t.to_ascii_lowercase())).unwrap_or(t);
+            ResRef::from_str(t).is_ok_and(|r| rm.contains(&ResKey::new(r, ResType::PLT)))
+        })
+    })
+}
 
 /// Whether a texture name resolves to anything (an MTR, a DDS or TGA, a
 /// PLT).

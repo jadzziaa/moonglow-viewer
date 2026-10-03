@@ -24,6 +24,11 @@ Reset Layout** puts them back):
 - **Inspector**: what is open and the selected node: its type, position,
   orientation, controllers, mesh, textures (and whether the game has
   them), emitter or light settings.
+  For a model opened on its own that wears PLT textures (a body part, an
+  animation base such as `a_halforc`), it has the ten **PLT colors** a
+  creature or an item would give them: skin, hair, metal, cloth, leather
+  and tattoos, each a palette row from 0 to 175. **Reset colors** goes
+  back to the model as opened.
 - **Animation**: the animations the model can play (its own and its
   supermodels'), play and pause, loop or once, speed, and a slider through
   the animation with its events marked.
