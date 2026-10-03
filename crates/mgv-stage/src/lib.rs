@@ -178,6 +178,7 @@ impl Stage {
         let mut base =
             self.actor_for(lib, &base_part.model, model.clone(), Placement::World(transform));
         base.look = look(base_part);
+        part_textures(&mut base.look, lib, &base_part.model, &model);
         if let Some(idle) = &preview.idle
             && base.animations.find(idle).is_some()
         {
@@ -194,6 +195,8 @@ impl Stage {
             };
             let node = p.attach.as_deref().and_then(|a| model.node(a));
             let placement = Placement::On { parent: base, node, scale: p.scale, follow: true };
+            let mut part_look = look(p);
+            part_textures(&mut part_look, lib, &p.model, &m);
             let mut actor = if p.animated {
                 self.actor_for(lib, &p.model, m, placement)
             } else {
@@ -201,7 +204,7 @@ impl Stage {
                 let gpu_model = Arc::new(GpuModel::new(&self.gpu, m));
                 Actor::new(&p.model, gpu_model, Animations::default(), placement)
             };
-            actor.look = look(p);
+            actor.look = part_look;
             actor.follows_parent = p.animated;
             parts.push(self.add(actor));
         }
@@ -455,6 +458,20 @@ impl Stage {
     pub fn mesh_states(&self) -> impl Iterator<Item = (&Actor, &MeshState)> {
         self.actors.iter().map(|a| (a, a.state.as_ref()))
     }
+}
+
+/// Adds a body part's fallback textures ([`textures::part_fallbacks`]) to
+/// a look, under what it already replaces.
+pub(crate) fn part_textures(look: &mut Look, lib: &Library, name: &str, model: &Model) {
+    let fallbacks = textures::part_fallbacks(lib.resman(), model, name);
+    if fallbacks.is_empty() {
+        return;
+    }
+    let mut map = look.textures.as_deref().cloned().unwrap_or_default();
+    for (from, to) in fallbacks {
+        map.entry(from).or_insert(to);
+    }
+    look.textures = Some(Arc::new(map));
 }
 
 fn look(p: &mg_preview::Part) -> Look {

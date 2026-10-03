@@ -95,12 +95,15 @@ fn show_kind(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown,
         Kind::Model => {
             let model = Model::read(&opened.data)
                 .map_err(|e| StageError::Unreadable(format!("{}: {e}", opened.name())))?;
-            let actor = stage.actor_for(
+            let model = Arc::new(model);
+            let mut actor = stage.actor_for(
                 lib,
                 &opened.name(),
-                Arc::new(model),
+                model.clone(),
                 Placement::World(Mat4::IDENTITY),
             );
+            // A body part whose texture names nothing: its own name's.
+            crate::part_textures(&mut actor.look, lib, &opened.name(), &model);
             let base = stage.add(actor);
             play_default(stage, base);
             // Its walkmesh, for the overlay.

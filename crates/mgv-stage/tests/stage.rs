@@ -441,3 +441,19 @@ fn coloured_parts_take_the_plt() {
     // Without colours, the toolset's lookup as before (the TGA).
     assert!(textures.texture("pmd0_head001").is_some());
 }
+
+/// A body part whose texture names nothing takes the texture of its own
+/// name; names that resolve, and models that are not body parts, are left.
+#[test]
+fn parts_fall_back_to_their_own_names_texture() {
+    use mgv_stage::textures::part_fallbacks;
+    let root = mg_testkit::corpus!();
+    let lib = Library::open(Some(GameInstall::new(root, None, "en"))).unwrap();
+    let of = |name: &str| part_fallbacks(lib.resman(), &lib.model(name).unwrap(), name);
+    // pfh0_belt063 names `beltmerged`, which does not exist.
+    let belt = of("pfh0_belt063");
+    assert_eq!(belt.get("beltmerged").map(String::as_str), Some("pfh0_belt063"), "{belt:?}");
+    // A dwarf's hand names a human's texture, which exists: kept.
+    assert!(of("pmd0_handl001").is_empty());
+    assert!(of("plc_a01").is_empty());
+}
