@@ -55,6 +55,15 @@ overlays, offscreen rendering), `mgv-gallery` (batch rendering), `mgv-ui`
 (the egui app); `apps/moonglow-viewer` (GUI) and `apps/mgv` (CLI);
 `packaging/` (release packages) and `docs/manual/` (the user manual).
 
+## Documents
+
+`docs/` is an Open Knowledge Format (OKF v0.2) bundle (the user-level `okf`
+skill): start at `docs/index.md`. Every document opens with frontmatter
+(`type`, `title`, `description`, `generated`...), and `okf lint docs
+--links` stays clean. After adding or changing one: `okf index docs` and an
+entry in `docs/log.md`. Manual chapters carry frontmatter too; the app shows
+them without it (`mgv-ui/src/manual.rs`, whose test requires it).
+
 ## Rules
 
 - **Toolset changes stay out of this repository's sessions** unless the

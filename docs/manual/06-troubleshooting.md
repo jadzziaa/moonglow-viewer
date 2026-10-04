@@ -1,3 +1,11 @@
+---
+type: Manual Page
+title: Troubleshooting
+description: Common problems (game not found, missing textures, differences from the game, compile failures, crashes) and what to do about them.
+tags: [manual, troubleshooting]
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-01T19:48:40Z }
+---
+
 # Troubleshooting
 
 **The game is not found.** Choose **File › Game Folder…** (the folder with

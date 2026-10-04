@@ -1,3 +1,11 @@
+---
+type: Manual Page
+title: Lighting and visual effects
+description: Lighting a model as the game does (studio, area presets, custom area) and applying the game's visual effects and emitters to it.
+tags: [manual, lighting, visual-effects]
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-02T00:52:54Z }
+---
+
 # Lighting and visual effects
 
 ## Lighting

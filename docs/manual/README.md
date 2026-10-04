@@ -1,3 +1,11 @@
+---
+type: Manual
+title: 'Moonglow Viewer: User Manual'
+description: Front page and contents of the Moonglow Viewer user manual, which is also built into the program (Help, User Manual).
+tags: [manual]
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-01T19:48:40Z }
+---
+
 # Moonglow Viewer: User Manual
 
 Moonglow Viewer shows the models, walkmeshes, textures and blueprints of

@@ -1,3 +1,11 @@
+---
+type: Manual Page
+title: The window
+description: The panels of the window (3D view, ASCII, texture, resources, nodes, inspector, animation, effects, lighting, log) and the keys.
+tags: [manual, panels, keys]
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-03T08:16:10Z }
+---
+
 # The window
 
 The window is made of panels you can drag into other places (**View ›

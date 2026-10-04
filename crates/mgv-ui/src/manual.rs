@@ -18,9 +18,26 @@ pub(crate) const CHAPTERS: [(&str, &str); 7] = [
     ("06-troubleshooting.md", include_str!("../../../docs/manual/06-troubleshooting.md")),
 ];
 
+/// A chapter without its frontmatter. The manual is an Open Knowledge
+/// Format bundle (`docs/index.md`): each chapter opens with a YAML block
+/// between `---` lines, which is for tools and not for the reader.
+pub(crate) fn body(text: &str) -> &str {
+    let mut end = 0;
+    for (i, line) in text.split_inclusive('\n').enumerate() {
+        end += line.len();
+        match (i, line.trim_end() == "---") {
+            (0, false) => return text,
+            (0, true) => {}
+            (_, true) => return text[end..].trim_start(),
+            _ => {}
+        }
+    }
+    text
+}
+
 /// A chapter's title: its first heading.
 pub(crate) fn title(text: &str) -> &str {
-    text.lines().find_map(|l| l.strip_prefix("# ")).unwrap_or_default()
+    body(text).lines().find_map(|l| l.strip_prefix("# ")).unwrap_or_default()
 }
 
 /// The manual's state.
@@ -100,7 +117,7 @@ fn chapter_ui(m: &mut Manual, ui: &mut Ui) {
             ui,
             |ui| {
                 ui.set_max_width(760.0);
-                CommonMarkViewer::new().show(ui, &mut m.cache, text);
+                CommonMarkViewer::new().show(ui, &mut m.cache, body(text));
             },
         );
         go = go.or_else(|| {
@@ -122,6 +139,18 @@ mod tests {
         for (file, text) in &CHAPTERS[1..] {
             assert!(!title(text).is_empty(), "{file}");
             assert!(contents.contains(&format!("({file})")), "{file} is in the contents");
+        }
+    }
+
+    #[test]
+    fn a_chapter_is_shown_without_its_frontmatter() {
+        assert_eq!(body("---\ntype: Manual Page\n---\n\n# Keys\n"), "# Keys\n");
+        assert_eq!(body("---\r\ntitle: a\r\n---\r\n# Keys\r\n"), "# Keys\r\n");
+        assert_eq!(body("# Keys\n\n---\n\nMore.\n"), "# Keys\n\n---\n\nMore.\n");
+        assert_eq!(body("---\nnever closed\n"), "---\nnever closed\n");
+        for (file, text) in CHAPTERS {
+            assert!(text.starts_with("---\n"), "{file} has frontmatter");
+            assert!(body(text).starts_with("# "), "{file} is shown from its heading");
         }
     }
 }

@@ -1,3 +1,11 @@
+---
+type: Manual Page
+title: The command line
+description: The mgv command-line tool - pictures, turntables, galleries, model information, decompiling, compiling and linting without a window.
+tags: [manual, command-line, mgv]
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-03T08:07:12Z }
+---
+
 # The command line
 
 `mgv` does without a window what the viewer does: pictures, galleries,

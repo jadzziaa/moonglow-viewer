@@ -1,3 +1,11 @@
+---
+type: Manual Page
+title: Editing models
+description: The ASCII editor with its live reload and problem list, decompiling compiled models, and compiling with the game's compiler or nwnmdlcomp.
+tags: [manual, ascii, compiling, decompiling]
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-01T20:45:29Z }
+---
+
 # Editing models
 
 ## The ASCII editor

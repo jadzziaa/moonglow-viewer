@@ -1,3 +1,11 @@
+---
+type: Manual Page
+title: Getting started
+description: What Moonglow Viewer needs, the ways to open models and game resources, and how each file type is shown.
+tags: [manual, opening, resources]
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-02T19:48:39Z }
+---
+
 # Getting started
 
 ## What you need

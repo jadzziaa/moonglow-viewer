@@ -1,3 +1,11 @@
+---
+type: Plan
+title: 'Moonglow Viewer: Plan'
+description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
+tags: [plan, architecture, testing, release]
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-03T07:29:45Z }
+---
+
 # Moonglow Viewer: Plan
 
 Moonglow Viewer is a standalone, cross-platform model viewer for Neverwinter
