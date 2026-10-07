@@ -290,8 +290,7 @@ fn supermodel_of(rm: &ResMan, model: &Model) -> Option<(Model, PartNumbers)> {
 }
 
 /// The native compiler on the game's models (the plan's Phase 9, stage B):
-/// every compiled model without skin meshes, decompiled and compiled
-/// again, is the model it was, with the part numbers it had.
+/// every compiled model, decompiled and compiled again, is the model it was, with the part numbers it had.
 #[test]
 fn decompiled_models_compile_back() {
     let root = mg_testkit::corpus!();
@@ -300,7 +299,8 @@ fn decompiled_models_compile_back() {
     let (compiled, skins) = (AtomicUsize::new(0), AtomicUsize::new(0));
     // Numbers kept from the compiled model, and numbered afresh from the
     // text alone (where the model's numbers are its own).
-    let (kept, fresh) = (Tally::default(), Tally::default());
+    let (kept, fresh, binds) = (Tally::default(), Tally::default(), Tally::default());
+    let odd_binds = Mutex::new(std::collections::BTreeSet::new());
     let mut failures: Vec<(String, Vec<String>)> = names
         .par_iter()
         .filter_map(|name| {
@@ -308,7 +308,6 @@ fn decompiled_models_compile_back() {
             let model = Model::read(&data).ok().filter(|_| mg_mdl::is_binary(&data))?;
             if model.nodes.iter().any(|n| n.kind.type_name() == "skin") {
                 skins.fetch_add(1, Ordering::Relaxed);
-                return None;
             }
             // Two nodes of one name cannot be told apart in text.
             if common::duplicate_names(&model) {
@@ -331,6 +330,58 @@ fn decompiled_models_compile_back() {
                 Err(e) => return Some((name.to_string(), vec![format!("unreadable: {e}")])),
             };
             let mut problems = common::differences(&model, &back);
+            let name_key = name;
+            let name_of = |n: &ResRef| n.to_string();
+            // A skin's inverse binds, made from the model at rest, against
+            // those its file has: where each bone sees a point of the skin.
+            for (i, node) in model.nodes.iter().enumerate() {
+                let Some(mg_mdl::MeshExtra::Skin(theirs)) = node.mesh().map(|m| &m.extra) else {
+                    continue;
+                };
+                let ours = back.node(&node.name).and_then(|j| match back.nodes[j].mesh()?.extra {
+                    mg_mdl::MeshExtra::Skin(ref s) => Some(s),
+                    _ => None,
+                });
+                let Some(ours) = ours else {
+                    problems.push(format!("{}: no skin", node.name));
+                    continue;
+                };
+                // (Compiled from the text, the model's own are not kept:
+                // compare with a compile that had to make them.)
+                let _ = i;
+                for &bone in &theirs.bones {
+                    let name = &model.nodes[bone].name;
+                    let (Some(a), Some(b)) = (
+                        theirs.inverse_bind.get(bone),
+                        back.node(name).and_then(|j| ours.inverse_bind.get(j)),
+                    ) else {
+                        continue;
+                    };
+                    let seen = |(q, t): &([f32; 4], [f32; 3])| {
+                        let len = q.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-12);
+                        let [x, y, z, w] = q.map(|v| v / len);
+                        let p = [0.3f32, -0.7, 1.1];
+                        // q p q*
+                        let u = [x, y, z];
+                        let d = u[0] * p[0] + u[1] * p[1] + u[2] * p[2];
+                        let c = [
+                            u[1] * p[2] - u[2] * p[1],
+                            u[2] * p[0] - u[0] * p[2],
+                            u[0] * p[1] - u[1] * p[0],
+                        ];
+                        let uu = x * x + y * y + z * z;
+                        std::array::from_fn::<f32, 3, _>(|k| {
+                            2.0 * d * u[k] + (w * w - uu) * p[k] + 2.0 * w * c[k] + t[k]
+                        })
+                    };
+                    let (pa, pb) = (seen(a), seen(b));
+                    let off = (0..3).map(|k| (pa[k] - pb[k]).powi(2)).sum::<f32>().sqrt();
+                    binds.add(off < 2e-3);
+                    if off >= 2e-3 {
+                        odd_binds.lock().unwrap().insert(name_of(name_key));
+                    }
+                }
+            }
             let by_name = |m: &Model, p: &PartNumbers| {
                 let mut v: Vec<(String, i32)> = m
                     .nodes
@@ -351,7 +402,11 @@ fn decompiled_models_compile_back() {
             // From the text alone.
             let mut sorted = numbers.numbers.clone();
             sorted.sort_unstable();
-            if model.supermodel.is_none() && sorted.iter().enumerate().all(|(i, n)| *n == i as i32)
+            // (A skin is written after its bones, whatever its number.)
+            let skinned = model.nodes.iter().any(|n| n.kind.type_name() == "skin");
+            if model.supermodel.is_none()
+                && !skinned
+                && sorted.iter().enumerate().all(|(i, n)| *n == i as i32)
             {
                 let alone = mgv_mdl::compile::compile(text.as_bytes(), &Default::default()).ok()?;
                 let parts = PartNumbers::read(&alone.binary).unwrap();
@@ -362,18 +417,28 @@ fn decompiled_models_compile_back() {
         .collect();
     failures.sort();
     eprintln!(
-        "{} models compiled ({} with skins left out), {} differ; part numbers kept from the \
-         compiled model: {}; numbered again from the text alone: {}",
+        "{} models compiled ({} with skins), {} differ; part numbers kept from the compiled \
+         model: {}; numbered again from the text alone: {}; skins' inverse binds as their \
+         files': {}",
         compiled.load(Ordering::Relaxed),
         skins.load(Ordering::Relaxed),
         failures.len(),
         kept.text(),
-        fresh.text()
+        fresh.text(),
+        binds.text()
     );
     for (name, d) in failures.iter().take(25) {
         eprintln!("  {name}: {}", d.iter().take(4).cloned().collect::<Vec<_>>().join("; "));
     }
-    assert!(compiled.load(Ordering::Relaxed) > 24_000);
+    eprintln!(
+        "skins bound in another pose than their model's rest: {:?}",
+        odd_binds.lock().unwrap()
+    );
+    assert!(compiled.load(Ordering::Relaxed) > 25_000);
+    assert!(skins.load(Ordering::Relaxed) > 300);
     assert!(failures.is_empty(), "{} models differ", failures.len());
     assert!(fresh.share() >= 1.0, "{}", fresh.text());
+    // A few skins were bound in another pose than their model rests in,
+    // which no text holds: every compiler binds those at rest.
+    assert!(binds.share() >= 0.98, "{}", binds.text());
 }

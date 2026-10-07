@@ -63,7 +63,8 @@ mgv lint mymodel.mdl --notes
   What cannot be shown keeps its tile, with the reason in it.
 - **Compiling** (`compile`): `--with auto` (the game's compiler, or
   nwnmdlcomp for skin meshes), `engine`, `nwnmdlcomp`, or `native`: the
-  viewer's own compiler, in process, for everything but skin meshes. It
+  viewer's own compiler, in process, skin meshes with up to 64 bones
+  included. It
   keeps the part numbers of the compiled model of the same name, and says
   what it left out by `file:line`.
 - **Checking** (`lint`): problems by `file:line`. It fails when it finds

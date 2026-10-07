@@ -41,7 +41,7 @@ Decisions taken (2026-10-01):
 | 6 Emitters and visual effects | Mostly done: every `visualeffects.2da` row with a model applies (503, at three sizes) on hooks found by the target's kind, impact then duration, cessation on removal, from the window and `mgv render --vfx`. To do: `progfx.2da` (beams, node attachments, lights, glows) |
 | 7 Batch rendering and galleries | Done: `mgv gallery` over name patterns, 2DAs (placeables, appearance, visualeffects, doors), haks and folders; `index.html` and `manifest.json`, deterministic; re-runs skip unchanged items (all 1,289 placeables render in about 7 s at 256²; an unchanged re-run takes 3 s); `mgv turntable` (animated PNG or frames) |
 | 8 Hardening and release | In progress: packaging (the icon; the AppImage, 12.3 MB, built here and its command line run; the Flatpak bundle, 6.8 MB, built here; the Windows installer and macOS app built by the release workflow), the release workflow, the user manual; releases 0.1.0 and 0.1.1 on toolset 0.4.0, 0.1.2 on 0.7.0, 0.1.3 to 0.1.5 on 1.16.1. To do: try the Windows and macOS packages on their systems, performance budgets in CI |
-| 9 Native compiler | Stages A and B done (`mgv compile --with native` compiles everything but skin meshes, as the game's compiler does and keeping part numbers); C (skins) and D (the default) to do. Stage A: every compiled model in the game writes back the same, and the client draws written models as the originals. It showed that the game binds supermodel animations by part number. Scoped (§5, Phase 9): a binary writer and what a compiler derives, in four stages, to replace nwnmdlcomp for skin meshes on every platform |
+| 9 Native compiler | Stages A to C done: `mgv compile --with native` compiles every kind of model, skins of up to 64 bones included, as the game's compiler does and keeping part numbers; D (the default, and Neverblender without nwnmdlcomp) to do. Stage A: every compiled model in the game writes back the same, and the client draws written models as the originals. It showed that the game binds supermodel animations by part number. Scoped (§5, Phase 9): a binary writer and what a compiler derives, in four stages, to replace nwnmdlcomp for skin meshes on every platform |
 
 ## 1. What it does
 
@@ -418,8 +418,8 @@ performance budgets in CI, releases built by CI.
 ASCII to binary in process, on every platform, keeping EE features where the
 binary format holds them; checked against nwnmdlcomp's output, the engine
 compiler's, and in the game. Scoped on 2026-10-07; stages A (the writer,
-`mgv-mdl/src/binary.rs`) and B (`compile.rs`: everything but skin meshes)
-are done, each checked in the game.
+`mgv-mdl/src/binary.rs`), B and C (`compile.rs`) are done, each checked in
+the game; D (making it the default) is to do.
 
 **Stage A so far.** All 25,597 compiled models in the game, read, written
 and read again, are the same `Model`, and nwnmdlcomp decompiles a sample of
@@ -501,6 +501,30 @@ there is one.
 - A model compiles in about a tenth of a second, against a second and a
   half through the game.
 
+**Stage C** (skins). A text's skin names its bones per vertex, which the
+ASCII reader already resolves; what a compiled skin holds besides is where
+each node of the model sees the skin from at rest (a rotation and a
+translation a node, `compile::inverse_binds`), and the bone tables the
+writer makes. More than 18 bones are written in EE's larger structure.
+
+- All 355 compiled models with skins in the game compile back from their
+  decompiled text to the models they were (weights by bone, numbers), so
+  all 25,227 models without two nodes of one name do.
+- The inverse binds made from the model at rest are those of the files
+  for 4,514 of 4,594 bones. The rest are one family, ten `c_wingdrg2_*`
+  wing models, bound in another pose than they rest in, which no text
+  holds.
+- In the client: the red dragon and its supermodel compiled natively are
+  drawn as the originals; and Neverblender's test mannequin, 52 bones a
+  skin, lying posed where the wererat lay, is drawn the same compiled
+  natively as from its text (which the game reads itself). So EE's
+  64-bone structure, as the writer lays it out, is what the game takes.
+- Dangly meshes, animated meshes and walkmeshes came with stage B: the
+  reader had them whole.
+
+Not done here: Neverblender's end-to-end run without nwnmdlcomp, which
+waits for stage D (its compile tool choosing the native compiler).
+
 **Why now.** It is the last thing that keeps nwnmdlcomp in use: the game's
 own compiler cannot compile skin meshes, so every creature goes through a
 32-bit program from 2018 that is built from source on Linux, does not run on
@@ -542,8 +566,9 @@ cross-platform, depends on it for creatures.
 **Open questions**, each to be answered by measurement before the stage
 that needs it:
 
-- How many bones a skin may really have in EE (64 is from documentation),
-  and what the game does past it.
+- None left of those the scope listed: the game's normals and tangents are
+  the reader's (stage B), 52 bones a skin work in the layout written
+  (stage C; 64 is the documented limit, untried).
 
 **Stages**, each ending with a result that can be shown:
 

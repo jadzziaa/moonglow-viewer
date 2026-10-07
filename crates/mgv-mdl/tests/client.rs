@@ -30,8 +30,9 @@ use mg_rules::GameData;
 use mg_schema::{StructExt, ifo};
 use mgv_mdl::binary::{PartNumbers, part_numbers, write};
 
-/// The scene: an armoire (emitters, animations), a wererat (parts on its own
-/// skeleton), a man sitting (a dangly-haired model on the `a_ba`
+/// The scene: an armoire (emitters, animations), a wererat lying on its back
+/// (parts on its own skeleton; a pose, so a skin standing in for it is
+/// bent by its bones), a man sitting (a dangly-haired model on the `a_ba`
 /// supermodel's animations) and a red dragon (skinned wings, on another
 /// dragon's animations), seen from above and behind the player's start.
 const ENTER: &str = r#"
@@ -47,6 +48,12 @@ void Sit(object o)
     AssignCommand(o, ClearAllActions());
     AssignCommand(o, ActionPlayAnimation(ANIMATION_LOOPING_SIT_CROSS, 1.0, 600.0));
 }
+void Lie(object o)
+{
+    ChangeToStandardFaction(o, STANDARD_FACTION_COMMONER);
+    AssignCommand(o, ClearAllActions());
+    AssignCommand(o, ActionPlayAnimation(ANIMATION_LOOPING_DEAD_BACK, 1.0, 600.0));
+}
 void main()
 {
     object pc = GetEnteringObject();
@@ -56,7 +63,8 @@ void main()
     object area = GetAreaFromLocation(start);
     vector p = GetPositionFromLocation(start);
     CreateObject(OBJECT_TYPE_PLACEABLE, "plc_armoire", Location(area, Vector(p.x - 4.0, p.y + 4.0, p.z), 270.0));
-    Still(CreateObject(OBJECT_TYPE_CREATURE, "nw_wererat", Location(area, Vector(p.x - 1.5, p.y + 4.0, p.z), 270.0)));
+    object rat = CreateObject(OBJECT_TYPE_CREATURE, "nw_wererat", Location(area, Vector(p.x - 1.5, p.y + 4.0, p.z), 270.0));
+    DelayCommand(1.0, Lie(rat));
     object man = CreateObject(OBJECT_TYPE_CREATURE, "nw_humanmerc001", Location(area, Vector(p.x + 1.5, p.y + 4.0, p.z), 270.0));
     DelayCommand(1.0, Sit(man));
     Still(CreateObject(OBJECT_TYPE_CREATURE, "nw_drgred001", Location(area, Vector(p.x + 7.0, p.y + 9.0, p.z), 250.0)));
@@ -269,6 +277,28 @@ fn models(rm: &ResMan) -> Vec<(String, Vec<u8>)> {
     out
 }
 
+/// Files by name.
+type Files = Vec<(String, Vec<u8>)>;
+
+/// Neverblender's 52-bone test mannequin as the wererat's model: its text
+/// under that name and its textures (`NEVERBLENDER`, or the project beside
+/// this one; made by its `tools/e2e/run_e2e.py`).
+fn neverblender_mannequin() -> Option<(String, Files)> {
+    let project = std::env::var_os("NEVERBLENDER")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../neverblender"));
+    let dir = project.join("build/fbx/creature");
+    let text = std::fs::read_to_string(dir.join("zz_nvbmana.mdl")).ok()?;
+    let textures = ["main", "join"]
+        .iter()
+        .map(|t| {
+            let data = std::fs::read(dir.join(format!("zz_nvbmana_{t}.tga"))).ok()?;
+            Some((format!("c_wererat_{t}.tga"), data))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some((text.replace("zz_nvbmana", "c_wererat"), textures))
+}
+
 /// A model's part numbers as a compiler would give them, from its
 /// supermodels' given the same way (not read from their files).
 fn derived(
@@ -347,6 +377,31 @@ fn the_client_draws_written_models_as_the_originals() {
             }
         }
     });
+    // Stage C, more bones than the old game's 17: Neverblender's test
+    // mannequin (52 bones a skin, from a CC0 rig; built by its end-to-end
+    // run, so only where that is) stands in for the wererat, as the text
+    // the game reads itself and compiled natively.
+    let mannequin = neverblender_mannequin();
+    let many_bones = mannequin.as_ref().map(|(text, textures)| {
+        let fill = |dev: &Path, compiled: bool| {
+            for (name, data) in textures {
+                std::fs::write(dev.join(name), data).unwrap();
+            }
+            let model = if compiled {
+                let none = |_: &str| None;
+                mgv_mdl::compile::compile_named(text.as_bytes(), "c_wererat", &none, &none)
+                    .unwrap()
+                    .binary
+            } else {
+                text.clone().into_bytes()
+            };
+            std::fs::write(dev.join("c_wererat.mdl"), model).unwrap();
+        };
+        let as_text = run("bones-text", &|dev| fill(dev, false));
+        let again = run("bones-text-again", &|dev| fill(dev, false));
+        let natively = run("bones-native", &|dev| fill(dev, true));
+        (as_text, again, natively)
+    });
     // The supermodels alone written again, numbered as a compiler numbers
     // them from scratch (not as their files are): does the game still
     // find their animations for the models compiled against the old
@@ -390,6 +445,24 @@ fn the_client_draws_written_models_as_the_originals() {
         difference(&original, &rewritten, man) <= difference(&original, &again, man) * 2.0 + 1.0,
         "the man on written supermodels sits differently"
     );
+    // The mannequin where the wererat stood.
+    match &many_bones {
+        Some((as_text, again, natively)) => {
+            let rat = [0.36, 0.24, 0.47, 0.43];
+            let (noise, compiled) =
+                (difference(as_text, again, rat), difference(as_text, natively, rat));
+            eprintln!(
+                "a skin of 52 bones: two runs of its text {noise:.3}, compiled natively \
+                 {compiled:.3}; against the wererat {:.3}",
+                difference(&original, as_text, rat)
+            );
+            assert!(difference(&original, as_text, rat) > 1.0, "the mannequin is not there");
+            assert!(compiled <= noise * 2.0 + 1.0, "the compiled skin is drawn differently");
+        }
+        None => {
+            eprintln!("skipped the skin of 52 bones: no Neverblender build beside this project")
+        }
+    }
     // What this measured (2026-10-07): the game finds a supermodel's
     // animations for a model's nodes by part number, not by name. With his
     // supermodels numbered afresh the man no longer sits as he did: a

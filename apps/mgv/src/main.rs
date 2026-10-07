@@ -279,7 +279,8 @@ enum CompileWith {
     Nwnmdlcomp,
     Engine,
     /// Moonglow Viewer's own compiler, in process: no game, no display.
-    /// Everything but skin meshes (experimental).
+    /// Skin meshes too, with up to 64 bones (new: not `auto`'s choice
+    /// yet).
     Native,
 }
 

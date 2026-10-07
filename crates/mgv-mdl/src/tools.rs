@@ -483,7 +483,7 @@ fn strip_ansi(s: &str) -> String {
 pub enum Compiler {
     Nwnmdlcomp,
     Engine,
-    /// In process ([`crate::compile`]): everything but skin meshes.
+    /// In process ([`crate::compile`]).
     Native,
 }
 

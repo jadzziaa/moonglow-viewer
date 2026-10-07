@@ -1,10 +1,11 @@
 //! The native compiler: an ASCII model to a compiled one, in process (the
-//! plan's Phase 9, stage B: everything but skin meshes).
+//! plan's Phase 9, stages B and C).
 //!
 //! `mg-mdl`'s reader already makes of the text what a compiled model holds
 //! (a vertex per corner, normals from smoothing groups); [`crate::binary`]
 //! writes it. Between them, here: tangents for a render hint that came
-//! without, a walkmesh's tree where the text has none, controllers the
+//! without, a walkmesh's tree where the text has none, a skin's inverse
+//! binds from the model at rest, controllers the
 //! node's type does not have (left out, as the game leaves them), and the
 //! part numbers, by the order of the text and from the model's compiled
 //! version where there is one.
@@ -22,8 +23,8 @@ pub enum CompileError {
     NotAscii,
     #[error(transparent)]
     Read(#[from] mg_mdl::MdlError),
-    #[error("{node}: skin meshes are not compiled natively yet (use nwnmdlcomp)")]
-    Skin { node: String },
+    #[error("{node}: {bones} bones (a skin holds at most 64)")]
+    Bones { node: String, bones: usize },
     #[error(transparent)]
     Write(#[from] binary::CompileError),
 }
@@ -156,6 +157,64 @@ pub fn aabb_tree(mesh: &Mesh) -> Vec<AabbEntry> {
     out
 }
 
+type Quat = [f32; 4];
+
+fn quat_mul(a: Quat, b: Quat) -> Quat {
+    let ([ax, ay, az, aw], [bx, by, bz, bw]) = (a.map(f64::from), b.map(f64::from));
+    [
+        aw * bx + ax * bw + ay * bz - az * by,
+        aw * by - ax * bz + ay * bw + az * bx,
+        aw * bz + ax * by - ay * bx + az * bw,
+        aw * bw - ax * bx - ay * by - az * bz,
+    ]
+    .map(|x| x as f32)
+}
+
+fn quat_unit(q: Quat) -> Quat {
+    let len = q.iter().map(|x| f64::from(*x).powi(2)).sum::<f64>().sqrt();
+    if len < 1e-12 { mg_mdl::IDENTITY } else { q.map(|x| (f64::from(x) / len) as f32) }
+}
+
+fn quat_conjugate(q: Quat) -> Quat {
+    [-q[0], -q[1], -q[2], q[3]]
+}
+
+fn rotate(q: Quat, v: Vec3) -> Vec3 {
+    let p = quat_mul(quat_mul(q, [v[0], v[1], v[2], 0.0]), quat_conjugate(q));
+    [p[0], p[1], p[2]]
+}
+
+/// Each node's place in the model at rest: its rotation and position from
+/// the root's (nodes are in pre-order, a parent before its children).
+fn rest_pose(model: &Model) -> Vec<(Quat, Vec3)> {
+    let mut out: Vec<(Quat, Vec3)> = Vec::with_capacity(model.nodes.len());
+    for node in &model.nodes {
+        let local = quat_unit(node.orientation);
+        let place = match node.parent.and_then(|p| out.get(p)) {
+            Some(&(q, t)) => {
+                let moved = rotate(q, node.position);
+                (quat_unit(quat_mul(q, local)), [t[0] + moved[0], t[1] + moved[1], t[2] + moved[2]])
+            }
+            None => (local, node.position),
+        };
+        out.push(place);
+    }
+    out
+}
+
+/// A skin's inverse binds, one per node of the model: what takes a point
+/// of the skin, at rest, into that node's own space (a rotation and a
+/// translation).
+pub(crate) fn inverse_binds(rest: &[(Quat, Vec3)], skin: usize) -> Vec<(Quat, Vec3)> {
+    let Some(&(skin_q, skin_t)) = rest.get(skin) else { return Vec::new() };
+    rest.iter()
+        .map(|&(q, t)| {
+            let back = quat_conjugate(q);
+            (quat_unit(quat_mul(back, skin_q)), rotate(back, sub(skin_t, t)))
+        })
+        .collect()
+}
+
 /// Compiles an ASCII model.
 pub fn compile(text: &[u8], sources: &Sources<'_>) -> Result<Compiled, CompileError> {
     if mg_mdl::is_binary(text) {
@@ -182,6 +241,7 @@ pub fn compile(text: &[u8], sources: &Sources<'_>) -> Result<Compiled, CompileEr
         .iter()
         .map(|n| (n.name.to_ascii_lowercase(), binary::node_flags(&n.kind)))
         .collect();
+    let rest = rest_pose(&model);
     for (i, node) in model.nodes.iter_mut().enumerate() {
         let node_flags = binary::node_flags(&node.kind);
         let name = node.name.clone();
@@ -204,10 +264,14 @@ pub fn compile(text: &[u8], sources: &Sources<'_>) -> Result<Compiled, CompileEr
         if !says(i, "shininess") {
             mesh.shininess = 1.0;
         }
-        if let MeshExtra::Skin(skin) = &mesh.extra
-            && skin.inverse_bind.is_empty()
-        {
-            return Err(CompileError::Skin { node: name });
+        if let MeshExtra::Skin(skin) = &mut mesh.extra {
+            if skin.bones.len() > 64 {
+                return Err(CompileError::Bones { node: name, bones: skin.bones.len() });
+            }
+            // Where each node is from the skin at rest, for the bones.
+            if skin.inverse_bind.is_empty() {
+                skin.inverse_bind = inverse_binds(&rest, i);
+            }
         }
         // A render hint wants tangents: the text's, else made here.
         let hinted = mesh.renderhint.as_deref().is_some_and(|h| !h.eq_ignore_ascii_case("none"));
@@ -448,17 +512,41 @@ endmodelgeom m\ndonemodel m\n";
     }
 
     #[test]
-    fn what_is_not_text_or_not_yet_compiled_is_refused() {
+    fn what_is_not_text_is_refused() {
         let compiled = compile(MODEL.as_bytes(), &Sources::default()).unwrap();
         assert_eq!(compile(&compiled.binary, &Sources::default()), Err(CompileError::NotAscii));
+    }
+
+    /// A skin gets the place of each node from itself at rest: a bone a
+    /// metre up and a quarter turn round sees the skin's origin a metre
+    /// down, turned back.
+    #[test]
+    fn a_skin_gets_its_inverse_binds() {
         let skin = MODEL.replace(
             "node dummy a\n  parent m\nendnode\n",
-            "node skin s\n  parent m\n  verts 3\n    0 0 0\n    1 0 0\n    0 1 0\n  \
-             faces 1\n    0 1 2 1 0 0 0 0\n  weights 3\n    m 1\n    m 1\n    m 1\nendnode\n",
+            "node dummy a\n  parent m\n  position 0 0 1\n  orientation 0 0 1 1.5707964\nendnode\n\
+             node skin s\n  parent m\n  position 1 0 0\n  verts 3\n    0 0 0\n    1 0 0\n    0 1 0\n  \
+             faces 1\n    0 1 2 1 0 0 0 0\n  weights 3\n    a 1\n    a 0.5 m 0.5\n    m 1\nendnode\n",
         );
-        assert!(matches!(
-            compile(skin.as_bytes(), &Sources::default()),
-            Err(CompileError::Skin { .. })
-        ));
+        let out = compile(skin.as_bytes(), &Sources::default()).unwrap();
+        let back = Model::read(&out.binary).unwrap();
+        let (s, a) = (back.node("s").unwrap(), back.node("a").unwrap());
+        let MeshExtra::Skin(skin) = &back.nodes[s].mesh().unwrap().extra else { panic!() };
+        assert_eq!(skin.inverse_bind.len(), back.nodes.len());
+        // The skin's origin (1, 0, 0) seen from `a` at (0, 0, 1), turned a
+        // quarter round z: (0, -1, -1).
+        let (q, t) = skin.inverse_bind[a];
+        let seen = rotate(q, [0.0; 3]).map(|x| x + 0.0);
+        let at = [seen[0] + t[0], seen[1] + t[1], seen[2] + t[2]];
+        for (x, want) in at.iter().zip([0.0, -1.0, -1.0]) {
+            assert!((x - want).abs() < 1e-5, "{at:?}");
+        }
+        // From itself: nothing.
+        let (q, t) = skin.inverse_bind[s];
+        assert!(q[3].abs() > 0.99999 && t.iter().all(|x| x.abs() < 1e-6));
+        // Its weights name its bones.
+        let names: Vec<&str> = skin.bones.iter().map(|&b| back.nodes[b].name.as_str()).collect();
+        assert_eq!(names, ["a", "m"]);
+        assert_eq!(skin.weights.len(), 3);
     }
 }

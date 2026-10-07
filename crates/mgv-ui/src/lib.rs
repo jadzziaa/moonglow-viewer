@@ -1106,8 +1106,7 @@ impl Viewer {
                     "Moonglow (native)",
                 )
                 .on_hover_text(
-                    "The viewer's own compiler: no game, no window. Everything but skin \
-                     meshes (experimental)",
+                    "The viewer's own compiler: no game, no window, skin meshes too (new)",
                 );
             });
             ui.menu_button("View", |ui| {

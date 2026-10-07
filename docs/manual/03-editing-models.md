@@ -71,6 +71,6 @@ model, as the game will load it. The compiler:
   no game and no window, in a fraction of a second. It keeps what the
   game's compiler keeps, and the part numbers of the compiled model of the
   same name where the game or a hak has one (so models built on a
-  supermodel go on working when it is compiled again). It compiles
-  everything but skin meshes, and is new: choose it under **Model › Compile
-  with**; Automatic does not use it yet.
+  supermodel go on working when it is compiled again). It compiles skin
+  meshes too, with up to 64 bones a skin (nwnmdlcomp: 17). It is new:
+  choose it under **Model › Compile with**; Automatic does not use it yet.

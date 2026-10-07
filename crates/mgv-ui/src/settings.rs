@@ -19,7 +19,7 @@ pub enum CompileWith {
     Auto,
     Engine,
     Nwnmdlcomp,
-    /// The viewer's own compiler, in process (everything but skin meshes).
+    /// The viewer's own compiler, in process.
     Native,
 }
 
