@@ -50,6 +50,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.5" date="2026-10-07">
+      <description>
+        <p>Decompiled models keep the node numbers the game binds supermodel animations by.</p>
+      </description>
+    </release>
     <release version="0.1.4" date="2026-10-07">
       <description>
         <p>Contact sheets (mgv sheet), shadow casters shown in blue, pictures framed close to the model, lint --strict.</p>
