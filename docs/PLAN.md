@@ -41,7 +41,7 @@ Decisions taken (2026-10-01):
 | 6 Emitters and visual effects | Mostly done: every `visualeffects.2da` row with a model applies (503, at three sizes) on hooks found by the target's kind, impact then duration, cessation on removal, from the window and `mgv render --vfx`. To do: `progfx.2da` (beams, node attachments, lights, glows) |
 | 7 Batch rendering and galleries | Done: `mgv gallery` over name patterns, 2DAs (placeables, appearance, visualeffects, doors), haks and folders; `index.html` and `manifest.json`, deterministic; re-runs skip unchanged items (all 1,289 placeables render in about 7 s at 256²; an unchanged re-run takes 3 s); `mgv turntable` (animated PNG or frames) |
 | 8 Hardening and release | In progress: packaging (the icon; the AppImage, 12.3 MB, built here and its command line run; the Flatpak bundle, 6.8 MB, built here; the Windows installer and macOS app built by the release workflow), the release workflow, the user manual; releases 0.1.0 and 0.1.1 on toolset 0.4.0, 0.1.2 on 0.7.0, 0.1.3 and 0.1.4 on 1.16.1. To do: try the Windows and macOS packages on their systems, performance budgets in CI |
-| 9 Native compiler | Not started; scoped (§5, Phase 9): a binary writer and what a compiler derives, in four stages, to replace nwnmdlcomp for skin meshes on every platform |
+| 9 Native compiler | Stage A's binary writer is in: every compiled model in the game writes back the same; its check in the client is to do. Scoped (§5, Phase 9): a binary writer and what a compiler derives, in four stages, to replace nwnmdlcomp for skin meshes on every platform |
 
 ## 1. What it does
 
@@ -417,7 +417,34 @@ performance budgets in CI, releases built by CI.
 ### Phase 9: Native compiler
 ASCII to binary in process, on every platform, keeping EE features where the
 binary format holds them; checked against nwnmdlcomp's output, the engine
-compiler's, and in the game. Scoped on 2026-10-07; not started.
+compiler's, and in the game. Scoped on 2026-10-07; stage A's writer is in
+(`mgv-mdl/src/binary.rs`), its check in the game is not.
+
+**Stage A so far.** All 25,597 compiled models in the game, read, written
+and read again, are the same `Model`, and nwnmdlcomp decompiles a sample of
+the written files (skins, dangly and animated meshes, emitters, walkmeshes
+among them) as it does the originals. What the writer derives was set
+against the bytes BioWare's compiler and nwnmdlcomp wrote: face normals and
+plane distances agree in 99.9% of 8 million faces, the faces beside each in
+99.3%, mesh boxes in 99.6%, radii and averages in 94%. Three things that
+measuring showed:
+
+- A mesh's box holds its origin as well as its vertices, and its average
+  counts a place once however many corners meet there.
+- Part numbers are the nodes' order in the *file* the compiler read, which
+  a compiled model's tree does not keep: in 4,343 of 22,787 models without
+  a supermodel they are a permutation of the tree's order. A node the
+  supermodel has at the same place by name takes its number; one it lacks
+  there has −1; what is under such a node keeps its own. So a supermodel's
+  numbers are read from its compiled file (`PartNumbers::read`), not
+  derived.
+- The game ignores the function pointers: its own compiler leaves run-time
+  values there, in files the game ships.
+
+Still to do for A: a sample of the written files loaded in the client and
+compared with the originals there. That needs the client harness the
+toolset's tests have (a scratch module, the sandboxed client, a
+screenshot), which the viewer does not have yet.
 
 **Why now.** It is the last thing that keeps nwnmdlcomp in use: the game's
 own compiler cannot compile skin meshes, so every creature goes through a
@@ -460,10 +487,10 @@ cross-platform, depends on it for creatures.
 **Open questions**, each to be answered by measurement before the stage
 that needs it:
 
-- Which header fields the game reads and which it ignores. The reader
-  ignores function pointers, parent pointers and padding (they hold garbage
-  in EE-compiled files); whether the game checks any of them on load is not
-  known.
+- Whether the game binds a supermodel's animations to a model's nodes by
+  part number or by name. If by number, a supermodel compiled again from
+  its decompiled text (its nodes numbered in another order) would not fit
+  the models already compiled against it; to be tried in the client.
 - Whether the game's vertex normals from smoothing groups can be matched
   exactly, or only closely (weighting by angle or by area).
 - How many bones a skin may really have in EE (64 is from documentation),

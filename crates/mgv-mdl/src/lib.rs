@@ -1,8 +1,10 @@
 //! Model source tools: models as ASCII (the native decompiler), what an
 //! ASCII model's text holds (its outline) and what is wrong with it
-//! (diagnostics), the keywords the game knows, and the external compile and
-//! decompile back ends.
+//! (diagnostics), the keywords the game knows, compiled models written from
+//! a model (the native compiler's first stage), and the external compile
+//! and decompile back ends.
 
+pub mod binary;
 pub mod keywords;
 pub mod lint;
 pub mod outline;
