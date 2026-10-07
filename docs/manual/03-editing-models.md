@@ -55,22 +55,25 @@ built on it. The viewer's own compiler keeps them: see below.)
 **Model › Compile** (Ctrl+B) compiles the editor's text into
 `compiled/<name>.mdl` beside the ASCII file (asked for a folder when the
 model is not a file yet). **Compile and View** then shows the compiled
-model, as the game will load it. The compiler:
+model, as the game will load it. The compiler (**Model › Compile with**):
 
-- **The game's compiler** (Automatic's choice for models without skin
-  meshes) runs your game's own `nwmain` with the `compilemodel` command, in
-  a scratch user folder of the viewer's (never your game's user folder). It
-  keeps EE's materials and normals. On Linux it runs out of sight in
-  gamescope's headless mode when gamescope is installed; elsewhere a game
-  window opens for a moment. It cannot compile skin meshes.
-- **nwnmdlcomp** (Automatic's choice for skin meshes) is found in the folder
-  the `NWN_TOOLS_BIN` environment variable names, or on `PATH`. It
-  predates EE: the viewer refuses models using `materialname` or
-  `renderhint` (it would drop them) and skins with more than 17 bones.
-- **Moonglow (native)** is the viewer's own compiler: in the program, with
-  no game and no window, in a fraction of a second. It keeps what the
-  game's compiler keeps, and the part numbers of the compiled model of the
-  same name where the game or a hak has one (so models built on a
-  supermodel go on working when it is compiled again). It compiles skin
-  meshes too, with up to 64 bones a skin (nwnmdlcomp: 17). It is new:
-  choose it under **Model › Compile with**; Automatic does not use it yet.
+- **Moonglow** is the viewer's own, and the one used unless you choose
+  another: in the program, with no game and no window, in a fraction of a
+  second. It compiles every kind of model, skin meshes with up to 64 bones
+  a skin included, and keeps EE's materials, normals and tangents. It
+  makes of a text what the game's own compiler makes of it (checked on
+  the game's models and in the game). And it keeps the part numbers of the
+  compiled model of the same name where the game or a hak has one, so
+  models built on a supermodel go on working when the supermodel is
+  compiled again. What it leaves out of a text (a keyword that is no
+  controller of that kind of node) it says in the log, by line.
+- **The game's compiler** runs your game's own `nwmain` with the
+  `compilemodel` command, in a scratch user folder of the viewer's (never
+  your game's user folder). On Linux it runs out of sight in gamescope's
+  headless mode when gamescope is installed; elsewhere a game window opens
+  for a moment. It cannot compile skin meshes, and numbers a model's nodes
+  afresh.
+- **nwnmdlcomp** is found in the folder the `NWN_TOOLS_BIN` environment
+  variable names, or on `PATH`. It predates EE: the viewer refuses models
+  using `materialname` or `renderhint` (it would drop them) and skins with
+  more than 17 bones.

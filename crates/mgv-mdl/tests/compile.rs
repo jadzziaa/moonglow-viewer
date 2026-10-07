@@ -442,3 +442,92 @@ fn decompiled_models_compile_back() {
     // which no text holds: every compiler binds those at rest.
     assert!(binds.share() >= 0.98, "{}", binds.text());
 }
+
+/// The game's own ASCII models (a fifth of its models are text): each
+/// compiles natively to the model its text reads as.
+#[test]
+fn the_games_ascii_models_compile() {
+    let root = mg_testkit::corpus!();
+    let rm = ResMan::for_game(&GameInstall::new(root, None, "en")).unwrap();
+    let names = rm.list(ResType::MDL);
+    let compiled = AtomicUsize::new(0);
+    let start = std::time::Instant::now();
+    let lookup = |n: &str| {
+        let key = ResKey::parse(n, ResType::MDL)?;
+        rm.get(&key).ok().map(|d| d.into_owned())
+    };
+    let mut failures: Vec<(String, Vec<String>)> = names
+        .par_iter()
+        .filter_map(|name| {
+            let data = rm.get(&ResKey::new(*name, ResType::MDL)).ok()?;
+            if mg_mdl::is_binary(&data) {
+                return None;
+            }
+            // (What the reader cannot read is not a model to compile.)
+            let model = Model::read(&data).ok()?;
+            let none = |_: &str| None;
+            let out =
+                match mgv_mdl::compile::compile_named(&data, &name.to_string(), &lookup, &none) {
+                    Ok(c) => c,
+                    Err(e) => return Some((name.to_string(), vec![format!("not compiled: {e}")])),
+                };
+            compiled.fetch_add(1, Ordering::Relaxed);
+            let back = match Model::read(&out.binary) {
+                Ok(m) => m,
+                Err(e) => return Some((name.to_string(), vec![format!("unreadable: {e}")])),
+            };
+            if common::duplicate_names(&model) {
+                return None;
+            }
+            let mut problems = common::compare(&back, &model, true);
+            // A shininess of 1 where the text has none is the compiler's
+            // (the game's); animated sets are compared below.
+            problems.retain(|p| {
+                !p.ends_with(": shininess")
+                    && !p.ends_with(": animvert")
+                    && !p.ends_with(": animtvert")
+            });
+            // Animated sets, directly: the compiled model's are the text's,
+            // vertex for vertex (the reader's render vertices are the
+            // compiler's), where the text gave them per render vertex.
+            for (a, b) in model.animations.iter().zip(&back.animations) {
+                for (n, m) in a.nodes.iter().zip(&b.nodes) {
+                    let count = model
+                        .node(&n.name)
+                        .and_then(|i| model.nodes[i].mesh())
+                        .map_or(0, |mesh| mesh.vertices.len());
+                    let (Some(x), Some(y)) = (&n.anim_mesh, &m.anim_mesh) else {
+                        if n.anim_mesh.is_some() != m.anim_mesh.is_some() {
+                            problems.push(format!("{}/{}: animated sets", a.name, n.name));
+                        }
+                        continue;
+                    };
+                    let whole = x.vertex_sets.iter().all(|v| v.len() == count)
+                        && x.uv_sets.iter().all(|v| v.len() == count);
+                    if whole && (x.vertex_sets != y.vertex_sets || x.uv_sets != y.uv_sets) {
+                        problems.push(format!("{}/{}: animated sets", a.name, n.name));
+                    }
+                }
+            }
+            (!problems.is_empty()).then(|| (name.to_string(), problems))
+        })
+        .collect();
+    failures.sort();
+    eprintln!(
+        "{} ASCII models compiled in {:.1} s, {} differ",
+        compiled.load(Ordering::Relaxed),
+        start.elapsed().as_secs_f32(),
+        failures.len()
+    );
+    let mut kinds: HashMap<String, usize> = HashMap::new();
+    for (_, d) in &failures {
+        let kind = d[0].split(':').next_back().unwrap_or("").trim().to_string();
+        *kinds.entry(kind).or_default() += 1;
+    }
+    eprintln!("{kinds:?}");
+    for (name, d) in failures.iter().take(25) {
+        eprintln!("  {name}: {}", d.iter().take(3).cloned().collect::<Vec<_>>().join("; "));
+    }
+    assert!(compiled.load(Ordering::Relaxed) > 7_000);
+    assert!(failures.is_empty(), "{} models differ", failures.len());
+}

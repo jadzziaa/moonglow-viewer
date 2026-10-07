@@ -14,22 +14,21 @@ pub enum DecompileWith {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum CompileWith {
-    /// The game's compiler, unless the model has skin meshes.
+    /// The viewer's own compiler, in process (kept under the name it had
+    /// in settings files when it stood for a choice between the others).
     #[default]
+    #[serde(alias = "Native")]
     Auto,
     Engine,
     Nwnmdlcomp,
-    /// The viewer's own compiler, in process.
-    Native,
 }
 
 impl std::fmt::Display for CompileWith {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            CompileWith::Auto => "automatic",
+            CompileWith::Auto => "Moonglow's compiler",
             CompileWith::Engine => "the game's compiler",
             CompileWith::Nwnmdlcomp => "nwnmdlcomp",
-            CompileWith::Native => "Moonglow (native)",
         })
     }
 }

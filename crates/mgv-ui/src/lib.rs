@@ -1087,27 +1087,24 @@ impl Viewer {
                 ui.radio_value(
                     &mut self.settings.compile_with,
                     settings::CompileWith::Auto,
-                    "Automatic",
+                    "Moonglow",
                 )
-                .on_hover_text("The game's compiler, or nwnmdlcomp for skin meshes");
+                .on_hover_text(
+                    "The viewer's own compiler: no game, no window; every kind of model, \
+                     keeping the part numbers of its compiled version",
+                );
                 ui.radio_value(
                     &mut self.settings.compile_with,
                     settings::CompileWith::Engine,
                     "The game's compiler",
-                );
+                )
+                .on_hover_text("Runs the game; it cannot compile skin meshes");
                 ui.radio_value(
                     &mut self.settings.compile_with,
                     settings::CompileWith::Nwnmdlcomp,
                     "nwnmdlcomp",
-                );
-                ui.radio_value(
-                    &mut self.settings.compile_with,
-                    settings::CompileWith::Native,
-                    "Moonglow (native)",
                 )
-                .on_hover_text(
-                    "The viewer's own compiler: no game, no window, skin meshes too (new)",
-                );
+                .on_hover_text("Drops EE's materials and normals; 17 bones a skin");
             });
             ui.menu_button("View", |ui| {
                 for tab in [

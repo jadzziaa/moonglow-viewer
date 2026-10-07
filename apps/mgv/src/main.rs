@@ -136,7 +136,7 @@ enum Cmd {
         /// The folder to write into (default: `compiled/` beside each file).
         #[arg(short, long)]
         output: Option<PathBuf>,
-        #[arg(long, value_enum, default_value_t = CompileWith::Auto)]
+        #[arg(long, value_enum, default_value_t = CompileWith::Native)]
         with: CompileWith,
         /// The scratch user folder for the game's compiler (default: one
         /// in the system's temporary folder).
@@ -274,14 +274,16 @@ enum DecompileWith {
 
 #[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum CompileWith {
-    /// The game's compiler, unless the model has skin meshes (nwnmdlcomp).
-    Auto,
-    Nwnmdlcomp,
-    Engine,
     /// Moonglow Viewer's own compiler, in process: no game, no display.
-    /// Skin meshes too, with up to 64 bones (new: not `auto`'s choice
-    /// yet).
+    /// Every kind of model, skin meshes with up to 64 bones included; it
+    /// keeps the part numbers of the compiled model of the same name.
     Native,
+    /// The same as `native`.
+    Auto,
+    /// The game's own compiler (it runs the game; no skin meshes).
+    Engine,
+    /// nwnmdlcomp (it drops EE's fields; 17 bones a skin).
+    Nwnmdlcomp,
 }
 
 fn main() -> ExitCode {

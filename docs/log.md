@@ -1,6 +1,7 @@
 # Update log
 
 ## 2026-10-07
+* **Update**: [The plan](PLAN.md), Phase 9 is done: the native compiler is the default (stage D); [editing models](manual/03-editing-models.md) and [the command line](manual/05-command-line.md) put it first.
 * **Update**: [The plan](PLAN.md), Phase 9: stage C is done, skins in the native compiler (up to 64 bones), with what it was checked against; the manual's compiling notes say so.
 * **Update**: [The plan](PLAN.md), Phase 9: stage B is done, the native compiler for everything but skin meshes, with what it was checked against; [editing models](manual/03-editing-models.md) and [the command line](manual/05-command-line.md) describe it.
 * **Update**: [The plan](PLAN.md), Phase 9: the decompiler writes nodes in the order of their part numbers, so a model without a supermodel keeps them when compiled again; [editing models](manual/03-editing-models.md) says so.

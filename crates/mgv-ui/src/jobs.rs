@@ -82,7 +82,6 @@ fn compile(r: &CompileRequest) -> Result<(PathBuf, &'static str), String> {
         CompileWith::Auto => tools::choose_compiler(&model),
         CompileWith::Engine => Compiler::Engine,
         CompileWith::Nwnmdlcomp => Compiler::Nwnmdlcomp,
-        CompileWith::Native => Compiler::Native,
     };
     let (binary, with) = match compiler {
         Compiler::Nwnmdlcomp => {

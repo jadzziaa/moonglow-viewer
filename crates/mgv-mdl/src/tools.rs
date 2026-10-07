@@ -477,8 +477,7 @@ fn strip_ansi(s: &str) -> String {
     out
 }
 
-/// Which compiler to use for a model, as Neverblender's `nwn_compile.py`
-/// chooses: the game's unless the model has skin meshes.
+/// A compiler: the viewer's own, or one of the two programs outside it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Compiler {
     Nwnmdlcomp,
@@ -487,8 +486,11 @@ pub enum Compiler {
     Native,
 }
 
-pub fn choose_compiler(model: &Model) -> Compiler {
-    if has_skin(model) { Compiler::Nwnmdlcomp } else { Compiler::Engine }
+/// The compiler for a model when none is asked for: the viewer's own,
+/// which compiles every kind (the game's cannot compile skin meshes,
+/// nwnmdlcomp drops EE's fields and stops at 17 bones a skin).
+pub fn choose_compiler(_model: &Model) -> Compiler {
+    Compiler::Native
 }
 
 #[cfg(test)]

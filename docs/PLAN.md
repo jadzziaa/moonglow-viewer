@@ -41,7 +41,7 @@ Decisions taken (2026-10-01):
 | 6 Emitters and visual effects | Mostly done: every `visualeffects.2da` row with a model applies (503, at three sizes) on hooks found by the target's kind, impact then duration, cessation on removal, from the window and `mgv render --vfx`. To do: `progfx.2da` (beams, node attachments, lights, glows) |
 | 7 Batch rendering and galleries | Done: `mgv gallery` over name patterns, 2DAs (placeables, appearance, visualeffects, doors), haks and folders; `index.html` and `manifest.json`, deterministic; re-runs skip unchanged items (all 1,289 placeables render in about 7 s at 256²; an unchanged re-run takes 3 s); `mgv turntable` (animated PNG or frames) |
 | 8 Hardening and release | In progress: packaging (the icon; the AppImage, 12.3 MB, built here and its command line run; the Flatpak bundle, 6.8 MB, built here; the Windows installer and macOS app built by the release workflow), the release workflow, the user manual; releases 0.1.0 and 0.1.1 on toolset 0.4.0, 0.1.2 on 0.7.0, 0.1.3 to 0.1.5 on 1.16.1. To do: try the Windows and macOS packages on their systems, performance budgets in CI |
-| 9 Native compiler | Stages A to C done: `mgv compile --with native` compiles every kind of model, skins of up to 64 bones included, as the game's compiler does and keeping part numbers; D (the default, and Neverblender without nwnmdlcomp) to do. Stage A: every compiled model in the game writes back the same, and the client draws written models as the originals. It showed that the game binds supermodel animations by part number. Scoped (§5, Phase 9): a binary writer and what a compiler derives, in four stages, to replace nwnmdlcomp for skin meshes on every platform |
+| 9 Native compiler | Done (stages A to D, §5): `mgv compile` and the window compile in process, every kind of model, skins of up to 64 bones, as the game's compiler does and keeping part numbers; every model in the game compiles back to itself, and the client draws the results as the originals. It showed that the game binds supermodel animations by part number |
 
 ## 1. What it does
 
@@ -418,8 +418,8 @@ performance budgets in CI, releases built by CI.
 ASCII to binary in process, on every platform, keeping EE features where the
 binary format holds them; checked against nwnmdlcomp's output, the engine
 compiler's, and in the game. Scoped on 2026-10-07; stages A (the writer,
-`mgv-mdl/src/binary.rs`), B and C (`compile.rs`) are done, each checked in
-the game; D (making it the default) is to do.
+`mgv-mdl/src/binary.rs`), B and C (`compile.rs`) and D (the default) are
+done, each checked in the game.
 
 **Stage A so far.** All 25,597 compiled models in the game, read, written
 and read again, are the same `Model`, and nwnmdlcomp decompiles a sample of
@@ -522,8 +522,21 @@ writer makes. More than 18 bones are written in EE's larger structure.
 - Dangly meshes, animated meshes and walkmeshes came with stage B: the
   reader had them whole.
 
-Not done here: Neverblender's end-to-end run without nwnmdlcomp, which
-waits for stage D (its compile tool choosing the native compiler).
+**Stage D** (the default). `mgv compile` and the window's Compile use the
+native compiler unless another is chosen (`--with engine`, `--with
+nwnmdlcomp`; Model › Compile with); `auto` still reads, and means it.
+
+- The game's own 7,235 ASCII models (a fifth of its models are text) all
+  compile, in 3 seconds on this machine's cores, each to the model its text
+  reads as.
+- Neverblender's compile tool takes it as its default, and its end-to-end
+  run passes on it: placeables, a skinned column, an FBX chest, two
+  mannequins and a wolf, with no game started to compile and no
+  nwnmdlcomp.
+
+Left for later, on purpose: the game's compiler and nwnmdlcomp stay as
+back ends (they are the oracles the tests compare with); the writer and
+the compiler stay in `mgv-mdl` until proposed to the toolset (§10).
 
 **Why now.** It is the last thing that keeps nwnmdlcomp in use: the game's
 own compiler cannot compile skin meshes, so every creature goes through a
