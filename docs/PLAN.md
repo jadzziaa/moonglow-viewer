@@ -41,7 +41,7 @@ Decisions taken (2026-10-01):
 | 6 Emitters and visual effects | Mostly done: every `visualeffects.2da` row with a model applies (503, at three sizes) on hooks found by the target's kind, impact then duration, cessation on removal, from the window and `mgv render --vfx`. To do: `progfx.2da` (beams, node attachments, lights, glows) |
 | 7 Batch rendering and galleries | Done: `mgv gallery` over name patterns, 2DAs (placeables, appearance, visualeffects, doors), haks and folders; `index.html` and `manifest.json`, deterministic; re-runs skip unchanged items (all 1,289 placeables render in about 7 s at 256²; an unchanged re-run takes 3 s); `mgv turntable` (animated PNG or frames) |
 | 8 Hardening and release | In progress: packaging (the icon; the AppImage, 12.3 MB, built here and its command line run; the Flatpak bundle, 6.8 MB, built here; the Windows installer and macOS app built by the release workflow), the release workflow, the user manual; releases 0.1.0 and 0.1.1 on toolset 0.4.0, 0.1.2 on 0.7.0, 0.1.3 and 0.1.4 on 1.16.1. To do: try the Windows and macOS packages on their systems, performance budgets in CI |
-| 9 Native compiler | Not started |
+| 9 Native compiler | Not started; scoped (§5, Phase 9): a binary writer and what a compiler derives, in four stages, to replace nwnmdlcomp for skin meshes on every platform |
 
 ## 1. What it does
 
@@ -415,9 +415,81 @@ Packaging (§7), the user manual (in the app under Help), crash reports,
 performance budgets in CI, releases built by CI.
 
 ### Phase 9: Native compiler
-ASCII to binary in process, keeping EE features where the binary format holds
-them; checked against nwnmdlcomp's output, the engine compiler's, and in the
-game.
+ASCII to binary in process, on every platform, keeping EE features where the
+binary format holds them; checked against nwnmdlcomp's output, the engine
+compiler's, and in the game. Scoped on 2026-10-07; not started.
+
+**Why now.** It is the last thing that keeps nwnmdlcomp in use: the game's
+own compiler cannot compile skin meshes, so every creature goes through a
+32-bit program from 2018 that is built from source on Linux, does not run on
+current macOS, allows 17 bones a skin (EE: 64) and drops normals, tangents,
+`materialname` and `renderhint`. Neverblender, which is being made
+cross-platform, depends on it for creatures.
+
+**What there is to build on.**
+
+- `mg-mdl` reads the binary format completely (`binary.rs`, about 730
+  lines; the layout from nwnmdlcomp's headers, checked on all 25,597
+  compiled models in the game) and reads ASCII into the same `Model`.
+- The native decompiler writes that `Model` as ASCII, and every compiled
+  model in the game reads back the same through it.
+- Three oracles are already wired into the tests: nwnmdlcomp, the game's
+  compiler, and the game client in its sandbox.
+
+**What is missing** is the other direction, in two parts.
+
+1. *A binary writer*: a `Model` laid out as the 32-bit memory dump the game
+   loads. Headers, the name table, nodes with their type headers
+   (mesh, skin, dangly, animmesh, aabb, light, emitter, reference),
+   controller keys and data (Bézier keys included), animations with their
+   node trees and events, and the raw data section with its offsets.
+2. *What a compiler derives* that ASCII does not hold and a binary must:
+   - vertices split or merged from `verts`, `tverts` and `faces` into
+     per-vertex arrays, and the index list that is drawn;
+   - vertex normals from smoothing groups, and tangents where a
+     `renderhint` asks for them;
+   - per-face normals, plane distances and adjacent faces (shadows), each
+     mesh's bounds, average and radius, and the model's;
+   - a walkmesh's AABB tree;
+   - a skin's bone table, its four weights a vertex, and each bone's
+     inverse bind rotation and translation;
+   - dangly constraints and animmesh sample data;
+   - node numbers, which must agree with the supermodel's for its
+     animations to apply, so the supermodel is read first.
+
+**Open questions**, each to be answered by measurement before the stage
+that needs it:
+
+- Which header fields the game reads and which it ignores. The reader
+  ignores function pointers, parent pointers and padding (they hold garbage
+  in EE-compiled files); whether the game checks any of them on load is not
+  known.
+- Whether the game's vertex normals from smoothing groups can be matched
+  exactly, or only closely (weighting by angle or by area).
+- How many bones a skin may really have in EE (64 is from documentation),
+  and what the game does past it.
+
+**Stages**, each ending with a result that can be shown:
+
+| Stage | What | Shown by |
+| --- | --- | --- |
+| A | The binary writer, fed with models read from binaries | Every compiled model in the game, read, written and read again, is the same `Model`; a sample of the written files loads in the client and draws as the original |
+| B | Derivations for meshes without bones; lights, emitters, references, animations | Decompiled game models compiled natively read back as the originals; the same ASCII through the game's compiler reads back the same (the differential the tests already make with nwnmdlcomp) |
+| C | Skins, dangly meshes, animmeshes, walkmeshes | Creatures compiled natively and by nwnmdlcomp read back alike; a creature with more than 17 bones a skin animates in the client; Neverblender's end-to-end run passes without nwnmdlcomp |
+| D | `mgv compile --with native`, then the default; the window's Compile; the manual | The corpus compiles in a time worth stating; nwnmdlcomp and the game's compiler stay as choices |
+
+A is about the size of the reader. B and C are each larger than A, and C
+carries the most uncertainty (skins are where nwnmdlcomp and the game are
+least documented).
+
+**Where it lives.** In `mgv-mdl`, beside the ASCII writer, on `mg-mdl`'s
+`Model`: the viewer's side of the line (§10). It belongs in `mg-mdl` in the
+end, where the toolset could use it too; proposed there once it has passed
+stage B.
+
+**What it is not.** Not a re-implementation of nwnmdlcomp's output byte for
+byte: the measure is the game (the model loads, draws and animates the
+same), and reading back to the same `Model`.
 
 ## 6. Testing
 
