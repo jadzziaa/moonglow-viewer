@@ -33,6 +33,11 @@ pub struct Shot {
     /// the studio sun. It reaches `KEY_LIGHT_REACH` times the camera's
     /// distance, so it falls off little across the model.
     pub key_light: f32,
+    /// PLT colours (by layer: `textures::PLT_LAYERS`) for what has none of
+    /// its own: a body part or an animation base on its own, which a
+    /// creature or an item would colour. Creatures and blueprints keep
+    /// theirs.
+    pub plt_colors: Option<[u8; 10]>,
 }
 
 /// How far the key light reaches, as a multiple of the camera's distance.
@@ -50,6 +55,7 @@ impl Default for Shot {
             zoom: 1.0,
             background: None,
             key_light: 0.0,
+            plt_colors: None,
         }
     }
 }
@@ -106,6 +112,11 @@ pub fn picture(
         scene.background = bg;
     }
     scene.lights.extend(shot.key_light(cam));
+    if shot.plt_colors.is_some() {
+        for i in scene.instances.iter_mut().filter(|i| i.plt_colors.is_none()) {
+            i.plt_colors = shot.plt_colors;
+        }
+    }
     viewport.image(stage.gpu(), lib.resman(), &scene, &camera, shot.size)
 }
 

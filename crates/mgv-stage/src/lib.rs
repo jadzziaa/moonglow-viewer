@@ -352,6 +352,7 @@ impl Stage {
             sky: None,
             sky_fade: None,
             lines: Vec::new(),
+            time: self.elapsed,
         }
     }
 

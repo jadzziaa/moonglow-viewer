@@ -40,7 +40,7 @@ Decisions taken (2026-10-01):
 | 5 Lighting, overlays and debug views | Mostly done: studio, `environment.2da` and custom area rigs (day, night, fog, tile main lights from `lightcolor.2da`), overlays drawn in 3D against the scene's depths, faint where it hides them (walkmesh faces by surface material, wireframe, normals; the grid and axes hidden behind models; the node tree and the selection over everything), picking by ray against posed meshes. To do: debug views (unlit, normals, UV checker), skyboxes |
 | 6 Emitters and visual effects | Mostly done: every `visualeffects.2da` row with a model applies (503, at three sizes) on hooks found by the target's kind, impact then duration, cessation on removal, from the window and `mgv render --vfx`. To do: `progfx.2da` (beams, node attachments, lights, glows) |
 | 7 Batch rendering and galleries | Done: `mgv gallery` over name patterns, 2DAs (placeables, appearance, visualeffects, doors), haks and folders; `index.html` and `manifest.json`, deterministic; re-runs skip unchanged items (all 1,289 placeables render in about 7 s at 256²; an unchanged re-run takes 3 s); `mgv turntable` (animated PNG or frames) |
-| 8 Hardening and release | In progress: packaging (the icon; the AppImage, 12.3 MB, built here and its command line run; the Flatpak bundle, 6.8 MB, built here; the Windows installer and macOS app built by the release workflow), the release workflow, the user manual; releases 0.1.0 and 0.1.1 on toolset 0.4.0, 0.1.2 on 0.7.0. To do: try the Windows and macOS packages on their systems, performance budgets in CI |
+| 8 Hardening and release | In progress: packaging (the icon; the AppImage, 12.3 MB, built here and its command line run; the Flatpak bundle, 6.8 MB, built here; the Windows installer and macOS app built by the release workflow), the release workflow, the user manual; releases 0.1.0 and 0.1.1 on toolset 0.4.0, 0.1.2 on 0.7.0; the next on 1.16.1. To do: try the Windows and macOS packages on their systems, performance budgets in CI |
 | 9 Native compiler | Not started |
 
 ## 1. What it does
@@ -490,7 +490,7 @@ client (the toolset's `notes_models.md` B.8, B.20, B.20a).
 | `mg-resman` | Layers changed in place (`ResMan::rescan`, `replace`) | Rescans and editor buffers keep each layer's place |
 | `mg-preview` | Creatures by appearance alone (`CreatureLook`, `creature_look`) | Creature browsing (the right foot, which the viewer's own blueprint fields missed) |
 
-Landed since, in v0.7.0 (the viewer's pin): a coloured texture name takes
+Landed since, in v0.7.0: a coloured texture name takes
 the PLT before a TGA or DDS of the name (`mg-render`, toolset `bdd5818`;
 the game colours a dwarf's head, a PLT and a plain gray TGA, with the
 creature's skin), and a body part whose mesh names a texture that does not
@@ -499,8 +499,23 @@ exist takes the one of the part model's own name (`mg-preview`, toolset
 both are gone; `mgv_stage::textures::part_fallbacks` stays for a part
 model opened on its own, which is no preview.
 
-Not taken, because the game does not do them: uploading vertex colours and
-UV sets 1–3 (the stock shaders ignore them); the emitters' three-stop
+The viewer's pin is v1.16.1 (2026-10-07), and with it the toolset's
+renderer as of that release, with nothing to adapt but the scene's clock
+(`Scene::time`, the stage's elapsed time, for the water's ripples):
+vertex colours and a second UV set for the community tileset shaders
+`vertexalpha` and `mzlm`, drawn by the toolset's own shader when a
+material names them; see-through meshes drawn in two parts; water (TXI
+`proceduretype arturo` and `bumpmaptexture shinywater`, approximated);
+linked particles; a static placeable with no visual transform and a TGA's
+right-to-left bit ignored, both measured in the client. The window
+follows the toolset's forms: field labels in the strong colour, section
+headings in Ubuntu Bold over a rule, palette swatches for PLT colours
+(`mgv-ui/src/widgets.rs` and `palette.rs`, copies of the toolset's, which
+its interface crate does not export).
+
+Not taken, because the game does not do them: UV sets 2 and 3 (no
+shader reads them; the toolset has since taken vertex colours and UV set
+1, for the community shaders above); the emitters' three-stop
 values (`colorMid`, `alphaMid`, `sizeMid`, `percentStart/Mid/End`: the
 client draws start to end whatever they hold); anything for `twosidedtex`
 (one-sided aligned particles show from both sides). Not measured, so not

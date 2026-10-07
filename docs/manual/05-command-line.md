@@ -37,7 +37,12 @@ mgv lint mymodel.mdl --notes
   lighting (`studio`, or `env:ROW` / `env:ROW:night`), `--key-light`
   a light at the camera (0 to 1; about 0.3 is as strong as the studio
   sun) so the sides in view are lit whatever the sun's direction, `--fog`,
-  `--vfx ROW` (repeatable) visual effects. These apply to galleries too.
+  `--vfx ROW` (repeatable) visual effects, `--plt-colors` the colors of a
+  model on its own that wears PLT textures (a body part, an animation
+  base): `metal1=40,leather1=12` (layers skin, hair, metal1, metal2,
+  cloth1, cloth2, leather1, leather2, tattoo1, tattoo2; palette rows 0 to
+  175; the rest 0) or ten rows in that order. Creatures and blueprints
+  keep their own colors. These apply to galleries too.
 - **Galleries** (`gallery`): a name pattern (`plc_*`), a 2DA
   (`placeables`, `appearance`, `visualeffects`, `doors`), a hak, module or
   ERF, or a folder. Writes `images/`, `index.html` (a page to browse and

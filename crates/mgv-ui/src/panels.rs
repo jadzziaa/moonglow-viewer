@@ -8,6 +8,7 @@ use mg_resman::ResKey;
 use mgv_library::Kind;
 use mgv_stage::{ActorId, PlayMode};
 
+use crate::widgets::{field_label, next_section};
 use crate::{Action, Level, Selection, Viewer};
 
 /// Which resources the browser lists.
@@ -347,67 +348,74 @@ fn tree(
 
 /// What the open thing is, and the selected node.
 pub(crate) fn inspector(app: &mut Viewer, ui: &mut Ui) {
+    let palettes = app.palettes.layers(&app.lib);
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         let Some(doc) = &app.doc else {
             ui.weak("Nothing open.");
             return;
         };
         egui::Grid::new("doc").num_columns(2).striped(true).show(ui, |ui| {
-            ui.label("Name");
+            field_label(ui, "Name");
             ui.label(doc.name());
             ui.end_row();
-            ui.label("Kind");
+            field_label(ui, "Kind");
             ui.label(format!("{:?}", doc.opened.kind));
             ui.end_row();
             if let Some(p) = &doc.opened.path {
-                ui.label("File");
+                field_label(ui, "File");
                 ui.label(p.display().to_string());
                 ui.end_row();
             }
             if let Some(k) = doc.opened.key
                 && let Some(o) = app.lib.origin(&k)
             {
-                ui.label("From");
+                field_label(ui, "From");
                 ui.label(o);
                 ui.end_row();
             }
             if doc.opened.kind == Kind::Model {
-                ui.label("Format");
+                field_label(ui, "Format");
                 ui.label(if mg_mdl::is_binary(&doc.opened.data) { "compiled" } else { "ASCII" });
                 ui.end_row();
             }
         });
         if let Some(mut look) = doc.creature {
-            ui.separator();
+            next_section(ui, "Creature");
             let before = look;
             egui::Grid::new("look").num_columns(2).show(ui, |ui| {
-                ui.label("Gender");
+                field_label(ui, "Gender");
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut look.gender, 0, "male");
                     ui.selectable_value(&mut look.gender, 1, "female");
                 });
                 ui.end_row();
                 let drag = |ui: &mut Ui, label: &str, v: &mut u8, max: u8| {
-                    ui.label(label);
+                    field_label(ui, label);
                     ui.add(egui::DragValue::new(v).range(0..=max));
                     ui.end_row();
                 };
                 drag(ui, "Phenotype", &mut look.phenotype, 255);
-                let [skin, hair, tattoo1, tattoo2] = &mut look.colors;
-                drag(ui, "Skin color", skin, 175);
-                drag(ui, "Hair color", hair, 175);
-                drag(ui, "Tattoo 1", tattoo1, 175);
-                drag(ui, "Tattoo 2", tattoo2, 175);
-                ui.label("Head");
+                // The look's colours and their PLT layers.
+                for (c, (label, layer)) in look.colors.iter_mut().zip([
+                    ("Skin color", 0),
+                    ("Hair color", 1),
+                    ("Tattoo 1", 8),
+                    ("Tattoo 2", 9),
+                ]) {
+                    field_label(ui, label);
+                    crate::palette::pick(ui, palettes[layer].as_deref(), label, c);
+                    ui.end_row();
+                }
+                field_label(ui, "Head");
                 ui.add(egui::DragValue::new(&mut look.head).range(1..=255));
                 ui.end_row();
-                ui.label("Body parts");
+                field_label(ui, "Body parts");
                 ui.add(egui::DragValue::new(&mut look.body).range(1..=255));
                 ui.end_row();
-                ui.label("Wings");
+                field_label(ui, "Wings");
                 ui.add(egui::DragValue::new(&mut look.wings).range(0..=255));
                 ui.end_row();
-                ui.label("Tail");
+                field_label(ui, "Tail");
                 ui.add(egui::DragValue::new(&mut look.tail).range(0..=255));
                 ui.end_row();
             });
@@ -427,14 +435,15 @@ pub(crate) fn inspector(app: &mut Viewer, ui: &mut Ui) {
                 a.look.textures.as_deref(),
             )
         {
-            ui.separator();
-            ui.label("PLT colors");
+            next_section(ui, "PLT colors");
             let before = a.look.colors;
             let mut colors = before.unwrap_or_default();
             egui::Grid::new("plt colors").num_columns(2).show(ui, |ui| {
-                for (label, c) in mgv_stage::textures::PLT_LAYERS.iter().zip(&mut colors) {
-                    ui.label(*label);
-                    ui.add(egui::DragValue::new(c).range(0..=175));
+                for (i, (label, c)) in
+                    mgv_stage::textures::PLT_LAYERS.iter().zip(&mut colors).enumerate()
+                {
+                    field_label(ui, *label);
+                    crate::palette::pick(ui, palettes[i].as_deref(), label, c);
                     ui.end_row();
                 }
             });
@@ -459,18 +468,18 @@ pub(crate) fn inspector(app: &mut Viewer, ui: &mut Ui) {
         let Some(base) = doc.shown.as_ref().map(|s| s.base) else { return };
         let Some(a) = g.stage.actor(base) else { return };
         let m = &a.model.model;
-        ui.separator();
+        next_section(ui, "Model");
         egui::Grid::new("model").num_columns(2).striped(true).show(ui, |ui| {
-            ui.label("Model");
+            field_label(ui, "Model");
             ui.label(&m.name);
             ui.end_row();
-            ui.label("Classification");
+            field_label(ui, "Classification");
             ui.label(format!("{:?}", m.classification));
             ui.end_row();
-            ui.label("Supermodel");
+            field_label(ui, "Supermodel");
             ui.label(m.supermodel.as_deref().unwrap_or("none"));
             ui.end_row();
-            ui.label("Nodes");
+            field_label(ui, "Nodes");
             ui.label(m.nodes.len().to_string());
             ui.end_row();
             let (faces, verts) = m
@@ -478,21 +487,20 @@ pub(crate) fn inspector(app: &mut Viewer, ui: &mut Ui) {
                 .iter()
                 .filter_map(|n| n.mesh())
                 .fold((0, 0), |(f, v), mesh| (f + mesh.faces.len(), v + mesh.vertices.len()));
-            ui.label("Faces / vertices");
+            field_label(ui, "Faces / vertices");
             ui.label(format!("{faces} / {verts}"));
             ui.end_row();
-            ui.label("Animations");
+            field_label(ui, "Animations");
             ui.label(format!("{} ({} own)", a.animations.0.len(), m.animations.len()));
             ui.end_row();
         });
         let Some(sel) = app.selection else { return };
         let Some(sa) = g.stage.actor(sel.actor) else { return };
         let Some(node) = sa.model.model.nodes.get(sel.node) else { return };
-        ui.separator();
-        ui.heading(&node.name);
+        next_section(ui, &node.name);
         egui::Grid::new("node").num_columns(2).striped(true).show(ui, |ui| {
             let row = |ui: &mut Ui, k: &str, v: String| {
-                ui.label(k);
+                field_label(ui, k);
                 ui.label(v);
                 ui.end_row();
             };
@@ -596,22 +604,22 @@ fn material(ui: &mut Ui, data: &[u8]) {
     const SLOTS: [&str; 6] =
         ["diffuse", "normal", "specular", "roughness", "height", "self-illumination"];
     let m = mg_image::mtr::Mtr::parse(data);
-    ui.separator();
+    next_section(ui, "Material");
     egui::Grid::new("mtr").num_columns(2).striped(true).show(ui, |ui| {
         for (i, t) in m.textures.iter().enumerate() {
             let Some(t) = t else { continue };
-            ui.label(format!(
-                "Texture {i}{}",
-                SLOTS.get(i).map_or(String::new(), |s| format!(" ({s})"))
-            ));
+            field_label(
+                ui,
+                format!("Texture {i}{}", SLOTS.get(i).map_or(String::new(), |s| format!(" ({s})"))),
+            );
             ui.label(t);
             ui.end_row();
         }
-        ui.label("Render hint");
+        field_label(ui, "Render hint");
         ui.label(format!("{:?}", m.renderhint));
         ui.end_row();
         for (name, p) in &m.params {
-            ui.label(name);
+            field_label(ui, name);
             ui.label(match p {
                 mg_image::mtr::Param::Float(v) => {
                     v.iter().map(|x| format!("{x}")).collect::<Vec<_>>().join(" ")
@@ -621,13 +629,13 @@ fn material(ui: &mut Ui, data: &[u8]) {
             ui.end_row();
         }
         if let (Some(vs), Some(fs)) = (&m.shader_vs, &m.shader_fs) {
-            ui.label("Custom shaders");
+            field_label(ui, "Custom shaders");
             ui.label(format!("{vs} / {fs} (not run: the viewer draws with its own)"));
             ui.end_row();
         }
         for (flag, on) in [("Transparent", m.transparency), ("Two-sided", m.twosided)] {
             if on {
-                ui.label(flag);
+                field_label(ui, flag);
                 ui.label("yes");
                 ui.end_row();
             }
@@ -644,7 +652,7 @@ fn tileset(ui: &mut Ui, codepage: mg_core::Codepage, data: &[u8]) -> Option<ResK
             return None;
         }
     };
-    ui.separator();
+    next_section(ui, "Tileset");
     ui.label(format!(
         "{} tiles, {} groups, {} terrains, {} crossers",
         set.tiles.len(),

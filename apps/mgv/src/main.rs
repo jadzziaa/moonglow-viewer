@@ -180,6 +180,49 @@ struct ShotArgs {
     /// studio sun.
     #[arg(long, default_value_t = 0.0)]
     key_light: f32,
+    /// PLT colors for a model on its own (a body part, an animation
+    /// base): `LAYER=ROW,…` with the layers skin, hair, metal1, metal2,
+    /// cloth1, cloth2, leather1, leather2, tattoo1, tattoo2 and palette
+    /// rows 0 to 175 (the rest 0), or ten rows in that order. Creatures
+    /// and blueprints keep their own.
+    #[arg(long)]
+    plt_colors: Option<String>,
+}
+
+/// `--plt-colors`: `LAYER=ROW,…` or ten rows.
+fn plt_colors(spec: &str) -> Result<[u8; 10]> {
+    const LAYERS: [&str; 10] = [
+        "skin", "hair", "metal1", "metal2", "cloth1", "cloth2", "leather1", "leather2", "tattoo1",
+        "tattoo2",
+    ];
+    let row = |s: &str| {
+        s.trim()
+            .parse::<u8>()
+            .ok()
+            .filter(|r| *r <= 175)
+            .ok_or_else(|| anyhow!("--plt-colors: {s}: a palette row, 0 to 175"))
+    };
+    let mut colors = [0; 10];
+    let parts: Vec<&str> = spec.split(',').collect();
+    if parts.iter().all(|p| !p.contains('=')) {
+        if parts.len() != 10 {
+            bail!("--plt-colors: ten rows ({}), or LAYER=ROW,…", LAYERS.join(", "));
+        }
+        for (c, p) in colors.iter_mut().zip(&parts) {
+            *c = row(p)?;
+        }
+        return Ok(colors);
+    }
+    for p in parts {
+        let (layer, value) =
+            p.split_once('=').ok_or_else(|| anyhow!("--plt-colors: {p}: LAYER=ROW"))?;
+        let layer = layer.trim().to_ascii_lowercase();
+        let i = LAYERS.iter().position(|l| *l == layer).ok_or_else(|| {
+            anyhow!("--plt-colors: no layer {layer} (there are: {})", LAYERS.join(", "))
+        })?;
+        colors[i] = row(value)?;
+    }
+    Ok(colors)
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -463,6 +506,7 @@ impl ShotArgs {
             zoom: self.zoom,
             background,
             key_light: self.key_light.clamp(0.0, 1.0),
+            plt_colors: self.plt_colors.as_deref().map(plt_colors).transpose()?,
         })
     }
 }
@@ -614,4 +658,18 @@ fn info(lib: &Library, name: &str, m: &Model, data: &[u8]) -> serde_json::Value 
         "animations": animations,
         "inherited_animations": inherited,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plt_colors;
+
+    #[test]
+    fn plt_colors_by_layer_or_in_order() {
+        assert_eq!(plt_colors("metal1=40, Leather1=12").unwrap(), [0, 0, 40, 0, 0, 0, 12, 0, 0, 0]);
+        assert_eq!(plt_colors("1,2,3,4,5,6,7,8,9,175").unwrap(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 175]);
+        for bad in ["1,2,3", "metal1=176", "steel=1", "metal1", "skin=1,2"] {
+            assert!(plt_colors(bad).is_err(), "{bad}");
+        }
+    }
 }

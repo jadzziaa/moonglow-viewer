@@ -75,7 +75,7 @@ pub(crate) fn update(app: &mut Viewer) {
 }
 
 fn rgb(ui: &mut Ui, label: &str, c: &mut [u8; 3]) {
-    ui.label(label);
+    crate::widgets::field_label(ui, label);
     let mut v = egui::Color32::from_rgb(c[0], c[1], c[2]);
     if ui.color_edit_button_srgba(&mut v).changed() {
         *c = [v.r(), v.g(), v.b()];
@@ -126,18 +126,18 @@ pub(crate) fn ui(app: &mut Viewer, ui: &mut Ui) {
                 rgb(ui, "Ambient", &mut c.ambient);
                 rgb(ui, "Diffuse", &mut c.diffuse);
                 rgb(ui, "Fog color", &mut c.fog_color);
-                ui.label("Fog amount");
+                crate::widgets::field_label(ui, "Fog amount");
                 ui.add(egui::Slider::new(&mut c.fog_amount, 0..=15));
                 ui.end_row();
-                ui.label("Fog clip distance");
+                crate::widgets::field_label(ui, "Fog clip distance");
                 ui.add(egui::Slider::new(&mut c.fog_clip, 5.0..=200.0));
                 ui.end_row();
-                ui.label("Main light 1");
+                crate::widgets::field_label(ui, "Main light 1");
                 ui.add(egui::DragValue::new(&mut c.main_lights[0]).range(0..=31)).on_hover_text(
                     "lightcolor.2da row for tiles' main light 1 (0: the model's own)",
                 );
                 ui.end_row();
-                ui.label("Main light 2");
+                crate::widgets::field_label(ui, "Main light 2");
                 ui.add(egui::DragValue::new(&mut c.main_lights[1]).range(0..=31));
                 ui.end_row();
             });

@@ -94,3 +94,22 @@ fn overlays() {
     };
     shoot(&mut h, "overlays-skeleton");
 }
+
+#[test]
+#[ignore]
+fn plt_colors() {
+    use egui_kittest::kittest::Queryable;
+    mg_testkit::gpu::hold();
+    let root = mg_testkit::corpus!();
+    let (mut v, rs) = viewer(root);
+    v.actions.push(Action::OpenResource(ResKey::parse("a_halforc", ResType::MDL).unwrap()));
+    let mut h = Harness::builder()
+        .with_size(egui::vec2(1500.0, 900.0))
+        .renderer(egui_kittest::wgpu::WgpuTestRenderer::from_render_state(rs))
+        .build_ui_state(|ui, v: &mut Viewer| v.ui(ui), v);
+    h.run_steps(3);
+    h.state_mut().actions.push(Action::SetColors(Some([12, 23, 8, 30, 90, 100, 60, 70, 5, 6])));
+    shoot(&mut h, "plt-colors");
+    h.get_by_label("Cloth 1 color").click();
+    shoot(&mut h, "plt-colors-open");
+}

@@ -242,8 +242,7 @@ pub(crate) fn ui(app: &mut crate::Viewer, ui: &mut Ui) {
         }
     });
     if let Some(txi) = &v.txi {
-        ui.separator();
-        ui.label("TXI");
+        crate::widgets::next_section(ui, "TXI");
         ui.code(txi);
     }
 }

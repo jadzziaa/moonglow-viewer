@@ -315,6 +315,13 @@ fn bare_plt_models_take_colors() {
     h.state_mut().actions.push(Action::SetColors(Some(colors)));
     h.run_steps(2);
     assert_eq!(look(&h), Some(colors));
+    // The chooser: its swatches by name, from the game's palette.
+    h.get_by_label("Metal 2 color").click();
+    h.run_steps(2);
+    h.get_by_label("Metal 2 17").click();
+    h.run_steps(2);
+    colors[3] = 17;
+    assert_eq!(look(&h), Some(colors));
     h.get_by_label("Reset colors").click();
     h.run_steps(2);
     assert_eq!(look(&h), None);

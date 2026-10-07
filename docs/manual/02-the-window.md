@@ -35,7 +35,8 @@ Reset Layout** puts them back):
   For a model opened on its own that wears PLT textures (a body part, an
   animation base such as `a_halforc`), it has the ten **PLT colors** a
   creature or an item would give them: skin, hair, metal, cloth, leather
-  and tattoos, each a palette row from 0 to 175. **Reset colors** goes
+  and tattoos, each picked from its palette's 176 colors (the list
+  beside its swatch shows them, as in Moonglow Toolset). **Reset colors** goes
   back to the model as opened.
 - **Animation**: the animations the model can play (its own and its
   supermodels'), play and pause, loop or once, speed, and a slider through

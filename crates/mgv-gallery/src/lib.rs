@@ -541,6 +541,7 @@ pub fn write_index(
             "yaw": shot.yaw,
             "pitch": shot.pitch,
             "zoom": shot.zoom,
+            "plt_colors": shot.plt_colors,
         },
         "items": items,
     });

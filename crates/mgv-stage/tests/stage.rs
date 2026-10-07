@@ -484,4 +484,15 @@ fn plt_models_are_told_apart_and_take_colors() {
     stage.actor_mut(shown.base).unwrap().look.colors = Some([60; 10]);
     let colored = mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &shot);
     assert_ne!(plain.data, colored.data, "the colors show");
+    // A shot's colors are for what has none: the same picture from them,
+    // and what has its own keeps them.
+    let with = mgv_stage::headless::Shot { plt_colors: Some([60; 10]), ..shot.clone() };
+    stage.actor_mut(shown.base).unwrap().look.colors = None;
+    let by_shot = mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &with);
+    assert_eq!(by_shot.data, colored.data);
+    stage.actor_mut(shown.base).unwrap().look.colors = Some([0; 10]);
+    let own = mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &shot);
+    let own_with = mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &with);
+    assert_eq!(own_with.data, own.data, "its own colors stay");
+    assert_ne!(own.data, colored.data);
 }

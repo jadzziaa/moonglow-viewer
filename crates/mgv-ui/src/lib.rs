@@ -12,10 +12,12 @@ mod effects;
 mod jobs;
 mod lighting;
 pub mod manual;
+pub mod palette;
 mod panels;
 pub mod settings;
 mod texture;
 pub mod view3d;
+mod widgets;
 
 use std::path::{Path, PathBuf};
 
@@ -187,6 +189,8 @@ pub struct Viewer {
     pub texture: Option<texture::TextureView>,
     pub browser: panels::Browser,
     pub effects: effects::Effects,
+    /// The game's palettes, for the colour choosers.
+    pub palettes: palette::Palettes,
     pub rig: lighting::Rig,
     pub manual: manual::Manual,
     pub log: Vec<LogLine>,
@@ -240,6 +244,7 @@ impl Viewer {
             texture: None,
             browser: panels::Browser::default(),
             effects: effects::Effects::default(),
+            palettes: palette::Palettes::default(),
             rig: lighting::Rig::default(),
             manual: manual::Manual::default(),
             log,
@@ -620,6 +625,7 @@ impl Viewer {
     fn refresh(&mut self) {
         self.lib.rescan();
         self.browser.invalidate();
+        self.palettes.clear();
         if let Some(g) = &mut self.gfx {
             g.viewport.clear_textures();
             let n = g.stage.reload(&self.lib);
@@ -629,6 +635,7 @@ impl Viewer {
 
     /// The whole window, once a frame.
     pub fn ui(&mut self, ui: &mut Ui) {
+        widgets::install_fonts(ui.ctx());
         self.shortcuts(ui);
         self.watch_files(ui.input(|i| i.time));
         self.jobs_done();
