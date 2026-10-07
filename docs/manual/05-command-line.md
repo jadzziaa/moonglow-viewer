@@ -27,6 +27,7 @@ mgv sheet build/ plc_a01 "c_drg*" -o sheet.png --columns 5 # one picture, a tile
 mgv info c_wererat                                        # JSON
 mgv decompile c_golemerald -o ascii/
 mgv compile ascii/c_golemerald.mdl --with nwnmdlcomp
+mgv compile ascii/plc_a01.mdl --with native              # in process: no game, no window
 mgv lint mymodel.mdl --notes
 ```
 
@@ -60,6 +61,11 @@ mgv lint mymodel.mdl --notes
   320x320 unless given) with its name and its width, depth and height in
   meters under it (`--no-labels` leaves them out), `--columns` to a row.
   What cannot be shown keeps its tile, with the reason in it.
+- **Compiling** (`compile`): `--with auto` (the game's compiler, or
+  nwnmdlcomp for skin meshes), `engine`, `nwnmdlcomp`, or `native`: the
+  viewer's own compiler, in process, for everything but skin meshes. It
+  keeps the part numbers of the compiled model of the same name, and says
+  what it left out by `file:line`.
 - **Checking** (`lint`): problems by `file:line`. It fails when it finds
   errors; `--strict` fails on warnings too, for build pipelines.
 - **Everywhere**: `--root` (the game folder), `--hak` and `--folder`

@@ -281,3 +281,99 @@ fn nwnmdlcomp_reads_what_the_writer_wrote() {
     assert!(results.len() > 50);
     assert!(failed.is_empty());
 }
+
+/// A compiled supermodel and its part numbers, read from the game.
+fn supermodel_of(rm: &ResMan, model: &Model) -> Option<(Model, PartNumbers)> {
+    let name = model.supermodel.as_deref()?;
+    let data = rm.get(&ResKey::new(ResRef::from_str(name).ok()?, ResType::MDL)).ok()?;
+    Some((Model::read(&data).ok()?, PartNumbers::read(&data)?))
+}
+
+/// The native compiler on the game's models (the plan's Phase 9, stage B):
+/// every compiled model without skin meshes, decompiled and compiled
+/// again, is the model it was, with the part numbers it had.
+#[test]
+fn decompiled_models_compile_back() {
+    let root = mg_testkit::corpus!();
+    let rm = ResMan::for_game(&GameInstall::new(root, None, "en")).unwrap();
+    let names = rm.list(ResType::MDL);
+    let (compiled, skins) = (AtomicUsize::new(0), AtomicUsize::new(0));
+    // Numbers kept from the compiled model, and numbered afresh from the
+    // text alone (where the model's numbers are its own).
+    let (kept, fresh) = (Tally::default(), Tally::default());
+    let mut failures: Vec<(String, Vec<String>)> = names
+        .par_iter()
+        .filter_map(|name| {
+            let data = rm.get(&ResKey::new(*name, ResType::MDL)).ok()?;
+            let model = Model::read(&data).ok().filter(|_| mg_mdl::is_binary(&data))?;
+            if model.nodes.iter().any(|n| n.kind.type_name() == "skin") {
+                skins.fetch_add(1, Ordering::Relaxed);
+                return None;
+            }
+            // Two nodes of one name cannot be told apart in text.
+            if common::duplicate_names(&model) {
+                return None;
+            }
+            let text = mgv_mdl::decompile(&data).ok()?;
+            let numbers = PartNumbers::read(&data)?;
+            let sup = supermodel_of(&rm, &model);
+            let sources = mgv_mdl::compile::Sources {
+                supermodel: sup.as_ref().map(|(m, p)| (m, p)),
+                existing: Some((&model, &numbers)),
+            };
+            let out = match mgv_mdl::compile::compile(text.as_bytes(), &sources) {
+                Ok(c) => c,
+                Err(e) => return Some((name.to_string(), vec![format!("not compiled: {e}")])),
+            };
+            compiled.fetch_add(1, Ordering::Relaxed);
+            let back = match Model::read(&out.binary) {
+                Ok(m) => m,
+                Err(e) => return Some((name.to_string(), vec![format!("unreadable: {e}")])),
+            };
+            let mut problems = common::differences(&model, &back);
+            let by_name = |m: &Model, p: &PartNumbers| {
+                let mut v: Vec<(String, i32)> = m
+                    .nodes
+                    .iter()
+                    .zip(&p.numbers)
+                    .map(|(n, k)| (n.name.to_lowercase(), *k))
+                    .collect();
+                v.sort();
+                v
+            };
+            let theirs = by_name(&model, &numbers);
+            let ours = PartNumbers::read(&out.binary).unwrap();
+            let same = by_name(&back, &ours) == theirs && ours.count == numbers.count;
+            kept.add(same);
+            if !same {
+                problems.push("part numbers changed".into());
+            }
+            // From the text alone.
+            let mut sorted = numbers.numbers.clone();
+            sorted.sort_unstable();
+            if model.supermodel.is_none() && sorted.iter().enumerate().all(|(i, n)| *n == i as i32)
+            {
+                let alone = mgv_mdl::compile::compile(text.as_bytes(), &Default::default()).ok()?;
+                let parts = PartNumbers::read(&alone.binary).unwrap();
+                fresh.add(by_name(&Model::read(&alone.binary).ok()?, &parts) == theirs);
+            }
+            (!problems.is_empty()).then(|| (name.to_string(), problems))
+        })
+        .collect();
+    failures.sort();
+    eprintln!(
+        "{} models compiled ({} with skins left out), {} differ; part numbers kept from the \
+         compiled model: {}; numbered again from the text alone: {}",
+        compiled.load(Ordering::Relaxed),
+        skins.load(Ordering::Relaxed),
+        failures.len(),
+        kept.text(),
+        fresh.text()
+    );
+    for (name, d) in failures.iter().take(25) {
+        eprintln!("  {name}: {}", d.iter().take(4).cloned().collect::<Vec<_>>().join("; "));
+    }
+    assert!(compiled.load(Ordering::Relaxed) > 24_000);
+    assert!(failures.is_empty(), "{} models differ", failures.len());
+    assert!(fresh.share() >= 1.0, "{}", fresh.text());
+}

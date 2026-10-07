@@ -47,7 +47,8 @@ those numbers, and a compiler numbers nodes in the order of the text: so
 **keep the nodes' order** when you edit a model other models use as their
 supermodel, and add new nodes at the end. (A model with a supermodel of its
 own, such as `a_ba`, cannot keep all its numbers through text; compiling
-one again can break the creatures built on it.)
+one again with the game's compiler or nwnmdlcomp can break the creatures
+built on it. The viewer's own compiler keeps them: see below.)
 
 ## Compiling
 
@@ -66,3 +67,10 @@ model, as the game will load it. The compiler:
   the `NWN_TOOLS_BIN` environment variable names, or on `PATH`. It
   predates EE: the viewer refuses models using `materialname` or
   `renderhint` (it would drop them) and skins with more than 17 bones.
+- **Moonglow (native)** is the viewer's own compiler: in the program, with
+  no game and no window, in a fraction of a second. It keeps what the
+  game's compiler keeps, and the part numbers of the compiled model of the
+  same name where the game or a hak has one (so models built on a
+  supermodel go on working when it is compiled again). It compiles
+  everything but skin meshes, and is new: choose it under **Model › Compile
+  with**; Automatic does not use it yet.

@@ -1,6 +1,7 @@
 //! The binary writer in the game (the plan's Phase 9, stage A): models it
 //! wrote, put in a scratch user folder's `development`, are drawn by the
-//! game client as the originals are. It also measures how the game binds a
+//! game client as the originals are, and so are models the native compiler
+//! made of their decompiled text (stage B). It also measures how the game binds a
 //! supermodel's animations: by part number.
 //!
 //! By hand, on the toolset's off-screen display (never the desktop), with
@@ -331,6 +332,21 @@ fn the_client_draws_written_models_as_the_originals() {
                 .unwrap();
         }
     });
+    // Stage B: every model without skin meshes decompiled and compiled
+    // again by the native compiler, keeping its numbers.
+    let compiled = run("compiled", &|dev| {
+        for (name, data) in &files {
+            let text = mgv_mdl::decompile(data).unwrap();
+            let lookup = |n: &str| files.iter().find(|(f, _)| f == n).map(|(_, d)| d.clone());
+            match mgv_mdl::compile::compile_named(text.as_bytes(), name, &lookup, &lookup) {
+                Ok(out) => {
+                    eprintln!("compiled {name} natively");
+                    std::fs::write(dev.join(format!("{name}.mdl")), out.binary).unwrap();
+                }
+                Err(e) => eprintln!("left {name} as it is: {e}"),
+            }
+        }
+    });
     // The supermodels alone written again, numbered as a compiler numbers
     // them from scratch (not as their files are): does the game still
     // find their animations for the models compiled against the old
@@ -360,6 +376,16 @@ fn the_client_draws_written_models_as_the_originals() {
         out.display()
     );
     assert!(same <= noise * 2.0 + 0.5, "the written models are drawn differently");
+    let natively = difference(&original, &compiled, part);
+    eprintln!(
+        "compiled natively from their text: {natively:.3}; the man {:.3}",
+        difference(&original, &compiled, man)
+    );
+    assert!(natively <= noise * 2.0 + 0.5, "natively compiled models are drawn differently");
+    assert!(
+        difference(&original, &compiled, man) <= difference(&original, &again, man) * 2.0 + 1.0,
+        "the man compiled natively sits differently"
+    );
     assert!(
         difference(&original, &rewritten, man) <= difference(&original, &again, man) * 2.0 + 1.0,
         "the man on written supermodels sits differently"

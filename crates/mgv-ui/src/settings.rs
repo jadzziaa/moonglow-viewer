@@ -19,6 +19,8 @@ pub enum CompileWith {
     Auto,
     Engine,
     Nwnmdlcomp,
+    /// The viewer's own compiler, in process (everything but skin meshes).
+    Native,
 }
 
 impl std::fmt::Display for CompileWith {
@@ -27,6 +29,7 @@ impl std::fmt::Display for CompileWith {
             CompileWith::Auto => "automatic",
             CompileWith::Engine => "the game's compiler",
             CompileWith::Nwnmdlcomp => "nwnmdlcomp",
+            CompileWith::Native => "Moonglow (native)",
         })
     }
 }

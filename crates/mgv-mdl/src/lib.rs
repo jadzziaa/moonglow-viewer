@@ -5,6 +5,7 @@
 //! and decompile back ends.
 
 pub mod binary;
+pub mod compile;
 pub mod keywords;
 pub mod lint;
 pub mod outline;

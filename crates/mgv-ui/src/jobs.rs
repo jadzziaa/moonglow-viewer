@@ -82,6 +82,7 @@ fn compile(r: &CompileRequest) -> Result<(PathBuf, &'static str), String> {
         CompileWith::Auto => tools::choose_compiler(&model),
         CompileWith::Engine => Compiler::Engine,
         CompileWith::Nwnmdlcomp => Compiler::Nwnmdlcomp,
+        CompileWith::Native => Compiler::Native,
     };
     let (binary, with) = match compiler {
         Compiler::Nwnmdlcomp => {
@@ -93,6 +94,27 @@ fn compile(r: &CompileRequest) -> Result<(PathBuf, &'static str), String> {
             let c = EngineCompiler::new(root, r.scratch.clone(), r.player_dir.as_deref())
                 .map_err(|e| e.to_string())?;
             (c.compile(&r.text, &r.name).map_err(|e| e.to_string())?, "the game's compiler")
+        }
+        Compiler::Native => {
+            // Models beside the text first, then the game's.
+            let game = r.game_root.as_deref().and_then(|root| {
+                mg_resman::ResMan::for_game(&mg_resman::GameInstall::new(root, None, "en")).ok()
+            });
+            let in_game = |n: &str| {
+                let key = mg_resman::ResKey::parse(n, mg_core::ResType::MDL)?;
+                game.as_ref()?.get(&key).ok().map(|d| d.into_owned())
+            };
+            let lookup = |n: &str| {
+                let file = format!("{}.mdl", n.to_ascii_lowercase());
+                r.search
+                    .iter()
+                    .find_map(|d| std::fs::read(d.join(&file)).ok())
+                    .or_else(|| in_game(n))
+            };
+            let out =
+                mgv_mdl::compile::compile_named(r.text.as_bytes(), &r.name, &lookup, &in_game)
+                    .map_err(|e| e.to_string())?;
+            (out.binary, "Moonglow's compiler")
         }
     };
     std::fs::create_dir_all(&r.out_dir).map_err(|e| format!("{}: {e}", r.out_dir.display()))?;

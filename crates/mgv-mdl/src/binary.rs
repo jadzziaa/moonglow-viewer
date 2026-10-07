@@ -122,7 +122,7 @@ impl Raw {
     }
 }
 
-fn node_flags(kind: &NodeKind) -> u32 {
+pub(crate) fn node_flags(kind: &NodeKind) -> u32 {
     flags::HEADER
         | match kind {
             NodeKind::Dummy => 0,
@@ -173,7 +173,7 @@ fn node_size(node_flags: u32, bones: usize) -> usize {
 }
 
 /// A controller's binary ID for a node type.
-fn controller_id(node_flags: u32, name: &str) -> Option<u32> {
+pub(crate) fn controller_id(node_flags: u32, name: &str) -> Option<u32> {
     let name = if name == "setfillumcolor" { "selfillumcolor" } else { name };
     if let Some(id) = name.strip_prefix("ctrl").and_then(|n| n.parse().ok()) {
         return Some(id);
@@ -183,7 +183,7 @@ fn controller_id(node_flags: u32, name: &str) -> Option<u32> {
 
 /// The node type whose controllers these are, for an animation's node the
 /// model has no node for: the first type that knows every name.
-fn flags_for_controllers(controllers: &[Controller]) -> u32 {
+pub(crate) fn flags_for_controllers(controllers: &[Controller]) -> u32 {
     [flags::HEADER, flags::HEADER | flags::MESH, flags::HEADER | flags::LIGHT]
         .into_iter()
         .chain([flags::HEADER | flags::EMITTER])
@@ -324,30 +324,94 @@ impl PartNumbers {
 /// number, so the supermodel's animations find it; a node it lacks there
 /// has none (−1), and what is under such a node keeps its own.
 pub fn part_numbers(model: &Model, supermodel: Option<(&Model, &PartNumbers)>) -> PartNumbers {
-    let first = supermodel.map_or(0, |(_, p)| p.count + 1);
-    let mut numbers: Vec<i32> = (0..model.nodes.len()).map(|i| first as i32 + i as i32).collect();
-    if let Some((sup, sup_numbers)) = supermodel
-        && !model.nodes.is_empty()
-        && !sup.nodes.is_empty()
-    {
-        let mut pairs = vec![(0usize, 0usize)];
-        while let Some((own, theirs)) = pairs.pop() {
-            if let Some(n) = sup_numbers.numbers.get(theirs) {
-                numbers[own] = *n;
-            }
-            for &c in &model.nodes[own].children {
-                let found = sup.nodes[theirs]
-                    .children
-                    .iter()
-                    .find(|&&s| sup.nodes[s].name.eq_ignore_ascii_case(&model.nodes[c].name));
-                match found {
-                    Some(&s) => pairs.push((c, s)),
-                    None => numbers[c] = -1,
-                }
+    let order: Vec<usize> = (0..model.nodes.len()).collect();
+    number_nodes(model, &order, supermodel, None)
+}
+
+/// Pairs of nodes two models have at the same place by name, walked from
+/// the roots child by name (case-insensitive); and the first model's nodes
+/// whose parent is paired while they are not.
+fn same_places(model: &Model, other: &Model) -> (Vec<(usize, usize)>, Vec<usize>) {
+    let (mut same, mut lacking) = (Vec::new(), Vec::new());
+    if model.nodes.is_empty() || other.nodes.is_empty() {
+        return (same, lacking);
+    }
+    let mut pairs = vec![(0usize, 0usize)];
+    while let Some((own, theirs)) = pairs.pop() {
+        same.push((own, theirs));
+        for &c in &model.nodes[own].children {
+            let found = other.nodes[theirs]
+                .children
+                .iter()
+                .find(|&&s| other.nodes[s].name.eq_ignore_ascii_case(&model.nodes[c].name));
+            match found {
+                Some(&s) => pairs.push((c, s)),
+                None => lacking.push(c),
             }
         }
     }
-    PartNumbers { numbers, count: first + model.nodes.len() as u32 }
+    (same, lacking)
+}
+
+/// A model's part numbers when it is compiled. Its nodes are numbered in
+/// `order` (their order in its text: indices of `model.nodes`), after its
+/// supermodel's, and take the supermodel's numbers where it has them
+/// ([`part_numbers`]). Then, where the model was compiled before
+/// (`existing`: the compiled model of its name and its numbers), a node it
+/// had at the same place by name keeps the number it had, and new nodes
+/// are numbered past the old count: the game finds a supermodel's
+/// animations by these numbers, so other models compiled against the old
+/// ones go on working.
+pub fn number_nodes(
+    model: &Model,
+    order: &[usize],
+    supermodel: Option<(&Model, &PartNumbers)>,
+    existing: Option<(&Model, &PartNumbers)>,
+) -> PartNumbers {
+    let count = model.nodes.len();
+    // What the model had before, by node.
+    let mut kept: Vec<Option<i32>> = vec![None; count];
+    if let Some((old, theirs)) = existing {
+        for (own, other) in same_places(model, old).0 {
+            kept[own] = theirs.numbers.get(other).copied();
+        }
+    }
+    let first =
+        supermodel.map_or(0, |(_, p)| p.count + 1).max(existing.map_or(0, |(_, p)| p.count));
+    // The others, in the text's order (then any the order left out).
+    let mut numbers = vec![-1i32; count];
+    let mut next = first as i32;
+    let rest = (0..count).filter(|i| !order.contains(i));
+    for i in order.iter().copied().filter(|&i| i < count).chain(rest) {
+        if kept[i].is_none() && numbers[i] < 0 {
+            numbers[i] = next;
+            next += 1;
+        }
+    }
+    if let Some((sup, theirs)) = supermodel {
+        let (same, lacking) = same_places(model, sup);
+        for (own, other) in same {
+            if let Some(n) = theirs.numbers.get(other) {
+                numbers[own] = *n;
+            }
+        }
+        for own in lacking {
+            numbers[own] = -1;
+        }
+    }
+    for (number, old) in numbers.iter_mut().zip(&kept) {
+        if let Some(n) = old {
+            *number = *n;
+        }
+    }
+    // The count it had, unless nodes were added (a model compiled against
+    // a smaller supermodel than today's keeps its smaller count).
+    let total = match existing {
+        Some((_, theirs)) if next as u32 == first => theirs.count,
+        Some((_, theirs)) => theirs.count.max(next as u32),
+        None => first + count as u32,
+    };
+    PartNumbers { numbers, count: total }
 }
 
 struct Writer<'a> {
@@ -1040,6 +1104,24 @@ doneanim wave m\ndonemodel m\n";
         let bytes = write(&model, &parts).unwrap();
         assert_eq!(PartNumbers::read(&bytes), Some(parts.clone()));
         assert_eq!(PartNumbers::read(MODEL.as_bytes()), None);
+        // Compiled again with its nodes in another order and one more: the
+        // old ones keep their numbers, the new one is past the old count.
+        let again = text.replace(
+            "node light glow",
+            "node dummy more\n  parent extra\nendnode\nnode light glow",
+        );
+        let again = Model::read(again.as_bytes()).unwrap();
+        let reversed: Vec<usize> = (0..again.nodes.len()).rev().collect();
+        let kept =
+            number_nodes(&again, &reversed, Some((&sup, &sup_parts)), Some((&model, &parts)));
+        for (i, n) in again.nodes.iter().enumerate().filter(|(_, n)| n.name != "more") {
+            assert_eq!(kept.numbers[i], of(&n.name), "{}", n.name);
+        }
+        let more = kept.numbers[again.node("more").unwrap()];
+        assert!(more >= parts.count as i32 && kept.count > more as u32, "{kept:?}");
+        // New altogether, numbered in the order of its text.
+        let fresh = number_nodes(&sup, &[0, 3, 2, 1], None, None);
+        assert_eq!(fresh.numbers, [0, 3, 2, 1]);
         assert_eq!(parts.count, 5 + model.nodes.len() as u32);
     }
 

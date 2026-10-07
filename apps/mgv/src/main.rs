@@ -278,6 +278,9 @@ enum CompileWith {
     Auto,
     Nwnmdlcomp,
     Engine,
+    /// Moonglow Viewer's own compiler, in process: no game, no display.
+    /// Everything but skin meshes (experimental).
+    Native,
 }
 
 fn main() -> ExitCode {
@@ -509,6 +512,7 @@ fn run(cli: Cli) -> Result<()> {
                     CompileWith::Auto => tools::choose_compiler(&model),
                     CompileWith::Nwnmdlcomp => Compiler::Nwnmdlcomp,
                     CompileWith::Engine => Compiler::Engine,
+                    CompileWith::Native => Compiler::Native,
                 };
                 let search: Vec<PathBuf> = opened
                     .path
@@ -530,6 +534,34 @@ fn run(cli: Cli) -> Result<()> {
                         });
                         let c = EngineCompiler::new(root, dir, player.as_deref())?;
                         c.compile(&text, &name)?
+                    }
+                    Compiler::Native => {
+                        let find = |rm: &mg_resman::ResMan, n: &str| {
+                            let key = mg_resman::ResKey::parse(n, mg_core::ResType::MDL)?;
+                            rm.get(&key).ok().map(|d| d.into_owned())
+                        };
+                        // The game's own files, for the compiled model of
+                        // this name under the text being compiled.
+                        let game = root.as_deref().and_then(|r| {
+                            mg_resman::ResMan::for_game(&GameInstall::new(r, None, "en")).ok()
+                        });
+                        let lookup = |n: &str| find(lib.resman(), n);
+                        let before = |n: &str| {
+                            lookup(n)
+                                .filter(|d| mg_mdl::is_binary(d))
+                                .or_else(|| game.as_ref().and_then(|g| find(g, n)))
+                        };
+                        let out = mgv_mdl::compile::compile_named(
+                            text.as_bytes(),
+                            &name,
+                            &lookup,
+                            &before,
+                        )
+                        .map_err(|e| anyhow!("{input}: {e}"))?;
+                        for (line, note) in &out.notes {
+                            eprintln!("{input}:{line}: {note}");
+                        }
+                        out.binary
                     }
                 };
                 let dir = out_dir(output.as_deref(), opened.path.as_deref(), Some("compiled"));

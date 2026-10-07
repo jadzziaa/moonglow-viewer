@@ -1100,6 +1100,15 @@ impl Viewer {
                     settings::CompileWith::Nwnmdlcomp,
                     "nwnmdlcomp",
                 );
+                ui.radio_value(
+                    &mut self.settings.compile_with,
+                    settings::CompileWith::Native,
+                    "Moonglow (native)",
+                )
+                .on_hover_text(
+                    "The viewer's own compiler: no game, no window. Everything but skin \
+                     meshes (experimental)",
+                );
             });
             ui.menu_button("View", |ui| {
                 for tab in [

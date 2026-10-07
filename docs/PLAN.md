@@ -41,7 +41,7 @@ Decisions taken (2026-10-01):
 | 6 Emitters and visual effects | Mostly done: every `visualeffects.2da` row with a model applies (503, at three sizes) on hooks found by the target's kind, impact then duration, cessation on removal, from the window and `mgv render --vfx`. To do: `progfx.2da` (beams, node attachments, lights, glows) |
 | 7 Batch rendering and galleries | Done: `mgv gallery` over name patterns, 2DAs (placeables, appearance, visualeffects, doors), haks and folders; `index.html` and `manifest.json`, deterministic; re-runs skip unchanged items (all 1,289 placeables render in about 7 s at 256²; an unchanged re-run takes 3 s); `mgv turntable` (animated PNG or frames) |
 | 8 Hardening and release | In progress: packaging (the icon; the AppImage, 12.3 MB, built here and its command line run; the Flatpak bundle, 6.8 MB, built here; the Windows installer and macOS app built by the release workflow), the release workflow, the user manual; releases 0.1.0 and 0.1.1 on toolset 0.4.0, 0.1.2 on 0.7.0, 0.1.3 to 0.1.5 on 1.16.1. To do: try the Windows and macOS packages on their systems, performance budgets in CI |
-| 9 Native compiler | Stage A done: every compiled model in the game writes back the same, and the client draws written models as the originals. It showed that the game binds supermodel animations by part number. Scoped (§5, Phase 9): a binary writer and what a compiler derives, in four stages, to replace nwnmdlcomp for skin meshes on every platform |
+| 9 Native compiler | Stages A and B done (`mgv compile --with native` compiles everything but skin meshes, as the game's compiler does and keeping part numbers); C (skins) and D (the default) to do. Stage A: every compiled model in the game writes back the same, and the client draws written models as the originals. It showed that the game binds supermodel animations by part number. Scoped (§5, Phase 9): a binary writer and what a compiler derives, in four stages, to replace nwnmdlcomp for skin meshes on every platform |
 
 ## 1. What it does
 
@@ -417,8 +417,9 @@ performance budgets in CI, releases built by CI.
 ### Phase 9: Native compiler
 ASCII to binary in process, on every platform, keeping EE features where the
 binary format holds them; checked against nwnmdlcomp's output, the engine
-compiler's, and in the game. Scoped on 2026-10-07; stage A is done (the
-writer, `mgv-mdl/src/binary.rs`, and its check in the game).
+compiler's, and in the game. Scoped on 2026-10-07; stages A (the writer,
+`mgv-mdl/src/binary.rs`) and B (`compile.rs`: everything but skin meshes)
+are done, each checked in the game.
 
 **Stage A so far.** All 25,597 compiled models in the game, read, written
 and read again, are the same `Model`, and nwnmdlcomp decompiles a sample of
@@ -473,6 +474,33 @@ afresh, the man no longer sits as he did. So:
 - With a supermodel of its own (`a_ba` has one) no text keeps the numbers:
   BioWare's have gaps there. That is for the native compiler's rule above.
 
+**Stage B** (`mgv-mdl/src/compile.rs`; `mgv compile --with native`, and
+Model › Compile with › Moonglow in the window; not Automatic's choice yet).
+`mg-mdl`'s ASCII reader already makes of a text what a compiled model holds
+(a vertex per corner, normals from smoothing groups), so the compiler adds
+little: tangents for a render hint given without, a walkmesh's tree where
+the text has none, a shininess of 1 where the text does not say, animated
+sets spread over the render vertices, controllers a node's type does not
+have left out with a note, and the part numbers: by the order of the text,
+from the supermodel, and from the compiled model of the same name where
+there is one.
+
+- All 24,874 compiled models in the game without skin meshes or two nodes
+  of one name, decompiled and compiled again, are the models they were,
+  with the part numbers and node counts they had; the 24,298 whose
+  numbers are their own get them back from the text alone.
+- Against the game's own compiler on the same text: the five models of
+  the engine test read back the same from both, and for a cube that
+  leaves normals and tangents to the compiler, both give the same 24
+  vertices, with normals and tangents equal to four decimals (so the
+  game's normals are area-weighted, as the reader's are, and its tangents
+  the usual ones).
+- In the client: the scene's six models without skins, compiled from
+  their decompiled text, `a_ba` and its supermodels among them, are drawn
+  as the originals, the man sitting on them as before.
+- A model compiles in about a tenth of a second, against a second and a
+  half through the game.
+
 **Why now.** It is the last thing that keeps nwnmdlcomp in use: the game's
 own compiler cannot compile skin meshes, so every creature goes through a
 32-bit program from 2018 that is built from source on Linux, does not run on
@@ -514,8 +542,6 @@ cross-platform, depends on it for creatures.
 **Open questions**, each to be answered by measurement before the stage
 that needs it:
 
-- Whether the game's vertex normals from smoothing groups can be matched
-  exactly, or only closely (weighting by angle or by area).
 - How many bones a skin may really have in EE (64 is from documentation),
   and what the game does past it.
 

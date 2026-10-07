@@ -58,7 +58,17 @@ fn the_games_compiler_takes_native_ascii() {
                 for x in d.iter().take(5) {
                     eprintln!("  {x}");
                 }
-                if !d.is_empty() {
+                // The native compiler makes the same model of the text.
+                let native = mgv_mdl::compile::compile(ascii.as_bytes(), &Default::default())
+                    .map(|c| Model::read(&c.binary).unwrap());
+                let n = match &native {
+                    Ok(m) => common::compare(&back, m, true),
+                    Err(e) => vec![format!("not compiled natively: {e}")],
+                };
+                for x in n.iter().take(5) {
+                    eprintln!("  native against the game's: {x}");
+                }
+                if !d.is_empty() || !n.is_empty() {
                     failed.push(name);
                 }
             }
@@ -131,4 +141,83 @@ fn ee_fields_survive_the_games_compiler() {
     let back = check(&again, "decompiled and compiled again");
     let d = common::compare(&original, &back, false);
     assert!(d.is_empty(), "{d:?}");
+}
+
+/// What the native compiler derives against what the game's compiler
+/// does, on a text that leaves it to the compiler: normals from smoothing
+/// groups (a cube, one group for its sides and none for its top) and
+/// tangents for a render hint.
+#[test]
+#[ignore]
+fn the_native_compiler_derives_what_the_games_does() {
+    let root = mg_testkit::corpus!();
+    let display = std::env::var("DISPLAY").unwrap_or_default();
+    assert!(!display.is_empty() && display != ":0", "an off-screen DISPLAY, never the desktop");
+    let toolset = std::env::var_os("MOONGLOW_TOOLSET").map(PathBuf::from).unwrap_or_else(|| {
+        PathBuf::from(std::env::var_os("HOME").unwrap()).join("Projects/moonglow-toolset")
+    });
+    let launcher = toolset.join("tools/nwclient/run-client.sh");
+    let scratch =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/test-output/engine-derive");
+    let _ = std::fs::remove_dir_all(&scratch);
+    std::fs::create_dir_all(&scratch).unwrap();
+    let scratch = scratch.canonicalize().unwrap();
+    let mut compiler = EngineCompiler::new(&root, scratch.join("user"), None).unwrap();
+    compiler.launcher = Some((launcher, vec![scratch.to_string_lossy().into_owned()]));
+    compiler.timeout = std::time::Duration::from_secs(90);
+    // A cube: its four sides share smoothing group 1 (rounded corners),
+    // its top and bottom have groups of their own (flat).
+    let verts = "0 0 0\n1 0 0\n1 1 0\n0 1 0\n0 0 1\n1 0 1\n1 1 1\n0 1 1";
+    let tverts = "0 0 0\n1 0 0\n1 1 0\n0 1 0";
+    let faces = "0 1 5 1 0 1 2 0\n0 5 4 1 0 2 3 0\n1 2 6 1 0 1 2 0\n1 6 5 1 0 2 3 0\n\
+                 2 3 7 1 0 1 2 0\n2 7 6 1 0 2 3 0\n3 0 4 1 0 1 2 0\n3 4 7 1 0 2 3 0\n\
+                 4 5 6 2 0 1 2 0\n4 6 7 2 0 2 3 0\n0 2 1 4 0 2 1 0\n0 3 2 4 0 3 2 0";
+    let text = format!(
+        "newmodel zz_mgvderive\nsetsupermodel zz_mgvderive NULL\nclassification character\n\
+         setanimationscale 1\nbeginmodelgeom zz_mgvderive\n\
+         node dummy zz_mgvderive\n  parent NULL\nendnode\n\
+         node trimesh cube\n  parent zz_mgvderive\n  bitmap wood\n  \
+         renderhint NormalAndSpecMapped\n  verts 8\n{verts}\n  tverts 4\n{tverts}\n  \
+         faces 12\n{faces}\nendnode\n\
+         endmodelgeom zz_mgvderive\ndonemodel zz_mgvderive\n"
+    );
+    let theirs = Model::read(&compiler.compile(&text, "zz_mgvderive").unwrap()).unwrap();
+    let ours = Model::read(
+        &mgv_mdl::compile::compile(text.as_bytes(), &Default::default()).unwrap().binary,
+    )
+    .unwrap();
+    let (a, b) = (theirs.nodes[1].mesh().unwrap(), ours.nodes[1].mesh().unwrap());
+    eprintln!(
+        "vertices: the game's {} ours {}; tangents {} and {}",
+        a.vertices.len(),
+        b.vertices.len(),
+        a.tangents.len(),
+        b.tangents.len()
+    );
+    eprintln!("shininess: the game's {} ours {}", a.shininess, b.shininess);
+    let d = common::compare(&theirs, &ours, true);
+    for x in d.iter().take(12) {
+        eprintln!("  {x}");
+    }
+    // Corner by corner: normals and tangents as the game's.
+    let (mut normal, mut tangent, mut corners) = (0.0f32, 0.0f32, 0);
+    for (fa, fb) in a.faces.iter().zip(&b.faces) {
+        for c in 0..3 {
+            let (va, vb) = (fa.vertices[c] as usize, fb.vertices[c] as usize);
+            let dist = |x: [f32; 3], y: [f32; 3]| {
+                (0..3).map(|k| (x[k] - y[k]).powi(2)).sum::<f32>().sqrt()
+            };
+            normal = normal.max(dist(a.normals[va], b.normals[vb]));
+            if let (Some(ta), Some(tb)) = (a.tangents.get(va), b.tangents.get(vb)) {
+                tangent = tangent.max(dist([ta[0], ta[1], ta[2]], [tb[0], tb[1], tb[2]]));
+                tangent = tangent.max((ta[3] - tb[3]).abs());
+            }
+            corners += 1;
+        }
+    }
+    eprintln!("{corners} corners: normals off by at most {normal:.4}, tangents by {tangent:.4}");
+    assert!(d.is_empty(), "{d:?}");
+    assert_eq!(a.faces.len(), b.faces.len());
+    assert!(normal < 0.02, "normals differ by {normal}");
+    assert!(a.tangents.is_empty() || tangent < 0.02, "tangents differ by {tangent}");
 }
