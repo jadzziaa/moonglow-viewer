@@ -35,6 +35,12 @@ fn sample(rm: &ResMan) -> Vec<String> {
         "c_wererat",
         "vdr_magearmor",
         "plc_k01",
+        // Numbered in another order than their trees' (the jelly and the
+        // ooze with skins, which stay in the tree's).
+        "c_jelly",
+        "c_ooze_a01",
+        "c_a_bat",
+        "plc_a02",
     ] {
         if binary(n) {
             names.push(n.into());
@@ -81,6 +87,28 @@ fn nwnmdlcomp_agrees_with_the_native_decompiler() {
                     Ok(back) => {
                         for d in common::compare(&bin, &back, false) {
                             problems.push(format!("compiled: {d}"));
+                        }
+                        // Compiled again, the nodes have the numbers they
+                        // had (the game finds a supermodel's animations
+                        // by them), where those are the model's own.
+                        let numbers = |d: &[u8], m: &Model| {
+                            let p = mgv_mdl::binary::PartNumbers::read(d)?;
+                            let mut by_name: Vec<(String, i32)> = m
+                                .nodes
+                                .iter()
+                                .zip(&p.numbers)
+                                .map(|(n, k)| (n.name.to_lowercase(), *k))
+                                .collect();
+                            by_name.sort();
+                            Some(by_name)
+                        };
+                        let skinned = bin.nodes.iter().any(|n| n.kind.type_name() == "skin");
+                        if bin.supermodel.is_none()
+                            && !skinned
+                            && !common::duplicate_names(&bin)
+                            && numbers(&data, &bin) != numbers(&compiled, &back)
+                        {
+                            problems.push("compiled: part numbers changed".into());
                         }
                     }
                     Err(e) => problems.push(format!("compiled unreadable: {e}")),

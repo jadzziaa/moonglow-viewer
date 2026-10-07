@@ -74,3 +74,66 @@ fn decompiling_twice_gives_the_same_text() {
         assert!(a == b, "{name}");
     }
 }
+
+/// A decompiled model's nodes are in the order of their part numbers, so a
+/// compiler numbers them again as they were: the game finds a supermodel's
+/// animations by those numbers. Checked where a model's numbers are its
+/// own (no supermodel).
+#[test]
+fn decompiled_nodes_keep_the_order_of_their_numbers() {
+    let root = mg_testkit::corpus!();
+    let rm = ResMan::for_game(&GameInstall::new(root, None, "en")).unwrap();
+    let names = rm.list(ResType::MDL);
+    let checked = AtomicUsize::new(0);
+    let reordered = AtomicUsize::new(0);
+    let wrong: Vec<String> = names
+        .par_iter()
+        .filter_map(|name| {
+            let data = rm.get(&ResKey::new(*name, ResType::MDL)).ok()?;
+            let model = Model::read(&data).ok().filter(|_| mg_mdl::is_binary(&data))?;
+            let parts = mgv_mdl::binary::PartNumbers::read(&data)?;
+            // Numbers of its own, each once, and names that tell nodes apart.
+            let mut sorted = parts.numbers.clone();
+            sorted.sort_unstable();
+            // (A skin is written after its bones, whatever its number.)
+            if model.supermodel.is_some()
+                || sorted.iter().enumerate().any(|(i, n)| *n != i as i32)
+                || common::duplicate_names(&model)
+                || model.nodes.iter().any(|n| n.kind.type_name() == "skin")
+            {
+                return None;
+            }
+            checked.fetch_add(1, Ordering::Relaxed);
+            if parts.numbers.iter().enumerate().any(|(i, n)| *n != i as i32) {
+                reordered.fetch_add(1, Ordering::Relaxed);
+            }
+            // The text's nodes, in its order, are numbered 0, 1, 2…
+            let text = mgv_mdl::decompile(&data).ok()?;
+            let geometry = text.split("endmodelgeom").next()?;
+            let written: Vec<String> = geometry
+                .lines()
+                .filter_map(|l| {
+                    let mut words = l.split_whitespace();
+                    (words.next() == Some("node")).then(|| words.nth(1).map(str::to_lowercase))?
+                })
+                .collect();
+            let by_number = |i: usize| {
+                let node = parts.numbers.iter().position(|&n| n == i as i32)?;
+                Some(model.nodes[node].name.to_lowercase())
+            };
+            let kept = written.len() == model.nodes.len()
+                && written.iter().enumerate().all(|(i, n)| by_number(i).as_ref() == Some(n));
+            (!kept).then(|| name.to_string())
+        })
+        .collect();
+    eprintln!(
+        "{} models with numbers of their own ({} not in their tree's order): {} lose them",
+        checked.load(Ordering::Relaxed),
+        reordered.load(Ordering::Relaxed),
+        wrong.len()
+    );
+    eprintln!("{:?}", &wrong[..wrong.len().min(20)]);
+    assert!(checked.load(Ordering::Relaxed) > 20_000);
+    assert!(reordered.load(Ordering::Relaxed) > 3_000);
+    assert!(wrong.is_empty(), "{} models", wrong.len());
+}

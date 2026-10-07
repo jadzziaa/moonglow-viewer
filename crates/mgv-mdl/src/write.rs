@@ -47,11 +47,85 @@ impl Default for Options {
     }
 }
 
-/// A model as ASCII text.
+/// A model as ASCII text, its nodes in the tree's order.
 pub fn to_ascii(model: &Model, opts: &Options) -> String {
+    let order: Vec<usize> = (0..model.nodes.len()).collect();
+    to_ascii_in_order(model, opts, &order)
+}
+
+/// A model as ASCII text, its nodes written in `order` (indices of
+/// `model.nodes`, each once, a parent before its children: [`file_order`]).
+/// Compilers number a model's nodes in the order of its text, and the game
+/// finds a supermodel's animations by those numbers.
+pub fn to_ascii_in_order(model: &Model, opts: &Options, order: &[usize]) -> String {
     let mut w = Writer { out: String::new(), opts: *opts };
-    w.model(model);
+    w.model(model, order);
     w.out
+}
+
+/// The order to write a compiled model's nodes in so that a compiler
+/// numbers them as they are numbered (`numbers`: each node's part number,
+/// [`crate::binary::PartNumbers`]): by number, a parent still before its
+/// children. A node without a number (−1: its supermodel lacks it) goes
+/// where the tree has it, after the node before it. So a model decompiled
+/// and compiled again keeps its numbers, where they are its own (with a
+/// supermodel, BioWare's numbers can have gaps no text reproduces). A
+/// model with two nodes of one name stays in its tree's order, and so does
+/// one whose skin would be written before a bone of its own.
+pub fn file_order(model: &Model, numbers: &[i32]) -> Vec<usize> {
+    let count = model.nodes.len();
+    // Two nodes of one name: text tells them apart only by a child
+    // following its parent, which the tree's order keeps.
+    let mut names = std::collections::HashSet::new();
+    if model.nodes.iter().any(|n| !names.insert(n.name.to_ascii_lowercase())) {
+        return (0..count).collect();
+    }
+    // Each node's place: its number, or the place of the node before it.
+    let mut place = vec![0i64; count];
+    for i in 0..count {
+        place[i] = match numbers.get(i) {
+            Some(&n) if n >= 0 => i64::from(n),
+            _ if i > 0 => place[i - 1],
+            _ => -1,
+        };
+    }
+    let mut written = vec![false; count];
+    let mut order = Vec::with_capacity(count);
+    let mut ready: std::collections::BTreeSet<(i64, usize)> = model
+        .nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| n.parent.is_none_or(|p| p >= count))
+        .map(|(i, _)| (place[i], i))
+        .collect();
+    while let Some((_, i)) = ready.pop_first() {
+        if std::mem::replace(&mut written[i], true) {
+            continue;
+        }
+        order.push(i);
+        for &c in model.nodes[i].children.iter().filter(|&&c| c < count) {
+            ready.insert((place[c], c));
+        }
+    }
+    // (A node no parent leads to, in a broken tree: last, as it is.)
+    order.extend((0..count).filter(|&i| !written[i]));
+    // A skin's weights name its bones, and nwnmdlcomp knows only the nodes
+    // it has read by then: where a skin would come before one of its
+    // bones, the tree's order, which has them first.
+    let mut at = vec![0usize; count];
+    for (position, &i) in order.iter().enumerate() {
+        at[i] = position;
+    }
+    let early = model.nodes.iter().enumerate().any(|(i, n)| match n.mesh().map(|m| &m.extra) {
+        Some(mg_mdl::MeshExtra::Skin(skin)) => {
+            skin.bones.iter().any(|&b| b < count && at[b] > at[i])
+        }
+        _ => false,
+    });
+    if early {
+        return (0..count).collect();
+    }
+    order
 }
 
 /// A number as the shortest text that reads back as the same `f32`.
@@ -292,7 +366,7 @@ impl Writer {
         self.out.push('\n');
     }
 
-    fn model(&mut self, m: &Model) {
+    fn model(&mut self, m: &Model, order: &[usize]) {
         self.line("#MAXMODEL ASCII");
         if self.opts.banner {
             self.line(&format!("# model: {} (decompiled by Moonglow Viewer)", m.name));
@@ -343,8 +417,8 @@ impl Writer {
 
         self.line("#MAXGEOM  ASCII");
         self.line(&format!("beginmodelgeom {}", m.name));
-        for (i, n) in m.nodes.iter().enumerate() {
-            self.node(m, n, welded[i].as_ref());
+        for &i in order.iter().filter(|&&i| i < m.nodes.len()) {
+            self.node(m, &m.nodes[i], welded[i].as_ref());
         }
         self.line(&format!("endmodelgeom {}", m.name));
 
@@ -785,6 +859,39 @@ fn renderhint(h: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Nodes are written by part number, a parent before its children, and
+    /// one without a number where the tree has it.
+    #[test]
+    fn nodes_are_written_in_the_order_of_their_numbers() {
+        let text = "newmodel m\nsetsupermodel m NULL\nbeginmodelgeom m\n\
+node dummy m\n  parent NULL\nendnode\n\
+node dummy a\n  parent m\nendnode\n\
+node dummy a1\n  parent a\nendnode\n\
+node dummy b\n  parent m\nendnode\n\
+node dummy b1\n  parent b\nendnode\n\
+endmodelgeom m\ndonemodel m\n";
+        let model = Model::read(text.as_bytes()).unwrap();
+        let names = |order: &[usize]| -> Vec<&str> {
+            order.iter().map(|&i| model.nodes[i].name.as_str()).collect()
+        };
+        // The tree's order, when that is the numbers'.
+        assert_eq!(file_order(&model, &[0, 1, 2, 3, 4]), [0, 1, 2, 3, 4]);
+        // The file had b before a, and a1 last.
+        assert_eq!(names(&file_order(&model, &[0, 2, 4, 1, 3])), ["m", "b", "a", "b1", "a1"]);
+        // A child numbered before its parent still follows it.
+        assert_eq!(names(&file_order(&model, &[0, 4, 1, 2, 3])), ["m", "b", "b1", "a", "a1"]);
+        // No number: after the node before it in the tree.
+        assert_eq!(names(&file_order(&model, &[0, 3, -1, 1, 2])), ["m", "b", "b1", "a", "a1"]);
+        assert_eq!(file_order(&model, &[]).len(), 5);
+        // The text follows the order, and reads back as the same nodes.
+        let order = file_order(&model, &[0, 2, 4, 1, 3]);
+        let out = to_ascii_in_order(&model, &Options::default(), &order);
+        let written: Vec<&str> =
+            out.lines().filter_map(|l| l.strip_prefix("node dummy ")).collect();
+        assert_eq!(written, ["m", "b", "a", "b1", "a1"]);
+        assert_eq!(Model::read(out.as_bytes()).unwrap().nodes.len(), 5);
+    }
 
     #[test]
     fn numbers_read_back_exactly() {

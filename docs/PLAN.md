@@ -460,12 +460,18 @@ afresh, the man no longer sits as he did. So:
   node of the same name at the same place keeps its number; new nodes get
   numbers past the old count), and only number from scratch a model that
   is new.
-- This is a gap today in every route through ASCII, ours included:
-  decompiling a supermodel and compiling it again numbers its nodes in the
-  text's order. nwnmdlcomp's decompiler writes a model without a
-  supermodel in part-number order, which keeps them; ours writes the
-  tree's order. With a supermodel of its own (`a_ba` has one) neither
-  keeps them: BioWare's numbers there have gaps no text reproduces.
+- Through ASCII, a compiler numbers nodes in the order of the text. So the
+  decompiler writes a compiled model's nodes in the order of their part
+  numbers (`write::file_order`; a parent still before its children), as
+  nwnmdlcomp's does for a model without a supermodel: of 24,298 such
+  models in the game, 5,079 are numbered in another order than their
+  trees', and all keep their numbers through the text; nwnmdlcomp compiles
+  it back to the numbers they had. Kept in the tree's order instead: a
+  model with two nodes of one name (text tells them apart only by a child
+  following its parent), and one whose skin would be written before a bone
+  of its own (nwnmdlcomp knows only the nodes it has read by then).
+- With a supermodel of its own (`a_ba` has one) no text keeps the numbers:
+  BioWare's have gaps there. That is for the native compiler's rule above.
 
 **Why now.** It is the last thing that keeps nwnmdlcomp in use: the game's
 own compiler cannot compile skin meshes, so every creature goes through a

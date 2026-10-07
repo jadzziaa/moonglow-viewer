@@ -16,7 +16,7 @@ use thiserror::Error;
 
 pub use lint::{Diagnostic, Severity};
 pub use outline::{Outline, outline};
-pub use write::{Options, to_ascii};
+pub use write::{Options, file_order, to_ascii, to_ascii_in_order};
 
 #[derive(Debug, Error)]
 pub enum DecompileError {
@@ -32,5 +32,10 @@ pub fn decompile(data: &[u8]) -> Result<String, DecompileError> {
         return Err(DecompileError::NotBinary);
     }
     let model = Model::read(data)?;
-    Ok(to_ascii(&model, &Options::default()))
+    // In the order of its part numbers, so compiling it again keeps them.
+    let order = match binary::PartNumbers::read(data) {
+        Some(parts) => write::file_order(&model, &parts.numbers),
+        None => (0..model.nodes.len()).collect(),
+    };
+    Ok(write::to_ascii_in_order(&model, &Options::default(), &order))
 }

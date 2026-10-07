@@ -41,6 +41,14 @@ Save it to keep it. The viewer's own decompiler is exact: all 25,597
 compiled models of the game decompile and read back the same, including
 EE's normals. nwnmdlcomp can do it instead (**Model › Decompile with**).
 
+The nodes are written in the order the game numbers them, which is not
+always the tree's. The game finds a supermodel's animations for a model by
+those numbers, and a compiler numbers nodes in the order of the text: so
+**keep the nodes' order** when you edit a model other models use as their
+supermodel, and add new nodes at the end. (A model with a supermodel of its
+own, such as `a_ba`, cannot keep all its numbers through text; compiling
+one again can break the creatures built on it.)
+
 ## Compiling
 
 **Model › Compile** (Ctrl+B) compiles the editor's text into
