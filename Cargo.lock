@@ -1979,7 +1979,7 @@ dependencies = [
 
 [[package]]
 name = "mgv"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "clap",
@@ -1997,7 +1997,7 @@ dependencies = [
 
 [[package]]
 name = "mgv-gallery"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "ab_glyph",
  "epaint_default_fonts",
@@ -2017,7 +2017,7 @@ dependencies = [
 
 [[package]]
 name = "mgv-library"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "mg-core",
  "mg-mdl",
@@ -2031,7 +2031,7 @@ dependencies = [
 
 [[package]]
 name = "mgv-mdl"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "fastrand",
  "mg-core",
@@ -2049,7 +2049,7 @@ dependencies = [
 
 [[package]]
 name = "mgv-stage"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "bytemuck",
  "glam",
@@ -2070,7 +2070,7 @@ dependencies = [
 
 [[package]]
 name = "mgv-ui"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "egui",
  "egui-wgpu",
@@ -2126,7 +2126,7 @@ dependencies = [
 
 [[package]]
 name = "moonglow-viewer"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "eframe",
  "egui",

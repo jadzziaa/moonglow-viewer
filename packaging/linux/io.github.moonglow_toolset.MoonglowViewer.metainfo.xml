@@ -50,6 +50,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.6" date="2026-10-07">
+      <description>
+        <p>A model compiler of its own: every kind of model, skins of up to 64 bones, with no game and no other program, keeping the node numbers the game binds animations by.</p>
+      </description>
+    </release>
     <release version="0.1.5" date="2026-10-07">
       <description>
         <p>Decompiled models keep the node numbers the game binds supermodel animations by.</p>
