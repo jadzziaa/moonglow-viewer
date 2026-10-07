@@ -136,6 +136,9 @@ pub struct Actor {
     pub visible: bool,
     pub(crate) particles: Particles,
     pub(crate) dangly: Dangly,
+    /// The model's shadow casters as meshes to draw ([`casters_view`]),
+    /// made when the stage first shows them.
+    pub(crate) casters: Option<Arc<GpuModel>>,
     // What the last step computed.
     pub(crate) world: Mat4,
     /// The nodes' transforms relative to their parents, for transitions.
@@ -175,6 +178,34 @@ impl Current {
     }
 }
 
+/// The colour shadow casters are drawn in.
+pub const CASTER_COLOR: [f32; 3] = [0.2, 0.45, 1.0];
+
+/// A model with its shadow casters to draw in place of its visible meshes:
+/// the meshes that cast a shadow without being drawn (`render 0`,
+/// `shadow 1`: the invisible shells that cast for textured and skinned
+/// meshes) become plain blue meshes, and everything else is not drawn.
+/// Nodes keep their places, so poses and animations apply as before.
+pub fn casters_view(model: &Model) -> Model {
+    let mut out = model.clone();
+    for node in &mut out.nodes {
+        let mg_mdl::NodeKind::Mesh(m) = &mut node.kind else { continue };
+        let caster = !m.render && m.shadow && !matches!(m.extra, mg_mdl::MeshExtra::Aabb(_));
+        m.render = caster;
+        if caster {
+            m.textures = Default::default();
+            m.material = None;
+            m.renderhint = None;
+            m.colors.clear();
+            m.diffuse = CASTER_COLOR;
+            m.ambient = CASTER_COLOR;
+            m.specular = [0.0; 3];
+            m.transparency_hint = 0;
+        }
+    }
+    out
+}
+
 impl Actor {
     pub fn new(
         name: &str,
@@ -197,6 +228,7 @@ impl Actor {
             visible: true,
             particles,
             dangly,
+            casters: None,
             world: Mat4::IDENTITY,
             locals: Vec::new(),
             transition: None,
@@ -213,6 +245,7 @@ impl Actor {
     pub fn replace_model(&mut self, model: Arc<GpuModel>, animations: Animations) {
         self.particles = Particles::new(&model.model);
         self.dangly = Dangly::new(&model);
+        self.casters = None;
         self.pose = Arc::new(model.rest.clone());
         self.state = Arc::new(MeshState::new(&model));
         self.locals.clear();
@@ -342,6 +375,33 @@ impl Actor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Only meshes that cast without being drawn show, plain and blue.
+    #[test]
+    fn casters_take_the_visible_meshes_place() {
+        let mesh = |name: &str, render: u8, shadow: u8| {
+            format!(
+                "node trimesh {name}\n  parent m\n  render {render}\n  shadow {shadow}\n  \
+                 bitmap wood\n  verts 3\n    0 0 0\n    1 0 0\n    0 1 0\n  \
+                 faces 1\n    0 1 2 1 0 0 0 0\nendnode\n"
+            )
+        };
+        let text = format!(
+            "newmodel m\nsetsupermodel m NULL\nbeginmodelgeom m\n\
+             node dummy m\n  parent NULL\nendnode\n{}{}{}endmodelgeom m\ndonemodel m\n",
+            mesh("seen", 1, 0),
+            mesh("caster", 0, 1),
+            mesh("neither", 0, 0)
+        );
+        let model = Model::read(text.as_bytes()).unwrap();
+        let view = casters_view(&model);
+        let of = |name: &str| view.nodes[view.node(name).unwrap()].mesh().unwrap();
+        assert!(!of("seen").render && !of("neither").render);
+        let caster = of("caster");
+        assert!(caster.render && caster.textures[0].is_none());
+        assert_eq!(caster.diffuse, CASTER_COLOR);
+        assert_eq!(view.nodes.len(), model.nodes.len(), "nodes keep their places");
+    }
 
     #[test]
     fn sequences_queue_all_but_the_last_once() {

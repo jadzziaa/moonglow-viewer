@@ -34,6 +34,7 @@ mg-testkit = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v1.1
 mg-tlk = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v1.16.1" }
 
 # Third party (the toolset's versions)
+ab_glyph = "0.2"
 anyhow = "1"
 bytemuck = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
@@ -45,6 +46,7 @@ egui_dock = "0.21"
 egui_kittest = "0.36"
 glam = { version = "0.30", features = ["bytemuck"] }
 notify = "8"
+epaint_default_fonts = "0.36"
 png = "0.18"
 rayon = "1"
 rfd = "0.17"

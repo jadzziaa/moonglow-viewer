@@ -83,6 +83,7 @@ fn overlays() {
         wireframe: true,
         normals: false,
         skeleton: true,
+        casters: false,
     };
     shoot(&mut h, "overlays-placeable");
     h.state_mut().actions.push(Action::OpenCreature(mgv_stage::subject::CreatureLook::new(6)));
@@ -91,6 +92,7 @@ fn overlays() {
         wireframe: false,
         normals: false,
         skeleton: true,
+        casters: false,
     };
     shoot(&mut h, "overlays-skeleton");
 }
@@ -149,6 +151,7 @@ fn readme() {
         wireframe: true,
         normals: false,
         skeleton: false,
+        casters: false,
     };
     h.run_steps(10);
     shoot(&mut h, "readme-overlays");

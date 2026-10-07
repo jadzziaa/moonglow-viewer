@@ -38,6 +38,9 @@ pub struct Shot {
     /// creature or an item would colour. Creatures and blueprints keep
     /// theirs.
     pub plt_colors: Option<[u8; 10]>,
+    /// The models' shadow casters in blue in place of their visible meshes
+    /// ([`Stage::casters`]).
+    pub casters: bool,
 }
 
 /// How far the key light reaches, as a multiple of the camera's distance.
@@ -56,13 +59,24 @@ impl Default for Shot {
             background: None,
             key_light: 0.0,
             plt_colors: None,
+            casters: false,
         }
     }
 }
 
 impl Shot {
-    /// The camera for the stage's current bounds.
+    /// The camera for the stage's current bounds, as close as shows all of
+    /// them from its angle.
     pub fn camera(&self, stage: &Stage) -> OrbitCamera {
+        self.camera_fit(stage, true)
+    }
+
+    /// The camera for a turn around the stage: far enough for every side.
+    pub fn camera_turning(&self, stage: &Stage) -> OrbitCamera {
+        self.camera_fit(stage, false)
+    }
+
+    fn camera_fit(&self, stage: &Stage, tight: bool) -> OrbitCamera {
         let mut cam = OrbitCamera { front: stage.front, ..OrbitCamera::default() };
         cam.set_view(self.view);
         if let Some(y) = self.yaw {
@@ -71,9 +85,14 @@ impl Shot {
         if let Some(p) = self.pitch {
             cam.pitch = p.to_radians().clamp(-1.55, 1.55);
         }
-        let (min, max) =
-            stage.bounds_with_particles().unwrap_or((Vec3::splat(-1.0), Vec3::splat(1.0)));
-        cam.frame(min, max);
+        let points = stage.shown_points();
+        if tight && !points.is_empty() {
+            cam.frame_tight(&points, self.size.0 as f32 / self.size.1.max(1) as f32);
+        } else {
+            let (min, max) =
+                stage.bounds_with_particles().unwrap_or((Vec3::splat(-1.0), Vec3::splat(1.0)));
+            cam.frame(min, max);
+        }
         cam.distance *= self.zoom.max(0.01);
         cam
     }
@@ -94,6 +113,7 @@ impl Shot {
 
 /// Steps the stage to the shot's time (from the start) and renders it.
 pub fn still(stage: &mut Stage, viewport: &mut Viewport, lib: &Library, shot: &Shot) -> Rgba {
+    stage.casters = shot.casters;
     stage.settle(lib, shot.time, shot.fps);
     picture(stage, viewport, lib, shot, &shot.camera(stage))
 }
@@ -130,8 +150,9 @@ pub fn turntable(
     shot: &Shot,
     frames: usize,
 ) -> Vec<Rgba> {
+    stage.casters = shot.casters;
     stage.settle(lib, shot.time, shot.fps);
-    let mut cam = shot.camera(stage);
+    let mut cam = shot.camera_turning(stage);
     let start = cam.yaw;
     let frames = frames.max(1);
     let mut out = Vec::with_capacity(frames);

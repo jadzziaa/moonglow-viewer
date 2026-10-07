@@ -23,6 +23,9 @@ Reset Layout** puts them back):
   surface material: green where creatures walk, red where they do not),
   the wireframe, the normals and the node tree. Of these, what the model
   hides shows faintly; the node tree and the selected node's box show over everything.
+  **Shadow casters**, also under Overlays, draws the meshes that cast
+  shadows without being drawn (`render 0`, `shadow 1`) in blue in place
+  of the visible meshes.
   Click a part of the model to select its node.
 - **ASCII**: the model's text (see [Editing models](03-editing-models.md)).
 - **Texture**: textures you open.

@@ -42,6 +42,10 @@ pub struct Overlays {
     pub normals: bool,
     /// Nodes as a tree of lines (bones, hooks, emitters, lights).
     pub skeleton: bool,
+    /// The shadow casters (`render 0`, `shadow 1`) in blue in place of the
+    /// visible meshes. Not kept between runs.
+    #[serde(skip)]
+    pub casters: bool,
 }
 
 /// The settings.

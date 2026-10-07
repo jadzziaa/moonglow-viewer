@@ -12,6 +12,7 @@
 //! textures, the picture's settings) have not changed.
 
 mod html;
+pub mod sheet;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -335,9 +336,9 @@ impl Fnv {
 }
 
 /// Raised when the same inputs give other pictures, so galleries render
-/// again: 2, views from the model's front (placeables face −Y) and the
-/// toolset's particle bounce and tinting.
-const PICTURES: &str = "2";
+/// again: 3, pictures framed as close as shows the model from their angle,
+/// by its vertices where they are drawn.
+const PICTURES: &str = "3";
 
 /// Everything that decides an item's picture: the shot, the model and its
 /// supermodels, and the textures its meshes name.
@@ -467,19 +468,7 @@ pub fn run(
             });
             continue;
         }
-        let shown = match &item.what {
-            What::Model(name) => ResKey::parse(name, ResType::MDL)
-                .ok_or_else(|| format!("{name}: not a resource name"))
-                .and_then(|k| lib.open_resource(k).map_err(|e| e.to_string()))
-                .and_then(|o| subject::show(&mut stage, lib, &o).map_err(|e| e.to_string())),
-            What::File(p) => lib
-                .open_file(p)
-                .map_err(|e| e.to_string())
-                .and_then(|o| subject::show(&mut stage, lib, &o).map_err(|e| e.to_string())),
-            What::Creature(look) => {
-                subject::show_creature(&mut stage, lib, look).map_err(|e| e.to_string())
-            }
-        };
+        let shown = show(&mut stage, lib, item);
         let entry = match shown {
             Ok(_) => {
                 let img = headless::still(&mut stage, &mut viewport, lib, &opts.shot);
@@ -507,6 +496,22 @@ pub fn run(
     }
     write_index(&opts.out, &opts.title, &opts.shot, &entries)?;
     Ok(entries)
+}
+
+/// Puts an item on the stage, alone.
+pub(crate) fn show(stage: &mut Stage, lib: &mut Library, item: &Item) -> Result<(), String> {
+    match &item.what {
+        What::Model(name) => ResKey::parse(name, ResType::MDL)
+            .ok_or_else(|| format!("{name}: not a resource name"))
+            .and_then(|k| lib.open_resource(k).map_err(|e| e.to_string()))
+            .and_then(|o| subject::show(stage, lib, &o).map_err(|e| e.to_string())),
+        What::File(p) => lib
+            .open_file(p)
+            .map_err(|e| e.to_string())
+            .and_then(|o| subject::show(stage, lib, &o).map_err(|e| e.to_string())),
+        What::Creature(look) => subject::show_creature(stage, lib, look).map_err(|e| e.to_string()),
+    }
+    .map(|_| ())
 }
 
 /// The manifest (`manifest.json`) and the page (`index.html`).

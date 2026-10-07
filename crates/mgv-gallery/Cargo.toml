@@ -8,9 +8,12 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+ab_glyph.workspace = true
+epaint_default_fonts.workspace = true
 glam.workspace = true
 mg-2da.workspace = true
 mg-core.workspace = true
+mg-image.workspace = true
 mg-mdl.workspace = true
 mg-render.workspace = true
 mg-resman.workspace = true

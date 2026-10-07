@@ -23,6 +23,7 @@ mgv render appearance:6 --vfx 4 --light env:0:night -o warded.png
 mgv turntable c_golemerald --frames 48 -o golem.png      # an animated PNG
 mgv gallery placeables -o gallery/ --size 256x256
 mgv gallery "c_*" -o creatures/
+mgv sheet build/ plc_a01 "c_drg*" -o sheet.png --columns 5 # one picture, a tile each
 mgv info c_wererat                                        # JSON
 mgv decompile c_golemerald -o ascii/
 mgv compile ascii/c_golemerald.mdl --with nwnmdlcomp
@@ -42,7 +43,11 @@ mgv lint mymodel.mdl --notes
   base): `metal1=40,leather1=12` (layers skin, hair, metal1, metal2,
   cloth1, cloth2, leather1, leather2, tattoo1, tattoo2; palette rows 0 to
   175; the rest 0) or ten rows in that order. Creatures and blueprints
-  keep their own colors. These apply to galleries too.
+  keep their own colors. `--casters` shows a model's shadow casters (the
+  meshes with `render 0` and `shadow 1`) in blue in place of its visible
+  meshes. A picture is framed as close as shows all of the model from its
+  angle; a turntable from far enough for every side. These apply to
+  galleries and sheets too.
 - **Galleries** (`gallery`): a name pattern (`plc_*`), a 2DA
   (`placeables`, `appearance`, `visualeffects`, `doors`), a hak, module or
   ERF, or a folder. Writes `images/`, `index.html` (a page to browse and
@@ -50,5 +55,12 @@ mgv lint mymodel.mdl --notes
   nodes, faces, animations and bounds). Running it again redraws only what
   changed (the model, its supermodels or textures, or the picture's
   settings); `--full` redraws everything.
+- **Contact sheets** (`sheet`): model files, folders of them, resource
+  names, or anything a gallery takes, into one PNG: a tile each (`--size`,
+  320x320 unless given) with its name and its width, depth and height in
+  meters under it (`--no-labels` leaves them out), `--columns` to a row.
+  What cannot be shown keeps its tile, with the reason in it.
+- **Checking** (`lint`): problems by `file:line`. It fails when it finds
+  errors; `--strict` fails on warnings too, for build pipelines.
 - **Everywhere**: `--root` (the game folder), `--hak` and `--folder`
   (more resources), `--no-user-dir` (leave your override out), `--no-game`.

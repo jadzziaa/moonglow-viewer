@@ -92,6 +92,29 @@ enum Cmd {
         #[command(flatten)]
         shot: ShotArgs,
     },
+    /// Renders many models into one picture, a tile each with its name and
+    /// size under it (a contact sheet).
+    Sheet {
+        /// What to show: model files, folders of them, resource names, or
+        /// anything `gallery` takes (a name pattern, a 2DA, a hak).
+        #[arg(required = true)]
+        inputs: Vec<String>,
+        /// The PNG to write.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Tiles in a row (default: as square a sheet as they make).
+        #[arg(long)]
+        columns: Option<usize>,
+        /// Leave the names and sizes out.
+        #[arg(long)]
+        no_labels: bool,
+        /// At most this many tiles (the first ones).
+        #[arg(long)]
+        limit: Option<usize>,
+        /// A tile's size and picture (`--size` defaults to 320x320 here).
+        #[command(flatten)]
+        shot: ShotArgs,
+    },
     /// Prints what a model holds, as JSON.
     Info { input: String },
     /// Decompiles binary models to ASCII.
@@ -128,6 +151,9 @@ enum Cmd {
         /// Also print notes (keywords nwnmdlcomp drops, …).
         #[arg(long)]
         notes: bool,
+        /// Fail on warnings too, not only on errors.
+        #[arg(long)]
+        strict: bool,
     },
 }
 
@@ -187,6 +213,10 @@ struct ShotArgs {
     /// and blueprints keep their own.
     #[arg(long)]
     plt_colors: Option<String>,
+    /// Show the shadow casters (meshes with `render 0` and `shadow 1`) in
+    /// blue in place of the visible meshes.
+    #[arg(long)]
+    casters: bool,
 }
 
 /// `--plt-colors`: `LAYER=ROW,…` or ten rows.
@@ -369,6 +399,69 @@ fn run(cli: Cli) -> Result<()> {
                 output.join("index.html").display()
             );
         }
+        Cmd::Sheet { inputs, output, columns, no_labels, limit, shot } => {
+            let mut lib = library(&cli)?;
+            let mut items = Vec::new();
+            for input in inputs {
+                let path = Path::new(input);
+                let model = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("mdl"));
+                if path.is_file() && model {
+                    let stem = path
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().to_lowercase())
+                        .unwrap_or_default();
+                    items.push(mgv_gallery::Item {
+                        id: stem.clone(),
+                        label: stem,
+                        group: None,
+                        what: mgv_gallery::What::File(path.to_path_buf()),
+                    });
+                    continue;
+                }
+                let found = mgv_gallery::select(&mut lib, &mgv_gallery::Source::parse(input)?)?;
+                if found.is_empty() {
+                    bail!("{input}: nothing to show");
+                }
+                items.extend(found);
+            }
+            if let Some(n) = limit {
+                items.truncate(*n);
+            }
+            let gpu = mg_render::Gpu::headless().ok_or_else(|| anyhow!("no GPU adapter found"))?;
+            let mut shot_args = shot.clone();
+            // (The option's own default is a single picture's.)
+            if shot_args.size == "512x512" {
+                shot_args.size = "320x320".into();
+            }
+            let opts = mgv_gallery::sheet::Options {
+                shot: shot_args.to_shot()?,
+                columns: columns.unwrap_or(0),
+                labels: !*no_labels,
+            };
+            let sheet =
+                mgv_gallery::sheet::render(&mut lib, &gpu, &items, &opts, &mut |i, n, item| {
+                    eprint!(
+                        "\r[{}/{n}] {:<40}",
+                        i + 1,
+                        item.label.chars().take(40).collect::<String>()
+                    );
+                });
+            eprintln!();
+            for (label, e) in &sheet.failed {
+                eprintln!("mgv: {label}: {e}");
+            }
+            mgv_stage::render::save_png(&sheet.image, output)
+                .with_context(|| output.display().to_string())?;
+            eprintln!(
+                "{} tiles ({} failed): {}",
+                items.len(),
+                sheet.failed.len(),
+                output.display()
+            );
+            if sheet.failed.len() == items.len() {
+                bail!("nothing could be shown");
+            }
+        }
         Cmd::Info { input } => {
             let mut lib = library(&cli)?;
             let opened = lib.open_input(input)?;
@@ -445,7 +538,7 @@ fn run(cli: Cli) -> Result<()> {
                 eprintln!("{}", out.display());
             }
         }
-        Cmd::Lint { inputs, notes } => {
+        Cmd::Lint { inputs, notes, strict } => {
             let mut lib = library(&cli)?;
             let mut worst = mgv_mdl::Severity::Info;
             for input in inputs {
@@ -466,6 +559,9 @@ fn run(cli: Cli) -> Result<()> {
             }
             if worst == mgv_mdl::Severity::Error {
                 bail!("errors found");
+            }
+            if *strict && worst == mgv_mdl::Severity::Warning {
+                bail!("warnings found");
             }
         }
     }
@@ -507,6 +603,7 @@ impl ShotArgs {
             background,
             key_light: self.key_light.clamp(0.0, 1.0),
             plt_colors: self.plt_colors.as_deref().map(plt_colors).transpose()?,
+            casters: self.casters,
         })
     }
 }

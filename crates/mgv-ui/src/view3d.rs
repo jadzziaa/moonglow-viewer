@@ -78,6 +78,7 @@ pub fn ui(app: &mut Viewer, ui: &mut egui::Ui) {
     let px = (px.0.clamp(16, 8192), px.1.clamp(16, 8192));
 
     let camera = app.camera.camera();
+    g.stage.casters = app.settings.overlays.casters;
     let scene = g.stage.scene(camera.view());
     let gpu = g.stage.gpu().clone();
     g.viewport.draw(&gpu, app.lib.resman(), &scene, &camera, px);
@@ -240,6 +241,10 @@ fn toolbar(app: &mut Viewer, ui: &mut egui::Ui) {
             ui.checkbox(&mut o.normals, "Normals");
             ui.checkbox(&mut o.skeleton, "Nodes")
                 .on_hover_text("The node tree: bones, hooks, emitters and lights");
+            ui.checkbox(&mut o.casters, "Shadow casters").on_hover_text(
+                "The meshes that cast shadows without being drawn (render 0, shadow 1), in \
+                 blue in place of the visible meshes",
+            );
         });
         if let Some(g) = &mut app.gfx {
             ui.checkbox(&mut g.stage.model_lights, "Model lights")

@@ -81,6 +81,9 @@ pub struct Stage {
     /// Which way what is shown faces (yaw, radians around Z from +X), for
     /// the camera's views ([`subject::front`]).
     pub front: f32,
+    /// Draw the models' shadow casters (`render 0`, `shadow 1`) in blue in
+    /// place of their visible meshes ([`actor::casters_view`]).
+    pub casters: bool,
 }
 
 impl Stage {
@@ -95,6 +98,7 @@ impl Stage {
             elapsed: 0.0,
             walkmeshes: Vec::new(),
             front: subject::FACING_Y,
+            casters: false,
         }
     }
 
@@ -215,6 +219,12 @@ impl Stage {
         self.elapsed += dt;
         let main_lights = self.lighting.main_lights;
         let main_light = |slot: usize| main_lights.get(slot).copied().flatten();
+        if self.casters {
+            for a in self.actors.iter_mut().filter(|a| a.casters.is_none()) {
+                let view = Arc::new(actor::casters_view(&a.model.model));
+                a.casters = Some(Arc::new(GpuModel::new(&self.gpu, view)));
+            }
+        }
         let mut chunk_requests = Vec::new();
         for i in 0..self.actors.len() {
             let (before, rest) = self.actors.split_at_mut(i);
@@ -327,6 +337,16 @@ impl Stage {
         for a in self.actors.iter().filter(|a| a.visible) {
             let anim = a.current.as_ref().and_then(Current::animation);
             let t = a.current.as_ref().map_or(0.0, |c| c.time);
+            if self.casters {
+                // The casters alone, posed as the model is.
+                if let Some(c) = &a.casters {
+                    instances.push(Instance {
+                        pose: Some(a.pose.clone()),
+                        ..Instance::new(c.clone(), a.world)
+                    });
+                }
+                continue;
+            }
             instances.push(Instance {
                 pose: Some(a.pose.clone()),
                 state: Some(a.state.clone()),
@@ -340,7 +360,9 @@ impl Stage {
                 lights.extend(a.lights.iter().cloned());
             }
         }
-        instances.extend(self.chunks.iter().cloned());
+        if !self.casters {
+            instances.extend(self.chunks.iter().cloned());
+        }
         Scene {
             instances,
             lights,
@@ -356,42 +378,44 @@ impl Stage {
         }
     }
 
-    /// Bounds of everything visible, as of the last step.
+    /// Bounds of everything visible, as of the last step: of the meshes'
+    /// vertices where they are drawn (a skin's follow its bones, which its
+    /// node's own box does not: a dragon's reached twice its height).
     pub fn bounds(&self) -> Option<(Vec3, Vec3)> {
-        self.actors
-            .iter()
-            .filter(|a| a.visible)
-            .filter_map(Actor::bounds)
-            .reduce(|(amin, amax), (bmin, bmax)| (amin.min(bmin), amax.max(bmax)))
+        let (mut min, mut max) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+        for p in self.posed(false).iter().flat_map(|m| &m.positions).filter(|p| p.is_finite()) {
+            min = min.min(*p);
+            max = max.max(*p);
+        }
+        (min.x <= max.x).then_some((min, max))
     }
 
-    /// Bounds of meshes and of the particles showing (as of the last step),
-    /// so emitter-only effects frame too.
-    pub fn bounds_with_particles(&self) -> Option<(Vec3, Vec3)> {
+    /// Where everything showing is (as of the last step): the drawn meshes'
+    /// vertices and the particles, so emitter-only effects count too; and
+    /// where nothing is drawn, the meshes the renderer skips and the
+    /// walkmeshes (a walkmesh opened alone).
+    pub fn shown_points(&self) -> Vec<Vec3> {
         let scene = self.scene(Mat4::IDENTITY);
-        let mut out = self.bounds();
-        // Walkmeshes, and meshes the renderer skips, when nothing else is
-        // there (a walkmesh opened alone).
-        let hidden: Vec<Vec3> = if out.is_none() {
-            self.posed(true)
+        let mut out: Vec<Vec3> = self.posed(false).into_iter().flat_map(|m| m.positions).collect();
+        if out.is_empty() {
+            out = self
+                .posed(true)
                 .into_iter()
                 .chain(self.posed_walkmeshes())
                 .flat_map(|m| m.positions)
-                .collect()
-        } else {
-            Vec::new()
-        };
-        let particles = scene.particles.iter().flat_map(|b| &b.vertices).map(|v| Vec3::from(v.pos));
-        for p in particles.chain(hidden) {
-            if !p.is_finite() {
-                continue;
-            }
-            out = Some(match out {
-                Some((min, max)) => (min.min(p), max.max(p)),
-                None => (p, p),
-            });
+                .collect();
         }
+        out.extend(scene.particles.iter().flat_map(|b| &b.vertices).map(|v| Vec3::from(v.pos)));
+        out.retain(|p| p.is_finite());
         out
+    }
+
+    /// Bounds of [`Stage::shown_points`].
+    pub fn bounds_with_particles(&self) -> Option<(Vec3, Vec3)> {
+        self.shown_points().into_iter().fold(None, |b, p| match b {
+            Some((min, max)) => Some((min.min(p), max.max(p))),
+            None => Some((p, p)),
+        })
     }
 
     /// Whether anything moves without input: animations playing, live

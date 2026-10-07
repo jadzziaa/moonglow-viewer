@@ -496,3 +496,31 @@ fn plt_models_are_told_apart_and_take_colors() {
     assert_eq!(own_with.data, own.data, "its own colors stay");
     assert_ne!(own.data, colored.data);
 }
+
+/// A shot of the shadow casters draws them, not the model's visible
+/// meshes; one without a caster is empty.
+#[test]
+fn casters_show_in_place_of_the_model() {
+    let Some(gpu) = gpu() else { return };
+    let dir = scratch("casters");
+    let caster = "node trimesh shell\n  parent mover\n  render 0\n  shadow 1\n  verts 3\n    \
+                  0 0 0\n    1 0 0\n    0 0 1\n  faces 1\n    0 1 2 1 0 0 0 0\nendnode\n";
+    let with = MOVER.replace("endmodelgeom mover", &format!("{caster}endmodelgeom mover"));
+    std::fs::write(dir.join("with.mdl"), with.replace("mover", "with")).unwrap();
+    std::fs::write(dir.join("mover.mdl"), MOVER).unwrap();
+    let mut lib = Library::open(None).unwrap();
+    let mut blue = |file: &str, casters: bool| {
+        let mut stage = Stage::new(gpu.clone());
+        let mut viewport = Viewport::new(&gpu);
+        let opened = lib.open_file(&dir.join(file)).unwrap();
+        mgv_stage::subject::show(&mut stage, &lib, &opened).unwrap();
+        let shot = mgv_stage::headless::Shot { size: (96, 96), casters, ..Default::default() };
+        let img = mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &shot);
+        // Pixels bluer than they are red: the casters' colour.
+        img.data.as_chunks::<4>().0.iter().filter(|p| p[2] > p[0].saturating_add(60)).count()
+    };
+    assert_eq!(blue("with.mdl", false), 0, "the white mesh, no caster");
+    assert!(blue("with.mdl", true) > 50, "the caster, in blue");
+    assert_eq!(blue("mover.mdl", true), 0, "no caster: nothing");
+    std::fs::remove_dir_all(&dir).unwrap();
+}

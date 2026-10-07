@@ -98,6 +98,34 @@ impl OrbitCamera {
         self.distance = radius / (self.fov_y * 0.5).sin() * 1.1;
     }
 
+    /// Fits points in a view `aspect` times as wide as it is high, as they
+    /// are seen from the camera's angle, in its middle: closer than
+    /// [`OrbitCamera::frame`], which leaves room to turn around a box.
+    pub fn frame_tight(&mut self, points: &[Vec3], aspect: f32) {
+        let Some(first) = points.first() else { return };
+        let (yaw, pitch) = (self.yaw, self.pitch);
+        let dir = Vec3::new(pitch.cos() * yaw.cos(), pitch.cos() * yaw.sin(), pitch.sin());
+        let right = Vec3::Z.cross(dir).normalize_or_zero();
+        let up = dir.cross(right);
+        // In the view's axes: across, up, and towards the eye.
+        let seen = |p: &Vec3| Vec3::new(p.dot(right), p.dot(up), p.dot(dir));
+        let (mut min, mut max) = (seen(first), seen(first));
+        for p in points {
+            min = min.min(seen(p));
+            max = max.max(seen(p));
+        }
+        let mid = (min + max) * 0.5;
+        self.target = right * mid.x + up * mid.y + dir * mid.z;
+        let ty = (self.fov_y * 0.5).tan();
+        let tx = ty * aspect.max(0.01);
+        let mut distance = 0.05f32;
+        for p in points {
+            let v = seen(p) - mid;
+            distance = distance.max(v.z + (v.x.abs() / tx).max(v.y.abs() / ty));
+        }
+        self.distance = distance * 1.08;
+    }
+
     /// Orbits by a drag of `dx`, `dy` points.
     pub fn orbit(&mut self, dx: f32, dy: f32) {
         self.yaw -= dx * 0.01;
@@ -133,6 +161,39 @@ impl OrbitCamera {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A tight fit shows every point, nearer than the box's sphere does,
+    /// with the points in the middle of the view.
+    #[test]
+    fn a_tight_fit_shows_every_point_from_nearer() {
+        // A tall, thin shape off to one side.
+        let points: Vec<Vec3> =
+            (0..20).map(|i| Vec3::new(3.0 + 0.1 * (i % 2) as f32, 1.0, i as f32 * 0.3)).collect();
+        let (min, max) = (Vec3::new(3.0, 1.0, 0.0), Vec3::new(3.1, 1.0, 5.7));
+        for view in [View::ThreeQuarter, View::Front, View::Left] {
+            let mut loose = OrbitCamera::default();
+            loose.set_view(view);
+            loose.frame(min, max);
+            let mut tight = loose;
+            tight.frame_tight(&points, 1.0);
+            assert!(tight.distance < loose.distance, "{view:?}");
+            let cam = tight.camera();
+            let to_clip = cam.projection(1.0) * cam.view();
+            let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+            for p in &points {
+                let c = to_clip.project_point3(*p);
+                assert!(c.x.abs() <= 1.0 && c.y.abs() <= 1.0, "{view:?}: {c:?} is in view");
+                (lo, hi) = (lo.min(c), hi.max(c));
+            }
+            assert!((hi.x - lo.x).max(hi.y - lo.y) > 1.6, "{view:?}: it fills the view");
+            assert!((lo.x + hi.x).abs() < 0.2 && (lo.y + hi.y).abs() < 0.2, "{view:?}: centred");
+        }
+        // Nothing to fit: left as it was.
+        let mut c = OrbitCamera::default();
+        let before = c;
+        c.frame_tight(&[], 1.0);
+        assert_eq!(c, before);
+    }
 
     #[test]
     fn front_looks_at_the_models_face() {
