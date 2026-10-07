@@ -47,6 +47,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.3" date="2026-10-07">
+      <description>
+        <p>Moonglow Toolset 1.16.1's renderer; PLT colors picked from their palettes, in the window and on the command line; labels and headings as the toolset's.</p>
+      </description>
+    </release>
     <release version="0.1.2" date="2026-10-03">
       <description>
         <p>Arrow keys step through the lists and W, A, S, D move the camera; the grid hides behind models; colored body parts take their skin and clothing colors.</p>
