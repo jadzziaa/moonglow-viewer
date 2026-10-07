@@ -32,7 +32,7 @@ Decisions taken (2026-10-01):
 
 | Phase | State |
 | --- | --- |
-| 0 Bootstrap | Done: workspace on the toolset's crates (git, at a toolset release tag; the commit in `Cargo.lock`), lint and format settings as the toolset's, CI on three systems (with a read token for the toolset while it is private), the plan, `CLAUDE.md` |
+| 0 Bootstrap | Done: workspace on the toolset's crates (git, at a toolset release tag; the commit in `Cargo.lock`), lint and format settings as the toolset's, CI on three systems, the plan, `CLAUDE.md` |
 | 1 Headless core | Done: `mgv-library` (the game's load order with the opened folder, added folders and archives, editor buffers above; model cache; file watching), `mgv-stage` (actors with play-once, sequences, transitions over `transtime` and attachments, particles, dangly meshes, model lights, the camera, offscreen rendering, deterministic), `mgv render`, `mgv info`. Exit met: a game placeable with emitters renders the same twice; authored models' animation, attachment and reload are tested |
 | 2 The application | Done: docked window (3D view, ASCII, texture, resources, nodes, inspector, animation, effects, lighting, log), the orbit camera with framing and views, opening files (dialog, drop, command line) and game resources, creatures by `appearance.2da` row with their look editable, settings kept, crash reports, the manual built in (Help, F1). `egui_kittest` flows cover opening, hot reload, decompiling, saving, creatures and effects |
 | 3 Model tools and the ASCII editor | Done but the native compiler (Phase 9): the native decompiler (all 25,597 binary models in the game read back the same, in 6 s; on a sample of 69, nwnmdlcomp's decompile agrees and nwnmdlcomp compiles ours back to the same model), diagnostics checked on the game's 7,235 ASCII models, the outline, the nwnmdlcomp and game-compiler back ends (background jobs, Compile and View), a virtualized editor (0.2 ms idle and 0.25 ms per keystroke at any size; `TextEdit` took 186 ms and 609 ms on `a_ba`), hot reload on edit and on file change, cursor and selection in step with the view. The game's compiler, run in the toolset's client sandbox, compiles the native ASCII of five sample models (placeable, tile, door, effect, animated self-illumination) back to the original model |
@@ -271,7 +271,7 @@ Decompile and compile go through back ends:
 | Back end | Decompile | Compile | Where | Notes |
 | --- | --- | --- | --- | --- |
 | Native | ✓ (default) | Phase 9 | All platforms, in process | Writes ASCII from `mg-mdl`'s model of a binary file: lossless for what binaries hold |
-| nwnmdlcomp | ✓ | ✓ | Linux (32-bit build), Windows | Torlack's compiler (BSD), found on `PATH`, in `NWN_TOOLS_BIN`, Neverblender's `tools/bin`, or set in the options. Predates EE: drops `normals` and `tangents`, drops `materialname` and `renderhint` silently (the viewer refuses, as Neverblender does), stores Bézier keys in a layout the game reads differently (refused too), takes only 0 and 1 for `spawntype` (EE-compiled models hold −1: given to it as 0, drawn alike), and allows 17 bones per skin (EE: 64). Decompiles EE-compiled models correctly. Always exits 0; errors are `Error:` lines |
+| nwnmdlcomp | ✓ | ✓ | Linux (32-bit build), Windows | Torlack's compiler (BSD), found in `NWN_TOOLS_BIN` or on `PATH`. Predates EE: drops `normals` and `tangents`, drops `materialname` and `renderhint` silently (the viewer refuses, as Neverblender does), stores Bézier keys in a layout the game reads differently (refused too), takes only 0 and 1 for `spawntype` (EE-compiled models hold −1: given to it as 0, drawn alike), and allows 17 bones per skin (EE: 64). Decompiles EE-compiled models correctly. Always exits 0; errors are `Error:` lines |
 | Engine | — | ✓ | Linux, Windows, macOS (the game ships `nwmain` for all three) | The game's own compiler: `nwmain -userdirectory SCRATCH compilemodel RESREF` with the model staged in the scratch user directory's `development/`, the result collected from `modelcompiler/`. Keeps EE features. Needs an OpenGL context: on Linux it runs inside `gamescope --backend headless`; elsewhere a window opens briefly. Cannot compile skin meshes from the command line. Success is the log's "Successfully compiled model" plus a fresh file. A scratch user directory always, never the real one |
 
 Compile picks a back end per model the way Neverblender's `nwn_compile.py`
@@ -356,8 +356,7 @@ Each phase ends with a demonstrable result and green tests.
 
 ### Phase 0: Bootstrap
 Workspace on the toolset's crates (git, pinned), lint and format settings as
-the toolset's, CI on three systems (with a read token for the toolset while it
-is private), the plan and `CLAUDE.md`.
+the toolset's, CI on three systems, the plan and `CLAUDE.md`.
 
 ### Phase 1: Headless core
 `mgv-library` (install, layers, the opened file's folder, model cache),
@@ -467,7 +466,6 @@ user's install and never redistributed.
 | The engine compiler needs a display, and fails on skin meshes | gamescope headless on Linux; nwnmdlcomp for skins; clear messages |
 | Particle details differ from the game (mid values, bounce, wind, splat are not simulated) | Client comparisons per emitter type; fixes proposed upstream (§10) |
 | The toolset changes its APIs | Pinned commit; the pin moves deliberately, with the test suite |
-| The toolset repository is private | CI reads it with a token secret; the Flatpak build fetches it with the user's credentials |
 
 ## 10. Toolset changes
 

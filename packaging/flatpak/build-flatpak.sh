@@ -5,8 +5,8 @@
 # Needs flatpak-builder and, from Flathub, the Freedesktop 25.08 SDK with
 # its rust-stable extension (installed for the user when missing). The
 # crates, the Moonglow Toolset's from its git repository included, are
-# vendored first (`cargo vendor`, with the network and your git
-# credentials), so the sandboxed build runs offline.
+# vendored first (`cargo vendor`, with the network), so the sandboxed build
+# runs offline.
 set -eu
 cd "$(dirname "$0")/../.."
 ID=io.github.moonglow_toolset.MoonglowViewer

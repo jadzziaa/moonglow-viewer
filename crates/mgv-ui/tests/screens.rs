@@ -113,3 +113,43 @@ fn plt_colors() {
     h.get_by_label("Cloth 1 color").click();
     shoot(&mut h, "plt-colors-open");
 }
+
+/// The README's pictures (`docs/images/`, converted by hand).
+#[test]
+#[ignore]
+fn readme() {
+    use egui_kittest::kittest::Queryable;
+    mg_testkit::gpu::hold();
+    let root = mg_testkit::corpus!();
+    let (mut v, rs) = viewer(root);
+    v.actions.push(Action::OpenResource(ResKey::parse("c_drgred", ResType::MDL).unwrap()));
+    let mut h = Harness::builder()
+        .with_size(egui::vec2(1600.0, 940.0))
+        .renderer(egui_kittest::wgpu::WgpuTestRenderer::from_render_state(rs))
+        .build_ui_state(|ui, v: &mut Viewer| v.ui(ui), v);
+    h.run_steps(6);
+    h.state_mut().actions.push(Action::Decompile);
+    h.run_steps(30);
+    shoot(&mut h, "readme-dragon");
+    h.state_mut().actions.push(Action::CloseBuffer);
+    let mut look = mgv_stage::subject::CreatureLook::new(4);
+    look.body = 8;
+    look.colors = [3, 20, 0, 0];
+    h.state_mut().actions.push(Action::OpenCreature(look));
+    h.run_steps(6);
+    h.state_mut().actions.push(Action::Frame);
+    h.run_steps(40);
+    h.get_by_label("Hair color color").click();
+    shoot(&mut h, "readme-creature");
+    h.state_mut()
+        .actions
+        .push(Action::OpenResource(ResKey::parse("plc_a01", ResType::MDL).unwrap()));
+    h.state_mut().settings.overlays = mgv_ui::settings::Overlays {
+        walkmesh: true,
+        wireframe: true,
+        normals: false,
+        skeleton: false,
+    };
+    h.run_steps(10);
+    shoot(&mut h, "readme-overlays");
+}

@@ -54,7 +54,7 @@ model, as the game will load it. The compiler:
   keeps EE's materials and normals. On Linux it runs out of sight in
   gamescope's headless mode when gamescope is installed; elsewhere a game
   window opens for a moment. It cannot compile skin meshes.
-- **nwnmdlcomp** (Automatic's choice for skin meshes) is found where
-  neverwinter.nim's tools or Neverblender's keep it, or on `PATH`. It
+- **nwnmdlcomp** (Automatic's choice for skin meshes) is found in the folder
+  the `NWN_TOOLS_BIN` environment variable names, or on `PATH`. It
   predates EE: the viewer refuses models using `materialname` or
   `renderhint` (it would drop them) and skins with more than 17 bones.

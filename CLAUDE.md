@@ -8,7 +8,7 @@ editor with hot reload, and headless rendering and galleries. The plan,
 architecture and phases are in `docs/PLAN.md`.
 
 It builds on the sister project **moonglow-toolset** (`~/Projects/moonglow-toolset`,
-github.com/jadzziaa/moonglow-toolset, private): its crates (`mg-core`,
+github.com/jadzziaa/moonglow-toolset): its crates (`mg-core`,
 `mg-mdl`, `mg-image`, `mg-resman`, `mg-rules`, `mg-render`, `mg-preview`,
 `mg-testkit`, …) are git dependencies on a toolset release tag (`tag =
 "vX.Y.Z"` in `Cargo.toml`, its commit in `Cargo.lock`). Their sources are in
@@ -41,8 +41,9 @@ Window screenshots for looking at layouts: `cargo test --release -p mgv-ui
 
 Corpus tests read the installed game (`NWN_ROOT`, or Steam's usual path);
 `MOONGLOW_REQUIRE_CORPUS=1` turns their skips into failures. nwnmdlcomp is
-found through `NWN_TOOLS_BIN`, `~/.local/opt/neverwinter/bin`,
-`~/Projects/neverblender/tools/bin` or `PATH` (`mg_testkit::nwn_tool`).
+found by the tests through `mg_testkit::nwn_tool` (`NWN_TOOLS_BIN`, the
+toolset's usual folders, `PATH`) and by the programs in `NWN_TOOLS_BIN` or
+on `PATH`.
 
 ## Layout
 

@@ -14,9 +14,6 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  # The Moonglow Toolset crates come from git through the git command line
-  # (see the token step).
-  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
 jobs:
   test:
@@ -28,18 +25,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Moonglow Toolset access
-        # While github.com/jadzziaa/moonglow-toolset is private, the
-        # TOOLSET_TOKEN secret (a read-only token for it) lets Cargo fetch
-        # its crates. Without the secret, the repository must be public.
-        shell: bash
-        env:
-          TOOLSET_TOKEN: ${{ secrets.TOOLSET_TOKEN }}
-        run: |
-          if [ -n "$TOOLSET_TOKEN" ]; then
-            git config --global url."https://x-access-token:${TOOLSET_TOKEN}@github.com/jadzziaa/moonglow-toolset".insteadOf \
-              "https://github.com/jadzziaa/moonglow-toolset"
-          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy

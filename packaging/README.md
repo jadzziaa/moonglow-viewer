@@ -23,14 +23,9 @@ them. The Flatpak is built locally.
 ## The Moonglow Toolset crates
 
 The viewer's toolset crates come from github.com/jadzziaa/moonglow-toolset,
-at a release tag (`Cargo.toml`; the commit in `Cargo.lock`). While that
-repository is private:
-
-- CI and the release workflow read it with a token: add a repository
-  secret `TOOLSET_TOKEN` (a fine-grained token with read access to its
-  contents).
-- The Flatpak build vendors every crate first (`cargo vendor`, with your
-  git credentials), then builds offline in the sandbox.
+at a release tag (`Cargo.toml`; the commit in `Cargo.lock`). The Flatpak
+build vendors every crate first (`cargo vendor`), then builds offline in
+the sandbox.
 
 ## Names
 

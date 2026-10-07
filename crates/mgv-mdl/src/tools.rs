@@ -69,17 +69,12 @@ fn exe(name: &str) -> String {
     format!("{name}{}", std::env::consts::EXE_SUFFIX)
 }
 
-/// Where model tools are looked for, in order: `NWN_TOOLS_BIN`,
-/// neverwinter.nim's usual folder, Neverblender's `tools/bin`, then `PATH`.
+/// Where model tools are looked for, in order: `NWN_TOOLS_BIN`, then
+/// `PATH`.
 pub fn tool_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if let Some(d) = std::env::var_os("NWN_TOOLS_BIN") {
         dirs.push(PathBuf::from(d));
-    }
-    if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
-        let home = PathBuf::from(home);
-        dirs.push(home.join(".local/opt/neverwinter/bin"));
-        dirs.push(home.join("Projects/neverblender/tools/bin"));
     }
     if let Some(path) = std::env::var_os("PATH") {
         dirs.extend(std::env::split_paths(&path));
