@@ -41,7 +41,7 @@ Decisions taken (2026-10-01):
 | 6 Emitters and visual effects | Mostly done: every `visualeffects.2da` row with a model applies (503, at three sizes) on hooks found by the target's kind, impact then duration, cessation on removal, from the window and `mgv render --vfx`. To do: `progfx.2da` (beams, node attachments, lights, glows) |
 | 7 Batch rendering and galleries | Done: `mgv gallery` over name patterns, 2DAs (placeables, appearance, visualeffects, doors), haks and folders; `index.html` and `manifest.json`, deterministic; re-runs skip unchanged items (all 1,289 placeables render in about 7 s at 256²; an unchanged re-run takes 3 s); `mgv turntable` (animated PNG or frames) |
 | 8 Hardening and release | In progress: packaging (the icon; the AppImage, 12.3 MB, built here and its command line run; the Flatpak bundle, 6.8 MB, built here; the Windows installer and macOS app built by the release workflow), the release workflow, the user manual; releases 0.1.0 and 0.1.1 on toolset 0.4.0, 0.1.2 on 0.7.0, 0.1.3 and 0.1.4 on 1.16.1. To do: try the Windows and macOS packages on their systems, performance budgets in CI |
-| 9 Native compiler | Stage A's binary writer is in: every compiled model in the game writes back the same; its check in the client is to do. Scoped (§5, Phase 9): a binary writer and what a compiler derives, in four stages, to replace nwnmdlcomp for skin meshes on every platform |
+| 9 Native compiler | Stage A done: every compiled model in the game writes back the same, and the client draws written models as the originals. It showed that the game binds supermodel animations by part number. Scoped (§5, Phase 9): a binary writer and what a compiler derives, in four stages, to replace nwnmdlcomp for skin meshes on every platform |
 
 ## 1. What it does
 
@@ -417,8 +417,8 @@ performance budgets in CI, releases built by CI.
 ### Phase 9: Native compiler
 ASCII to binary in process, on every platform, keeping EE features where the
 binary format holds them; checked against nwnmdlcomp's output, the engine
-compiler's, and in the game. Scoped on 2026-10-07; stage A's writer is in
-(`mgv-mdl/src/binary.rs`), its check in the game is not.
+compiler's, and in the game. Scoped on 2026-10-07; stage A is done (the
+writer, `mgv-mdl/src/binary.rs`, and its check in the game).
 
 **Stage A so far.** All 25,597 compiled models in the game, read, written
 and read again, are the same `Model`, and nwnmdlcomp decompiles a sample of
@@ -441,10 +441,31 @@ measuring showed:
 - The game ignores the function pointers: its own compiler leaves run-time
   values there, in files the game ships.
 
-Still to do for A: a sample of the written files loaded in the client and
-compared with the originals there. That needs the client harness the
-toolset's tests have (a scratch module, the sandboxed client, a
-screenshot), which the viewer does not have yet.
+**In the client** (`mgv-mdl/tests/client.rs`, by hand on the toolset's
+off-screen display: a scratch module, the toolset's client sandbox, a
+screenshot of its window). An armoire, a wererat, a sitting man and a red
+dragon, with their supermodels, eight models in all: written again and put
+in the scratch user folder's `development`, the game draws the scene as it
+does with its own files (the pictures differ by 0.05 a channel, as two runs
+of the originals do). Stage A is done.
+
+The same test answered the open question. **The game finds a supermodel's
+animations for a model's nodes by part number, not by name**: with `a_ba`
+and its supermodels written again under numbers a compiler would give them
+afresh, the man no longer sits as he did. So:
+
+- A model compiled again must keep the part numbers its compiled version
+  has, wherever other models are compiled against it. The native compiler
+  will take them from the compiled model of the same name it finds (a
+  node of the same name at the same place keeps its number; new nodes get
+  numbers past the old count), and only number from scratch a model that
+  is new.
+- This is a gap today in every route through ASCII, ours included:
+  decompiling a supermodel and compiling it again numbers its nodes in the
+  text's order. nwnmdlcomp's decompiler writes a model without a
+  supermodel in part-number order, which keeps them; ours writes the
+  tree's order. With a supermodel of its own (`a_ba` has one) neither
+  keeps them: BioWare's numbers there have gaps no text reproduces.
 
 **Why now.** It is the last thing that keeps nwnmdlcomp in use: the game's
 own compiler cannot compile skin meshes, so every creature goes through a
@@ -487,10 +508,6 @@ cross-platform, depends on it for creatures.
 **Open questions**, each to be answered by measurement before the stage
 that needs it:
 
-- Whether the game binds a supermodel's animations to a model's nodes by
-  part number or by name. If by number, a supermodel compiled again from
-  its decompiled text (its nodes numbered in another order) would not fit
-  the models already compiled against it; to be tried in the client.
 - Whether the game's vertex normals from smoothing groups can be matched
   exactly, or only closely (weighting by angle or by area).
 - How many bones a skin may really have in EE (64 is from documentation),

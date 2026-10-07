@@ -135,7 +135,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -146,7 +146,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -965,7 +965,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1841,6 +1841,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "mg-module"
+version = "1.16.1"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v1.16.1#ba091d8f295477bf36de20e9bfe000cf01d7f3cd"
+dependencies = [
+ "fastrand",
+ "glam",
+ "indexmap",
+ "mg-2da",
+ "mg-core",
+ "mg-erf",
+ "mg-gff",
+ "mg-image",
+ "mg-mdl",
+ "mg-resman",
+ "mg-rules",
+ "mg-schema",
+ "mg-script",
+ "mg-set",
+ "mg-tiles",
+ "mg-tlk",
+ "png",
+ "regex-lite",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "mg-preview"
 version = "1.16.1"
 source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v1.16.1#ba091d8f295477bf36de20e9bfe000cf01d7f3cd"
@@ -1899,6 +1926,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "mg-schema"
+version = "1.16.1"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v1.16.1#ba091d8f295477bf36de20e9bfe000cf01d7f3cd"
+dependencies = [
+ "mg-core",
+ "mg-gff",
+]
+
+[[package]]
+name = "mg-script"
+version = "1.16.1"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v1.16.1#ba091d8f295477bf36de20e9bfe000cf01d7f3cd"
+dependencies = [
+ "cc",
+ "mg-core",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "mg-set"
 version = "1.16.1"
 source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v1.16.1#ba091d8f295477bf36de20e9bfe000cf01d7f3cd"
@@ -1911,6 +1957,16 @@ dependencies = [
 name = "mg-testkit"
 version = "1.16.1"
 source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v1.16.1#ba091d8f295477bf36de20e9bfe000cf01d7f3cd"
+
+[[package]]
+name = "mg-tiles"
+version = "1.16.1"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v1.16.1#ba091d8f295477bf36de20e9bfe000cf01d7f3cd"
+dependencies = [
+ "fastrand",
+ "mg-set",
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "mg-tlk"
@@ -1977,10 +2033,16 @@ dependencies = [
 name = "mgv-mdl"
 version = "0.1.4"
 dependencies = [
+ "fastrand",
  "mg-core",
+ "mg-gff",
  "mg-mdl",
+ "mg-module",
  "mg-resman",
+ "mg-rules",
+ "mg-schema",
  "mg-testkit",
+ "png",
  "rayon",
  "thiserror 2.0.21",
 ]
@@ -2921,6 +2983,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "regex-lite"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cab834c73d247e67f4fae452806d17d3c7501756d98c8808d7c9c7aa7d18f973"
+
+[[package]]
 name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3011,7 +3079,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3319,7 +3387,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.5",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4042,7 +4110,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

@@ -36,6 +36,11 @@ DISPLAY=$(~/Projects/moonglow-toolset/tools/aurora/headless.sh start) \
 ~/Projects/moonglow-toolset/tools/aurora/headless.sh stop   # if you started it
 ```
 
+The same way, `cargo test --release -p mgv-mdl --test client -- --ignored
+--nocapture` runs the game client in the toolset's sandbox on a scratch
+module and screenshots it (models the binary writer wrote against the
+game's own); the pictures go to `target/test-output/client/`.
+
 Window screenshots for looking at layouts: `cargo test --release -p mgv-ui
 --test screens -- --ignored` writes PNGs to `target/test-output/screens/`.
 
