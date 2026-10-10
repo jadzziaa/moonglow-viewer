@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum DecompileWith {
-    /// In process (exact; see `mgv_mdl::write`).
+    /// In process (exact; see `mg_mdl::ascii_write`).
     #[default]
     Native,
     Nwnmdlcomp,

@@ -53,8 +53,9 @@ on `PATH`.
 ## Layout
 
 Cargo workspace, layered bottom-up (a crate depends only on crates listed
-before it in `docs/PLAN.md` §4): `crates/mgv-mdl` (ASCII writer,
-diagnostics, outline, compile and decompile back ends), `mgv-library`
+before it in `docs/PLAN.md` §4): `crates/mgv-mdl` (the external
+compile and decompile back ends; the native compiler, ASCII writer,
+diagnostics and outline are the toolset's `mg-mdl`), `mgv-library`
 (layers over the game's load order, editor buffers, file watching, model
 cache), `mgv-stage` (actors, animation, particles, lights, rigs, camera,
 overlays, offscreen rendering), `mgv-gallery` (batch rendering), `mgv-ui`

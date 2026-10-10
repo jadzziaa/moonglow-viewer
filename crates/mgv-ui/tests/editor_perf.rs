@@ -22,7 +22,7 @@ fn large_models() {
         // No GPU here: the editor alone.
         let key = ResKey::parse(name, ResType::MDL).unwrap();
         let data = h.state().lib.get(&key).unwrap().into_owned();
-        let text = mgv_mdl::decompile(&data).unwrap();
+        let text = mg_mdl::decompile(&data).unwrap();
         let lines = text.lines().count();
         h.state_mut().buffer = Some(mgv_ui::Buffer::new(text, None, None, true));
         h.state_mut().focus(Tab::Editor);

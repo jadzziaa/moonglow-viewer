@@ -44,7 +44,7 @@ fn the_games_compiler_takes_native_ascii() {
     for name in ["plc_a01", "tcn01_a01_01", "t_door09", "vim_magknock", "plc_k01"] {
         let data = rm.get(&ResKey::parse(name, ResType::MDL).unwrap()).unwrap();
         let original = Model::read(&data).unwrap();
-        let ascii = mgv_mdl::decompile(&data).unwrap();
+        let ascii = mg_mdl::decompile(&data).unwrap();
         let start = std::time::Instant::now();
         match compiler.compile(&ascii, name) {
             Ok(binary) => {
@@ -59,7 +59,7 @@ fn the_games_compiler_takes_native_ascii() {
                     eprintln!("  {x}");
                 }
                 // The native compiler makes the same model of the text.
-                let native = mgv_mdl::compile::compile(ascii.as_bytes(), &Default::default())
+                let native = mg_mdl::compile::compile(ascii.as_bytes(), &Default::default())
                     .map(|c| Model::read(&c.binary).unwrap());
                 let n = match &native {
                     Ok(m) => common::compare(&back, m, true),
@@ -137,7 +137,7 @@ fn ee_fields_survive_the_games_compiler() {
     };
     let original = check(&first, "compiled");
     // Decompiled natively and compiled again: the same model.
-    let again = compiler.compile(&mgv_mdl::decompile(&first).unwrap(), "mgvee").unwrap();
+    let again = compiler.compile(&mg_mdl::decompile(&first).unwrap(), "mgvee").unwrap();
     let back = check(&again, "decompiled and compiled again");
     let d = common::compare(&original, &back, false);
     assert!(d.is_empty(), "{d:?}");
@@ -183,7 +183,7 @@ fn the_native_compiler_derives_what_the_games_does() {
     );
     let theirs = Model::read(&compiler.compile(&text, "zz_mgvderive").unwrap()).unwrap();
     let ours = Model::read(
-        &mgv_mdl::compile::compile(text.as_bytes(), &Default::default()).unwrap().binary,
+        &mg_mdl::compile::compile(text.as_bytes(), &Default::default()).unwrap().binary,
     )
     .unwrap();
     let (a, b) = (theirs.nodes[1].mesh().unwrap(), ours.nodes[1].mesh().unwrap());

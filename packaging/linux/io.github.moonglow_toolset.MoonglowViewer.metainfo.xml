@@ -50,6 +50,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.7" date="2026-10-09">
+      <description>
+        <p>Moonglow Toolset 1.20.5's renderer and its model compiler (the one made here, now the toolset's): supermodel animations bound by node number as the game binds them, cut-out textures and two-sided materials as the game draws them.</p>
+      </description>
+    </release>
     <release version="0.1.6" date="2026-10-07">
       <description>
         <p>A model compiler of its own: every kind of model, skins of up to 64 bones, with no game and no other program, keeping the node numbers the game binds animations by.</p>

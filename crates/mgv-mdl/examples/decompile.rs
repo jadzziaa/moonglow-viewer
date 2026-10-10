@@ -11,7 +11,7 @@ fn main() {
             .expect("game resources");
         rm.get_named(&arg, mg_core::ResType::MDL).expect("model").into_owned()
     };
-    match mgv_mdl::decompile(&data) {
+    match mg_mdl::decompile(&data) {
         Ok(text) => print!("{text}"),
         Err(e) => eprintln!("{arg}: {e}"),
     }

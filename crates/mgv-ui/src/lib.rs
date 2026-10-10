@@ -845,7 +845,7 @@ impl Viewer {
         let suggested = doc.opened.path.as_ref().map(|p| p.with_extension("ascii.mdl"));
         let text = match self.settings.decompile_with {
             settings::DecompileWith::Native => {
-                mgv_mdl::decompile(&doc.opened.data).map_err(|e| e.to_string())
+                mg_mdl::decompile(&doc.opened.data).map_err(|e| e.to_string())
             }
             settings::DecompileWith::Nwnmdlcomp => {
                 match mgv_mdl::tools::Nwnmdlcomp::find(self.lib.install().map(|i| i.root.clone())) {

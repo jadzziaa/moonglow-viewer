@@ -485,9 +485,7 @@ fn run(cli: Cli) -> Result<()> {
                 let opened = lib.open_input(input)?;
                 let name = opened.name();
                 let text = match &tool {
-                    None => {
-                        mgv_mdl::decompile(&opened.data).map_err(|e| anyhow!("{input}: {e}"))?
-                    }
+                    None => mg_mdl::decompile(&opened.data).map_err(|e| anyhow!("{input}: {e}"))?,
                     Some(t) => t.decompile(&opened.data, &name)?,
                 };
                 let dir = out_dir(output.as_deref(), opened.path.as_deref(), None);
@@ -554,7 +552,7 @@ fn run(cli: Cli) -> Result<()> {
                                 .filter(|d| mg_mdl::is_binary(d))
                                 .or_else(|| game.as_ref().and_then(|g| find(g, n)))
                         };
-                        let out = mgv_mdl::compile::compile_named(
+                        let out = mg_mdl::compile::compile_named(
                             text.as_bytes(),
                             &name,
                             &lookup,
@@ -575,7 +573,7 @@ fn run(cli: Cli) -> Result<()> {
         }
         Cmd::Lint { inputs, notes, strict } => {
             let mut lib = library(&cli)?;
-            let mut worst = mgv_mdl::Severity::Info;
+            let mut worst = mg_mdl::lint::Severity::Info;
             for input in inputs {
                 let opened = lib.open_input(input)?;
                 if mg_mdl::is_binary(&opened.data) {
@@ -583,8 +581,8 @@ fn run(cli: Cli) -> Result<()> {
                     continue;
                 }
                 let text = String::from_utf8_lossy(&opened.data);
-                for d in mgv_mdl::lint::check(&text) {
-                    if d.severity == mgv_mdl::Severity::Info && !notes {
+                for d in mg_mdl::lint::check(&text) {
+                    if d.severity == mg_mdl::lint::Severity::Info && !notes {
                         continue;
                     }
                     worst = worst.max(d.severity);
@@ -592,10 +590,10 @@ fn run(cli: Cli) -> Result<()> {
                     println!("{input}:{}: {sev}: {}", d.line + 1, d.message);
                 }
             }
-            if worst == mgv_mdl::Severity::Error {
+            if worst == mg_mdl::lint::Severity::Error {
                 bail!("errors found");
             }
-            if *strict && worst == mgv_mdl::Severity::Warning {
+            if *strict && worst == mg_mdl::lint::Severity::Warning {
                 bail!("warnings found");
             }
         }

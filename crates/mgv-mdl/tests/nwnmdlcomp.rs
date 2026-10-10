@@ -69,7 +69,7 @@ fn nwnmdlcomp_agrees_with_the_native_decompiler() {
                 Ok(text) => match Model::read(text.as_bytes()) {
                     Ok(theirs) => {
                         let ours =
-                            Model::read(mgv_mdl::decompile(&data).unwrap().as_bytes()).unwrap();
+                            Model::read(mg_mdl::decompile(&data).unwrap().as_bytes()).unwrap();
                         for d in common::compare(&ours, &theirs, false) {
                             problems.push(format!("their decompile: {d}"));
                         }
@@ -81,7 +81,7 @@ fn nwnmdlcomp_agrees_with_the_native_decompiler() {
                 Err(e) => eprintln!("{name}: nwnmdlcomp could not decompile it: {e}"),
             }
             // Our ASCII compiled by them.
-            let ours = mgv_mdl::decompile(&data).unwrap();
+            let ours = mg_mdl::decompile(&data).unwrap();
             match tool.compile(&ours, name, &[]) {
                 Ok(compiled) => match Model::read(&compiled) {
                     Ok(back) => {
@@ -92,7 +92,7 @@ fn nwnmdlcomp_agrees_with_the_native_decompiler() {
                         // had (the game finds a supermodel's animations
                         // by them), where those are the model's own.
                         let numbers = |d: &[u8], m: &Model| {
-                            let p = mgv_mdl::binary::PartNumbers::read(d)?;
+                            let p = mg_mdl::binary_write::PartNumbers::read(d)?;
                             let mut by_name: Vec<(String, i32)> = m
                                 .nodes
                                 .iter()

@@ -10,9 +10,10 @@ use std::path::{Path, PathBuf};
 
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Color32, FontId, Ui};
+use mg_mdl::keywords::{self, Class};
+use mg_mdl::lint::{Diagnostic, Severity};
+use mg_mdl::outline::Outline;
 use mg_resman::ResKey;
-use mgv_mdl::keywords::{self, Class};
-use mgv_mdl::{Diagnostic, Outline, Severity};
 
 use crate::code::CodeEditor;
 use crate::{Action, Viewer};
@@ -97,11 +98,11 @@ impl Buffer {
     /// Recomputes the outline, the source map and the diagnostics.
     pub fn refresh_analysis(&mut self) {
         let text = self.text();
-        self.outline = mgv_mdl::outline(&text);
+        self.outline = mg_mdl::outline::outline(&text);
         self.source = mg_mdl::ascii::read_mapped(text.as_bytes())
             .ok()
             .map(|(m, map)| (map, m.nodes.into_iter().map(|n| n.name).collect()));
-        self.diagnostics = mgv_mdl::lint::check(&text);
+        self.diagnostics = mg_mdl::lint::check(&text);
     }
 
     /// The model node whose block holds a line (0-based), and its name.

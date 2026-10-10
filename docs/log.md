@@ -1,6 +1,10 @@
 # Update log
 
+## 2026-10-09
+* **Update**: [The plan](PLAN.md) §10.1: the toolset took the compiler, the writers, the lint and the outline into `mg-mdl` (its v1.20.5) and binds animations by part number; the viewer is pinned to v1.20.5, its copies are gone, and `mgv-mdl` keeps the external back ends and the tests against nwnmdlcomp, the game's compiler and the client.
+
 ## 2026-10-07
+* **Update**: [The plan](PLAN.md) §10.1 proposes to the toolset what Phase 9 made: the binary writer, the compiler, the ASCII writer and the lint for `mg-mdl`; what the game client showed against its model notes (animations bound by part number, bounds, skins of more than 18 bones); what that means for `mg-render`'s binding by name; and the window widgets exported.
 * **Update**: [The plan](PLAN.md), Phase 9 is done: the native compiler is the default (stage D); [editing models](manual/03-editing-models.md) and [the command line](manual/05-command-line.md) put it first.
 * **Update**: [The plan](PLAN.md), Phase 9: stage C is done, skins in the native compiler (up to 64 bones), with what it was checked against; the manual's compiling notes say so.
 * **Update**: [The plan](PLAN.md), Phase 9: stage B is done, the native compiler for everything but skin meshes, with what it was checked against; [editing models](manual/03-editing-models.md) and [the command line](manual/05-command-line.md) describe it.

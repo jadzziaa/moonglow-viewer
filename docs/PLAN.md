@@ -40,7 +40,7 @@ Decisions taken (2026-10-01):
 | 5 Lighting, overlays and debug views | Mostly done: studio, `environment.2da` and custom area rigs (day, night, fog, tile main lights from `lightcolor.2da`), overlays drawn in 3D against the scene's depths, faint where it hides them (walkmesh faces by surface material, wireframe, normals; the grid and axes hidden behind models; the node tree and the selection over everything), picking by ray against posed meshes. To do: debug views (unlit, normals, UV checker), skyboxes |
 | 6 Emitters and visual effects | Mostly done: every `visualeffects.2da` row with a model applies (503, at three sizes) on hooks found by the target's kind, impact then duration, cessation on removal, from the window and `mgv render --vfx`. To do: `progfx.2da` (beams, node attachments, lights, glows) |
 | 7 Batch rendering and galleries | Done: `mgv gallery` over name patterns, 2DAs (placeables, appearance, visualeffects, doors), haks and folders; `index.html` and `manifest.json`, deterministic; re-runs skip unchanged items (all 1,289 placeables render in about 7 s at 256²; an unchanged re-run takes 3 s); `mgv turntable` (animated PNG or frames) |
-| 8 Hardening and release | In progress: packaging (the icon; the AppImage, 12.3 MB, built here and its command line run; the Flatpak bundle, 6.8 MB, built here; the Windows installer and macOS app built by the release workflow), the release workflow, the user manual; releases 0.1.0 and 0.1.1 on toolset 0.4.0, 0.1.2 on 0.7.0, 0.1.3 to 0.1.6 on 1.16.1. To do: try the Windows and macOS packages on their systems, performance budgets in CI |
+| 8 Hardening and release | In progress: packaging (the icon; the AppImage, 12.3 MB, built here and its command line run; the Flatpak bundle, 6.8 MB, built here; the Windows installer and macOS app built by the release workflow), the release workflow, the user manual; releases 0.1.0 and 0.1.1 on toolset 0.4.0, 0.1.2 on 0.7.0, 0.1.3 to 0.1.6 on 1.16.1, 0.1.7 on 1.20.5. To do: try the Windows and macOS packages on their systems, performance budgets in CI |
 | 9 Native compiler | Done (stages A to D, §5): `mgv compile` and the window compile in process, every kind of model, skins of up to 64 bones, as the game's compiler does and keeping part numbers; every model in the game compiles back to itself, and the client draws the results as the originals. It showed that the game binds supermodel animations by part number |
 
 ## 1. What it does
@@ -149,7 +149,7 @@ crates above it in this table.
 | toolset: `mg-mdl`, `mg-image` | Models (binary and ASCII readers), textures, TXI, MTR |
 | toolset: `mg-resman`, `mg-rules` | The game's load order; 2DA and talk-table data |
 | toolset: `mg-render`, `mg-preview` | The renderer (lighting, animation, skinning, dangly meshes, particles); blueprint previews |
-| `mgv-mdl` | Model source tools: the ASCII writer (decompiler), diagnostics, the node outline of an ASCII file, keyword tables, and the compile and decompile back ends |
+| `mgv-mdl` | The external compile and decompile back ends (nwnmdlcomp, the game's own compiler). The native compiler, the ASCII writer (decompiler), diagnostics, the outline and the keyword tables were made here and are the toolset's `mg-mdl` since its 1.20.5 (§10.1) |
 | `mgv-library` | Where things come from: the install, extra folders, haks, modules and the opened file's folder as layers; editor buffers as an in-memory layer; file-type detection; watching files for changes; caches of parsed models |
 | `mgv-stage` | What is shown, without a window: actors (model instances with their animation, particles, dangly meshes and lights) hanging from each other's nodes; blueprints, 2DA rows and visual effects turned into actors; lighting rigs; walkmeshes; the overlay renderer and picking; the camera; stepping time; offscreen rendering of stills and turntables |
 | `mgv-gallery` | Batch rendering: a selection of resources to images, an HTML index and a JSON manifest |
@@ -301,7 +301,7 @@ the actor's model, keeping camera, animation, time and selection.
 `mg-mdl`'s reader is as lenient as the game (it skips what it does not know
 and never fails); its source map places every node of the model it reads,
 which keeps the cursor and the selection in step even where names repeat.
-Diagnostics come from `mgv-mdl`'s own pass over the text:
+Diagnostics come from a pass of its own over the text (`mg_mdl::lint`, made here):
 unknown keywords, list counts that do not match, indices out of range,
 parents that do not exist, keywords nwnmdlcomp would drop. They are marked
 in the text and listed in the log.
@@ -418,8 +418,11 @@ performance budgets in CI, releases built by CI.
 ASCII to binary in process, on every platform, keeping EE features where the
 binary format holds them; checked against nwnmdlcomp's output, the engine
 compiler's, and in the game. Scoped on 2026-10-07; stages A (the writer,
-`mgv-mdl/src/binary.rs`), B and C (`compile.rs`) and D (the default) are
-done, each checked in the game.
+`binary.rs`), B and C (`compile.rs`) and D (the default) are
+done, each checked in the game. The code was written in `mgv-mdl` and
+moved to the toolset's `mg-mdl` on 2026-10-09 (`mg_mdl::binary_write`,
+`compile`, `ascii_write`; §10.1); what follows names the files as they
+were here.
 
 **Stage A so far.** All 25,597 compiled models in the game, read, written
 and read again, are the same `Model`, and nwnmdlcomp decompiles a sample of
@@ -536,7 +539,7 @@ nwnmdlcomp`; Model › Compile with); `auto` still reads, and means it.
 
 Left for later, on purpose: the game's compiler and nwnmdlcomp stay as
 back ends (they are the oracles the tests compare with); the writer and
-the compiler stay in `mgv-mdl` until proposed to the toolset (§10).
+the compiler stayed in `mgv-mdl` until the toolset took them (§10.1).
 
 **Why now.** It is the last thing that keeps nwnmdlcomp in use: the game's
 own compiler cannot compile skin meshes, so every creature goes through a
@@ -598,8 +601,8 @@ least documented).
 
 **Where it lives.** In `mgv-mdl`, beside the ASCII writer, on `mg-mdl`'s
 `Model`: the viewer's side of the line (§10). It belongs in `mg-mdl` in the
-end, where the toolset could use it too; proposed there once it has passed
-stage B.
+end, where the toolset could use it too; it moved there on 2026-10-09
+(§10.1).
 
 **What it is not.** Not a re-implementation of nwnmdlcomp's output byte for
 byte: the measure is the game (the model loads, draws and animates the
@@ -683,7 +686,8 @@ exist takes the one of the part model's own name (`mg-preview`, toolset
 both are gone; `mgv_stage::textures::part_fallbacks` stays for a part
 model opened on its own, which is no preview.
 
-The viewer's pin is v1.16.1 (2026-10-07), and with it the toolset's
+The viewer's pin was v1.16.1 on 2026-10-07 (it is v1.20.5 since
+2026-10-09, §10.1), and with it came the toolset's
 renderer as of that release, with nothing to adapt but the scene's clock
 (`Scene::time`, the stage's elapsed time, for the water's ripples):
 vertex colours and a second UV set for the community tileset shaders
@@ -706,3 +710,91 @@ client draws start to end whatever they hold); anything for `twosidedtex`
 simulated: wind on particles, `splat`, `deadspace`, and the point lights'
 exact share of a tinted particle's light (within 20/255 in the one scene
 measured).
+
+### 10.1 Proposed on 2026-10-07
+
+Offered to the toolset after Phase 9, at viewer 0.1.6 (`f76dd4a`).
+
+**Taken up on 2026-10-09** (toolset `eac4a96`, in its v1.20.5; the
+viewer's pin is v1.20.5 since the same day):
+
+- The code is `mg-mdl`'s: `mg_mdl::binary_write`, `compile`,
+  `ascii_write`, `lint`, `outline`, `keywords` and `mg_mdl::decompile`,
+  the same sources but for their paths. The viewer's copies are gone;
+  `mgv-mdl` keeps `tools.rs`, the external back ends. The tests on the
+  game's models went with the code (the toolset's `mdl_compile.rs`,
+  `mdl_decompile.rs`, `mdl_lint.rs`); the three that need nwnmdlcomp, the
+  game's compiler or the client stay here (`mgv-mdl/tests/nwnmdlcomp.rs`,
+  `engine.rs`, `client.rs`) and are the check of the toolset's compiler
+  against the game.
+- The toolset uses it: `mg verify` reads models kept as text, `mg cat
+  --text` and Save As Text write a compiled model as text, `mg pack
+  --compile-models` and the hak editor compile.
+- The reader keeps each node's part number (`Node::part`), and
+  `mg-render` binds compiled models and animations by it (by name where
+  either is from text), which the viewer has with the pin. By the
+  toolset's count 70 of the game's models have nodes the two ways move
+  differently.
+- With the pin came the renderer's other changes since 1.16.1: a cut-out
+  texture cut at alpha 0.2, an MTR's `twosided`, a particle flip-book
+  from the picture's top left, a Linked ribbon's width, points nearer
+  than the near plane not projected.
+
+Not taken up: the other findings wait to be confirmed there before its
+notes change; the window widgets are not exported and the tight camera is
+not `mg-preview`'s, so `mgv-ui/src/widgets.rs`, `palette.rs` and
+`OrbitCamera::frame_tight` stay the viewer's. What was proposed, as it
+was written:
+
+**Code that could move to `mg-mdl`** (GPL-3.0 like the toolset, built only
+on `mg-mdl`'s public types, no dependency the toolset lacks):
+
+| Viewer file | What it is | Why the toolset would want it |
+| --- | --- | --- |
+| `mgv-mdl/src/binary.rs` | The binary writer: `write(&Model, &PartNumbers)`, every node type, skins in the 17-bone and EE's 64-bone structure; `PartNumbers::read`, `part_numbers`, `number_nodes` | `mg-mdl` reads compiled models and cannot write one |
+| `mgv-mdl/src/compile.rs` | The compiler: `compile(text, &Sources)` and `compile_named(text, name, lookup, compiled_before)`; what a text leaves to a compiler (tangents, a walkmesh's tree, shininess 1, inverse binds, part numbers), notes by line on what it left out | `mg pack`, `mg verify` and the hak tools could compile ASCII models with no game and no nwnmdlcomp, on all three systems |
+| `mgv-mdl/src/write.rs` (with `outline.rs`, `keywords.rs`) | The ASCII writer (lossless decompile): `to_ascii`, `to_ascii_in_order`, `file_order` | `mg` prints most resources as text, models not |
+| `mgv-mdl/src/lint.rs` | Diagnostics on an ASCII model by line (`lint`, `check`, `check_p2p`) | `mg verify` checks a module's models for missing textures, not for what the game would refuse or misread in their text |
+
+Their tests would move with them (`mgv-mdl/tests/compile.rs`,
+`decompile.rs`, `nwnmdlcomp.rs`, and the two run by hand, `engine.rs` and
+`client.rs`, which already use the toolset's client sandbox): all 25,597
+compiled models round-trip, 25,227 compile back from their decompiled
+text, the game's 7,235 ASCII models compile. One addition to the reader
+would replace `PartNumbers::read`, which reads the bytes a second time: a
+node's part number and the header's node count on `mg_mdl::Model`.
+
+**What the game showed, against the toolset's notes** (`notes_models.md`):
+
+| Where | The notes say | Measured |
+| --- | --- | --- |
+| B.19, binding | Unknown; "Moonglow should bind by name" | **By part number.** `a_ba` and its supermodels written with fresh numbers: the man no longer sits as he did (`client.rs`, 2026-10-07) |
+| B.19, part numbers | File order, from nwnmdlcomp's source | Confirmed, and a compiled tree does not keep that order: 5,079 of 24,298 models without a supermodel are numbered in another order than their trees'. A node the supermodel lacks at the same place has −1 where its parent matched |
+| B.4, B.7, function pointers | "Ignore"; garbage in EE | Confirmed in the client: files written with zeros there are drawn as the originals; the game's own compiler leaves run-time values in files the game ships |
+| B.9, mesh bounds | The fields, not how they are made | The box holds the origin as well as the vertices; the average counts a position once (boxes of 99.6% of the game's meshes, radii and averages of 94%) |
+| B.9, shininess | (not said) | 1 where a text does not say (the game's compiler) |
+| B.11, skins | EE's 0x3B0 structure "probably `i16[64]` plus 128 more bytes", unverified | A skin of 52 bones written so (bone node numbers as `i16[64]` at 0x2B0, zeros after) is drawn posed by the client as from its text; 64 itself is untried |
+| A, normals and tangents | (not said) | The game's compiler's are the reader's, to four decimals: area-weighted normals, the usual tangents |
+
+**What follows for `mg-render`.** `anim.rs` binds a supermodel's
+animations to a model's nodes by name. The game goes by number, so the
+two differ wherever a model's numbers and names disagree with its
+supermodel's: a node renamed but numbered alike moves in the game and
+not in the toolset; a node of a supermodel's name at another place in the
+tree (number −1 or its own) the other way round. How many stock models
+that touches is not counted. The viewer draws through `mg-render`, so it
+has the same difference.
+
+**Smaller things.**
+
+- `mg-ui`'s form widgets and palette chooser exported (field labels,
+  section headings, the palette swatches): the viewer holds copies
+  (`mgv-ui/src/widgets.rs`, `palette.rs`) that have to follow each change
+  of style by hand.
+- A camera framed on the posed vertices as the picture's shape sees them
+  (`mgv_stage::OrbitCamera::frame_tight`, `Stage::bounds`): `mg-preview`'s
+  thumbnails would fill their frame for long or tall models (dragons).
+- Ten `c_wingdrg2_*` wing skins are bound in another pose than they rest
+  in, which no text holds: compiled from text, their inverse binds come
+  from the rest pose (right for 4,514 of the game's 4,594 bones). Worth a
+  line in B.11.

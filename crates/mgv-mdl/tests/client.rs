@@ -23,12 +23,12 @@ use std::time::{Duration, Instant};
 use mg_core::{ResRef, ResType};
 use mg_gff::Value;
 use mg_mdl::Model;
+use mg_mdl::binary_write::{PartNumbers, part_numbers, write};
 use mg_module::ModuleLocation;
 use mg_module::new::{AreaSpec, add_area, new_module};
 use mg_resman::{GameInstall, ResKey, ResMan};
 use mg_rules::GameData;
 use mg_schema::{StructExt, ifo};
-use mgv_mdl::binary::{PartNumbers, part_numbers, write};
 
 /// The scene: an armoire (emitters, animations), a wererat lying on its back
 /// (parts on its own skeleton; a pose, so a skin standing in for it is
@@ -366,9 +366,9 @@ fn the_client_draws_written_models_as_the_originals() {
     // again by the native compiler, keeping its numbers.
     let compiled = run("compiled", &|dev| {
         for (name, data) in &files {
-            let text = mgv_mdl::decompile(data).unwrap();
+            let text = mg_mdl::decompile(data).unwrap();
             let lookup = |n: &str| files.iter().find(|(f, _)| f == n).map(|(_, d)| d.clone());
-            match mgv_mdl::compile::compile_named(text.as_bytes(), name, &lookup, &lookup) {
+            match mg_mdl::compile::compile_named(text.as_bytes(), name, &lookup, &lookup) {
                 Ok(out) => {
                     eprintln!("compiled {name} natively");
                     std::fs::write(dev.join(format!("{name}.mdl")), out.binary).unwrap();
@@ -389,7 +389,7 @@ fn the_client_draws_written_models_as_the_originals() {
             }
             let model = if compiled {
                 let none = |_: &str| None;
-                mgv_mdl::compile::compile_named(text.as_bytes(), "c_wererat", &none, &none)
+                mg_mdl::compile::compile_named(text.as_bytes(), "c_wererat", &none, &none)
                     .unwrap()
                     .binary
             } else {

@@ -110,9 +110,8 @@ fn compile(r: &CompileRequest) -> Result<(PathBuf, &'static str), String> {
                     .find_map(|d| std::fs::read(d.join(&file)).ok())
                     .or_else(|| in_game(n))
             };
-            let out =
-                mgv_mdl::compile::compile_named(r.text.as_bytes(), &r.name, &lookup, &in_game)
-                    .map_err(|e| e.to_string())?;
+            let out = mg_mdl::compile::compile_named(r.text.as_bytes(), &r.name, &lookup, &in_game)
+                .map_err(|e| e.to_string())?;
             (out.binary, "Moonglow's compiler")
         }
     };

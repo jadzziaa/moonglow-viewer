@@ -1,6 +1,6 @@
 [package]
 name = "mgv-mdl"
-description = "Model source tools: the ASCII writer (decompiler), diagnostics, the outline of an ASCII model, and the compile and decompile back ends"
+description = "The external model compile and decompile back ends: nwnmdlcomp and the game's own compiler"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

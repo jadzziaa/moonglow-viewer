@@ -155,7 +155,7 @@ fn decompiling_a_game_model_edits_it_in_place() {
             .unwrap()
             .diagnostics
             .iter()
-            .all(|d| d.severity < mgv_mdl::Severity::Warning)
+            .all(|d| d.severity < mg_mdl::lint::Severity::Warning)
     );
 
     // Opening something else keeps the edits (the user closes them first).

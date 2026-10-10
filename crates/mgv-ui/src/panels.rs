@@ -511,7 +511,7 @@ pub(crate) fn inspector(app: &mut Viewer, ui: &mut Ui) {
                 node.parent.map_or("none".into(), |p| sa.model.model.nodes[p].name.clone()),
             );
             row(ui, "Position", fmt3(node.position));
-            let aa = mgv_mdl::write::axis_angle(node.orientation);
+            let aa = mg_mdl::ascii_write::axis_angle(node.orientation);
             row(
                 ui,
                 "Orientation",

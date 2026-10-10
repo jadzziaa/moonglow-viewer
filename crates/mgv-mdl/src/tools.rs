@@ -220,7 +220,7 @@ fn stage_supermodels(ascii: &str, search: &[PathBuf], to: &Path, depth: usize) {
 const EE_ONLY: [&str; 2] = ["materialname", "renderhint"];
 
 /// The most bones nwnmdlcomp compiles into one skin.
-pub const NWNMDLCOMP_BONES: usize = 17;
+pub use mg_mdl::lint::NWNMDLCOMP_BONES;
 
 /// Refuses what nwnmdlcomp would silently get wrong.
 fn check_for_nwnmdlcomp(ascii: &str) -> Result<(), ToolError> {
@@ -482,7 +482,7 @@ fn strip_ansi(s: &str) -> String {
 pub enum Compiler {
     Nwnmdlcomp,
     Engine,
-    /// In process ([`crate::compile`]).
+    /// In process ([`mg_mdl::compile`]).
     Native,
 }
 

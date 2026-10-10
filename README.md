@@ -151,7 +151,7 @@ its load order, the renderer), layered bottom-up:
 
 | Folder | What |
 | --- | --- |
-| `crates/mgv-mdl` | the ASCII writer, diagnostics by line, the outline, the compile and decompile back ends |
+| `crates/mgv-mdl` | the external compile and decompile back ends (nwnmdlcomp, the game's compiler); the native compiler and decompiler are the toolset's `mg-mdl` |
 | `crates/mgv-library` | layers over the game's load order, editor buffers, file watching, the model cache |
 | `crates/mgv-stage` | actors, animation, particles, lights, lighting rigs, the camera, overlays, offscreen rendering |
 | `crates/mgv-gallery` | batch rendering: thumbnails, the HTML index, the manifest |
