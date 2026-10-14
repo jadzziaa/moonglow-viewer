@@ -50,6 +50,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.8" date="2026-10-14">
+      <description>
+        <p>A robe or cloak worn by a dwarf, a gnome or a halfling is worn at the wearer's size, no longer at a human's.</p>
+      </description>
+    </release>
     <release version="0.1.7" date="2026-10-09">
       <description>
         <p>Moonglow Toolset 1.20.5's renderer and its model compiler (the one made here, now the toolset's): supermodel animations bound by node number as the game binds them, cut-out textures and two-sided materials as the game draws them.</p>
