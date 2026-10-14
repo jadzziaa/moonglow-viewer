@@ -323,6 +323,38 @@ impl Actor {
         }
     }
 
+    /// [`Actor::sample`] for a part worn by another (a robe, a cloak), the
+    /// wearer's animation at the wearer's scale (`worn`: its
+    /// `setanimationscale`), as the game moves a worn model with the body's
+    /// bones. A robe's own model says 1: a dwarf's (0.66) played at a
+    /// human's size, its hem below the feet and its collar over the head.
+    /// The part's very own animations keep theirs.
+    pub(crate) fn sample_worn(
+        &self,
+        anim: Option<&Animation>,
+        t: f32,
+        worn: f32,
+    ) -> (Vec<Local>, MeshState) {
+        let Some(a) = anim else { return self.sample(anim, t) };
+        let model = &self.model.model;
+        // (The toolset gives the worn pose composed: back to each node's
+        // place relative to its parent, for the transitions.)
+        let pose = anim::pose_worn(model, a, t, worn);
+        let locals = model
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| {
+                let own = pose.get(i).copied().unwrap_or(Mat4::IDENTITY);
+                let parent = n.parent.filter(|&p| p < i).and_then(|p| pose.get(p).copied());
+                let local = parent.map_or(own, |p| p.inverse() * own);
+                let (scale, rotation, position) = local.to_scale_rotation_translation();
+                Local { position, rotation, scale: scale.x }
+            })
+            .collect();
+        (locals, anim::mesh_state(&self.model, a, t))
+    }
+
     /// The pose for this step: `locals`, or on the way to them from the
     /// last pose when the animation changed (over the new one's
     /// `transtime`, as the game blends).

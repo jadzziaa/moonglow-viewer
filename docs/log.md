@@ -1,5 +1,8 @@
 # Update log
 
+## 2026-10-14
+* **Update**: A part a creature wears (a robe, a cloak) plays its wearer's animation at the wearer's size (its skeleton's `setanimationscale`), as the toolset's previews and the game place it: on a dwarf, a gnome or a halfling a robe stood at a human's height, over the head, the feet below its hem (reported by the Domains of Dread session; `mgv-stage`'s `Actor::sample_worn`, held by `a_robe_is_worn_at_its_wearer_s_size`).
+
 ## 2026-10-09
 * **Update**: [The plan](PLAN.md) §10.1: the toolset took the compiler, the writers, the lint and the outline into `mg-mdl` (its v1.20.5) and binds animations by part number; the viewer is pinned to v1.20.5, its copies are gone, and `mgv-mdl` keeps the external back ends and the tests against nwnmdlcomp, the game's compiler and the client.
 

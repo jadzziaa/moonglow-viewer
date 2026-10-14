@@ -524,3 +524,54 @@ fn casters_show_in_place_of_the_model() {
     assert_eq!(blue("mover.mdl", true), 0, "no caster: nothing");
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+/// A robe worn by a dwarf plays the dwarf's animation at the dwarf's size
+/// (its skeleton's `setanimationscale`, 0.66): it hangs from the shoulders,
+/// the head above it. Played at the robe model's own scale (1) it stood at
+/// a human's height, over the head, the feet below its hem.
+#[test]
+fn a_robe_is_worn_at_its_wearer_s_size() {
+    let root = mg_testkit::corpus!();
+    let Some(gpu) = gpu() else { return };
+    let lib = Library::open(Some(GameInstall::new(root, None, "en"))).unwrap();
+    let mut stage = Stage::new(gpu);
+    // (A part: a model's preview's base.)
+    let part = |model: &str| mg_preview::Preview::model(model).base;
+    let mut robe = part("pmd0_robe003");
+    robe.animated = true;
+    let mut head = part("pmd0_head001");
+    head.attach = Some("head_g".into());
+    let preview = mg_preview::Preview {
+        base: part("pmd0"),
+        parts: vec![robe, head],
+        idle: Some("pause1".into()),
+        lights: Vec::new(),
+    };
+    let added = stage.add_preview(&lib, &preview, Mat4::IDENTITY).unwrap();
+    assert!(added.missing.is_empty(), "{:?}", added.missing);
+    stage.settle(&lib, 1.0, 30.0);
+    // The robe's bones where the body's are (they copy the skeleton's; a
+    // few centimeters apart, where the robe's own rest places differ). At
+    // the robe's own scale they were half a meter and more above them.
+    let height = |id, node: &str| {
+        let a = stage.actor(id).unwrap();
+        let i = a.model.model.node(node)?;
+        Some((a.world() * a.pose()[i]).w_axis.z)
+    };
+    let robe_model = &stage.actor(added.parts[0]).unwrap().model.model;
+    let mut compared = 0;
+    for n in &robe_model.nodes {
+        let (Some(body), Some(robe)) =
+            (height(added.base, &n.name), height(added.parts[0], &n.name))
+        else {
+            continue;
+        };
+        assert!(
+            (body - robe).abs() < 0.1,
+            "{}: the body's at {body}, the robe's at {robe}",
+            n.name
+        );
+        compared += 1;
+    }
+    assert!(compared >= 5, "{compared} bones of both");
+}

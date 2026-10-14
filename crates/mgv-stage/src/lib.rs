@@ -267,7 +267,15 @@ impl Stage {
             };
             let anim = current.as_ref().and_then(Current::animation);
             let t = current.as_ref().map_or(0.0, |c| c.time);
-            let (locals, mut state) = actor.sample(anim, t);
+            // (A part that follows its wearer plays the wearer's
+            // animation at the wearer's scale.)
+            let worn = parent
+                .filter(|_| actor.follows_parent)
+                .map(|(p, ..)| p.model.model.animation_scale);
+            let (locals, mut state) = match worn {
+                Some(worn) => actor.sample_worn(anim, t, worn),
+                None => actor.sample(anim, t),
+            };
             let name = |c: &Option<Current>| c.as_ref().map(|c| c.name.to_ascii_lowercase());
             let changed = (name(&current) != name(&actor.current)).then_some(anim);
             let pose = actor.transition(changed, locals, step_dt);
