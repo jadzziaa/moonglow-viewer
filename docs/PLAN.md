@@ -71,9 +71,10 @@ shows with them.
 Not shown: movies (WBM; EE does not load BIK) and sounds, GUI layouts (GFF
 without geometry; GUI *models* are MDLs and are shown), and KTX textures
 (ETC2, for mobile; none in the base game; `mg-image` does not read them
-yet). Hak shaders (SHD) are not run: the renderer runs Moonglow's own
-shaders (toolset plan §5.5), so a hak's custom shaders and an MTR's
-`customshaderVS/FS` are named in the inspector only.
+yet). Shaders (SHD) are run since the toolset's 2.0: the game's own, a
+hak's replacements of them and an MTR's `customshaderVS/FS`, compiled on
+the user's machine (`mg-shader`), with Moonglow's own shader for what does
+not compile and with the switch off (§10).
 
 ### 1.2 What it does with them
 
@@ -798,3 +799,43 @@ has the same difference.
   in, which no text holds: compiled from text, their inverse binds come
   from the rest pose (right for 4,514 of the game's 4,594 bones). Worth a
   line in B.11.
+
+### 10.2 Moonglow Toolset 2.0 (2026-10-21)
+
+The pin is v2.0.0, the toolset's milestone M6 of its shader plan (the
+toolset's `docs/shaders-proposal.md`): `mg-render` draws with the game's
+own GLSL shaders, compiled on the user's machine by `mg-shader` (glslang,
+its C++ built with `cc`; naga 30) from the install, the haks' replacements
+of stock includes and the custom shaders MTRs name. The viewer takes it
+as the toolset does:
+
+- **On by default, with a switch.** `mgv_stage::GAME_SHADERS_BY_DEFAULT`;
+  the window's **Shaders** (toolbar, View › Game Shaders; kept as
+  `Settings::game_shaders`, `None` following the default) and `mgv`'s
+  `--no-game-shaders` (render, turntable, gallery, sheet; `Shot::game_shaders`,
+  part of a gallery's input hash).
+- **Compiled where they are drawn.** The window compiles them while the
+  frames go on (`Renderer::game_background`, a frame asked for when one is
+  ready, and again at 30 a second while a program that reads the clock is
+  drawn and the scene plays); a picture waits for them, so headless output
+  stays the same for the same input. Both keep compiled programs in the
+  viewer's cache folder (`mgv_stage::shader_cache_dir`), set by the two
+  programs, not by tests.
+- **Failures fall back and are said.** A program that does not compile is
+  drawn with Moonglow's shader: the log says which and why once, `mgv` on
+  standard error.
+- **What changed besides:** the scene's `environment` (no area: the
+  defaults, noon of a new module's day); nwnmdlcomp's decompile back end
+  writes self-illumination in both spellings, since the toolset's reader
+  (1.34.4) no longer reads nwnmdlcomp's `setfillumcolor`, which the game
+  ignores and nwnmdlcomp alone compiles.
+
+Checked (2026-10-21): every mesh of a placeable, a dragon and a
+part-based guard is drawn by the game's programs, within a level on
+average of Moonglow's port (`the_game_s_programs_draw_its_models`); an
+authored program pair in a folder draws and sways
+(`a_material_s_own_shaders_draw_it_from_a_folder`); the window's switch
+(`the_game_s_shaders_draw_the_view_and_switch_off`). By eye, against 0.1.8:
+The Domains of Dread's swaying trees move with the clock, and its
+`tdod_shaders` lighting include lightens what it lights, as in the game.
+

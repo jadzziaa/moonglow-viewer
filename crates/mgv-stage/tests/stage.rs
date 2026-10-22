@@ -575,3 +575,117 @@ fn a_robe_is_worn_at_its_wearer_s_size() {
     }
     assert!(compared >= 5, "{compared} bones of both");
 }
+
+/// A material's own programs, authored here (the game's and the haks' are
+/// read from an install): a vertex program that sways the mesh along x by
+/// the game's clock and an MTR parameter, and a fragment program that draws
+/// an MTR's colour where an int parameter says so.
+const SWAY_VS: &str = "#define SHADER_TYPE 1
+uniform mat4 m_mv;
+uniform mat4 m_proj;
+uniform int worldtimerTimeOfDay;
+uniform float fSwayStrength;
+attribute vec4 vPos;
+attribute vec2 vTcIn;
+varying vec2 vUv;
+void main ()
+{
+    vUv = vTcIn;
+    vec4 p = vPos;
+    p.x += sin(float(worldtimerTimeOfDay) * 0.001) * fSwayStrength;
+    gl_Position = m_proj * (m_mv * p);
+}
+";
+const TINT_FS: &str = "#define SHADER_TYPE 2
+uniform sampler2D texUnit0;
+uniform vec4 vOverrideColor;
+uniform int iForceOverrideColor;
+varying vec2 vUv;
+void main ()
+{
+    vec4 t = texture2D(texUnit0, vUv);
+    vec3 c = iForceOverrideColor == 1 ? vOverrideColor.rgb : t.rgb;
+    gl_FragColor = vec4(c, 1.0);
+}
+";
+
+/// With the game's shaders on (the default), a model whose material names
+/// a program pair, all of it in a folder added to the library, is drawn by
+/// that pair: in the MTR's green, and swaying as the shot's time goes on.
+/// Off, Moonglow's own shader draws it, white and still.
+#[test]
+fn a_material_s_own_shaders_draw_it_from_a_folder() {
+    let Some(gpu) = gpu() else { return };
+    let dir = scratch("custom-shaders");
+    std::fs::write(dir.join("mover.mdl"), MOVER.replace("diffuse 1 1 1", "bitmap swaying"))
+        .unwrap();
+    std::fs::write(dir.join("vs_sway.shd"), SWAY_VS).unwrap();
+    std::fs::write(dir.join("fs_tint.shd"), TINT_FS).unwrap();
+    std::fs::write(
+        dir.join("swaying.mtr"),
+        "customshaderVS vs_sway\ncustomshaderFS fs_tint\nparameter float fSwayStrength 0.5\n\
+         parameter float vOverrideColor 0.0 1.0 0.0 1.0\nparameter int iForceOverrideColor 1\n",
+    )
+    .unwrap();
+    let mut lib = Library::open(None).unwrap();
+    lib.add_folder(&dir);
+    let opened = lib.open_input("mover").unwrap();
+    let mut stage = Stage::new(gpu.clone());
+    let mut viewport = Viewport::new(&gpu);
+    mgv_stage::subject::show(&mut stage, &lib, &opened).unwrap();
+    let mut shoot = |time: f32, game_shaders: bool| {
+        let shot = mgv_stage::headless::Shot {
+            size: (96, 96),
+            time,
+            view: View::Top,
+            game_shaders,
+            ..Default::default()
+        };
+        let img = mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &shot);
+        let drawn = viewport.drawn().game;
+        assert_eq!(viewport.shader_failures(), &[]);
+        (img, drawn)
+    };
+    assert!(mgv_stage::headless::Shot::default().game_shaders, "on by default");
+    let green = |img: &mg_image::Rgba| {
+        img.data.as_chunks::<4>().0.iter().filter(|p| p[1] > 200 && p[0] < 60).count()
+    };
+    let (still, drawn) = shoot(0.0, true);
+    assert_eq!(drawn, 1, "drawn by the material's programs");
+    assert!(green(&still) > 50, "in the MTR's green");
+    let (swayed, _) = shoot(1.5, true);
+    assert_ne!(still.data, swayed.data, "it sways with the clock");
+    let (own, drawn) = shoot(0.0, false);
+    assert_eq!(drawn, 0);
+    assert_eq!(green(&own), 0, "Moonglow's own shader: not the MTR's colour");
+    assert_eq!(own.data, shoot(1.5, false).0.data, "and still");
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// The game's stock programs draw the game's models (every mesh of an
+/// armoire, a dragon and a part-based creature), as Moonglow's own shader
+/// draws them to within a level on average (its port of them: the
+/// toolset's `the_game_s_lit_shaders_match_moonglow_s` holds the measure).
+#[test]
+fn the_game_s_programs_draw_its_models() {
+    let root = mg_testkit::corpus!();
+    let Some(gpu) = gpu() else { return };
+    let mut lib = Library::open(Some(GameInstall::new(root, None, "en"))).unwrap();
+    for name in ["plc_a01", "c_drgred", "nw_guard.utc"] {
+        let opened = lib.open_input(name).unwrap();
+        let mut stage = Stage::new(gpu.clone());
+        let mut viewport = Viewport::new(&gpu);
+        mgv_stage::subject::show(&mut stage, &lib, &opened).unwrap();
+        let shot = mgv_stage::headless::Shot { size: (128, 128), ..Default::default() };
+        let game = mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &shot);
+        let drawn = viewport.drawn();
+        assert_eq!(viewport.shader_failures(), &[], "{name}");
+        assert!(drawn.game > 0 && drawn.game == drawn.meshes, "{name}: {drawn:?}");
+        let off = mgv_stage::headless::Shot { game_shaders: false, ..shot };
+        let own = mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &off);
+        let diff: u64 =
+            game.data.iter().zip(&own.data).map(|(a, b)| u64::from(a.abs_diff(*b))).sum();
+        let mean = diff as f64 / game.data.len() as f64;
+        assert!(mean < 1.0, "{name}: mean difference {mean:.2} a channel");
+    }
+}

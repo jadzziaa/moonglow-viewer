@@ -205,6 +205,8 @@ pub struct Viewer {
     frame_pending: bool,
     /// The editor's cursor line asked for (jump after a pick).
     pub(crate) jump_to_line: Option<usize>,
+    /// The game's shaders already said to be drawn with Moonglow's own.
+    shader_failures_told: Vec<String>,
 }
 
 impl std::fmt::Debug for Viewer {
@@ -212,6 +214,12 @@ impl std::fmt::Debug for Viewer {
         f.debug_struct("Viewer").field("doc", &self.doc).finish_non_exhaustive()
     }
 }
+
+/// What the Game Shaders switch does.
+pub(crate) const SHADERS_HELP: &str = "Draw with the game's own shaders, compiled from the game and \
+     the haks added: their replacements of the game's, and the custom shaders materials name \
+     (swaying grass and leaves, flowing water). Off, or where one does not compile: Moonglow's own \
+     shader";
 
 /// The default layout: browser and outliner on the left, the 3D view in
 /// the middle with the editor beside it, inspector on the right, timeline
@@ -256,6 +264,7 @@ impl Viewer {
             clock: None,
             frame_pending: false,
             jump_to_line: None,
+            shader_failures_told: Vec::new(),
         };
         v.add_settings_layers();
         v
@@ -268,6 +277,25 @@ impl Viewer {
 
     pub fn info(&mut self, text: impl Into<String>) {
         self.log.push(LogLine { level: Level::Info, text: text.into() });
+    }
+
+    /// Says once each which of the game's shaders are drawn with
+    /// Moonglow's own instead, and why (told again after they are
+    /// forgotten: the library read again).
+    pub(crate) fn tell_shader_failures(&mut self) {
+        let Some(g) = &self.gfx else { return };
+        let failures = g.viewport.shader_failures().to_vec();
+        if failures.is_empty() {
+            self.shader_failures_told.clear();
+        }
+        for (what, why) in failures {
+            if !self.shader_failures_told.contains(&what) {
+                self.warn(format!(
+                    "The game's shader {what} is drawn with Moonglow's own shader instead: {why}"
+                ));
+                self.shader_failures_told.push(what);
+            }
+        }
     }
 
     pub fn warn(&mut self, text: impl Into<String>) {
@@ -652,6 +680,7 @@ impl Viewer {
         });
         manual::windows(self, ui.ctx());
         self.run_actions();
+        self.tell_shader_failures();
         if self.jobs.busy() || self.watcher.busy() {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
         }
@@ -1128,6 +1157,10 @@ impl Viewer {
                 ui.checkbox(&mut self.settings.show_axes, "Axes");
                 if let Some(g) = &mut self.gfx {
                     ui.checkbox(&mut g.stage.model_lights, "Model Lights");
+                }
+                let mut shaders = self.settings.game_shaders();
+                if ui.checkbox(&mut shaders, "Game Shaders").on_hover_text(SHADERS_HELP).changed() {
+                    self.settings.game_shaders = Some(shaders);
                 }
                 ui.separator();
                 if ui.button("Reset Layout").clicked() {

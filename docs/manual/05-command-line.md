@@ -46,7 +46,10 @@ mgv lint mymodel.mdl --notes
   175; the rest 0) or ten rows in that order. Creatures and blueprints
   keep their own colors. `--casters` shows a model's shadow casters (the
   meshes with `render 0` and `shadow 1`) in blue in place of its visible
-  meshes. A picture is framed as close as shows all of the model from its
+  meshes. Pictures are drawn with the game's own shaders, as in the
+  window (each compiled once, then kept in the cache folder; one that does
+  not compile is drawn with Moonglow's own shader and named on standard
+  error); `--no-game-shaders` draws with Moonglow's own only. A picture is framed as close as shows all of the model from its
   angle; a turntable from far enough for every side. These apply to
   galleries and sheets too.
 - **Galleries** (`gallery`): a name pattern (`plc_*`), a 2DA

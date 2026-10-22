@@ -18,6 +18,8 @@ pub struct Gfx {
     pub stage: Stage,
     pub viewport: Viewport,
     texture: Option<(egui::TextureId, (u32, u32))>,
+    /// A frame is asked for when the game's programs are ready (set once).
+    waker: bool,
 }
 
 impl std::fmt::Debug for Gfx {
@@ -30,7 +32,7 @@ impl Gfx {
     pub fn new(render_state: egui_wgpu::RenderState) -> Gfx {
         let gpu = mg_render::Gpu::new(render_state.device.clone(), render_state.queue.clone());
         let viewport = Viewport::new(&gpu);
-        Gfx { render_state, stage: Stage::new(gpu), viewport, texture: None }
+        Gfx { render_state, stage: Stage::new(gpu), viewport, texture: None, waker: false }
     }
 }
 
@@ -81,7 +83,23 @@ pub fn ui(app: &mut Viewer, ui: &mut egui::Ui) {
     g.stage.casters = app.settings.overlays.casters;
     let scene = g.stage.scene(camera.view());
     let gpu = g.stage.gpu().clone();
+    // (Drawn again and again: the game's programs are compiled while the
+    // frames go on, Moonglow's shader drawing until they are ready.)
+    if !g.waker {
+        g.waker = true;
+        let ctx = ui.ctx().clone();
+        g.viewport.renderer().set_game_waker(move || ctx.request_repaint());
+    }
+    let renderer = g.viewport.renderer();
+    renderer.game_shaders = app.settings.game_shaders();
+    renderer.game_background = true;
     g.viewport.draw(&gpu, app.lib.resman(), &scene, &camera, px);
+    // A program of the game's that reads the clock (wind, flowing water)
+    // moves by itself: drawn again while the scene plays.
+    let drawn = &g.viewport.renderer().drawn;
+    if drawn.timed > 0 && g.stage.playing() {
+        ui.ctx().request_repaint_after(std::time::Duration::from_secs_f32(1.0 / 30.0));
+    }
     let mut overlay = Overlay::default();
     if app.settings.show_grid {
         grid(&mut overlay, app.camera.distance);
@@ -246,6 +264,10 @@ fn toolbar(app: &mut Viewer, ui: &mut egui::Ui) {
                  blue in place of the visible meshes",
             );
         });
+        let mut shaders = app.settings.game_shaders();
+        if ui.checkbox(&mut shaders, "Shaders").on_hover_text(crate::SHADERS_HELP).changed() {
+            app.settings.game_shaders = Some(shaders);
+        }
         if let Some(g) = &mut app.gfx {
             ui.checkbox(&mut g.stage.model_lights, "Model lights")
                 .on_hover_text("Light the scene with the model's own light nodes");

@@ -443,7 +443,7 @@ pub fn run(
     items: &[Item],
     opts: &Options,
     progress: &mut dyn FnMut(usize, usize, &Item),
-) -> Result<Vec<Entry>, GalleryError> {
+) -> Result<Run, GalleryError> {
     let images = opts.out.join("images");
     std::fs::create_dir_all(&images).map_err(|e| io(&images, e))?;
     let before = if opts.incremental { previous(&opts.out) } else { BTreeMap::new() };
@@ -495,7 +495,16 @@ pub fn run(
         entries.push(entry);
     }
     write_index(&opts.out, &opts.title, &opts.shot, &entries)?;
-    Ok(entries)
+    Ok(Run { entries, shader_failures: viewport.shader_failures().to_vec() })
+}
+
+/// A gallery's pictures, and the game's shaders that could not be drawn
+/// in them (drawn with Moonglow's own instead): `vs/fs` pairs or programs,
+/// and why.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Run {
+    pub entries: Vec<Entry>,
+    pub shader_failures: Vec<(String, String)>,
 }
 
 /// Puts an item on the stage, alone.

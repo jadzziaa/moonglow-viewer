@@ -1,5 +1,8 @@
 # Update log
 
+## 2026-10-21
+* **Update**: [The plan](PLAN.md) §10.2 and §1.1: Moonglow Toolset 2.0 and the game's own shaders, on by default with a switch, compiled in the window while it draws and waited for in pictures, kept in a cache folder, failures said; nwnmdlcomp's decompile back end writes self-illumination in both spellings. [The window](manual/02-the-window.md) (Shaders), [the command line](manual/05-command-line.md) (`--no-game-shaders`) and [troubleshooting](manual/06-troubleshooting.md) say so.
+
 ## 2026-10-14
 * **Update**: A part a creature wears (a robe, a cloak) plays its wearer's animation at the wearer's size (its skeleton's `setanimationscale`), as the toolset's previews and the game place it: on a dwarf, a gnome or a halfling a robe stood at a human's height, over the head, the feet below its hem (reported by the Domains of Dread session; `mgv-stage`'s `Actor::sample_worn`, held by `a_robe_is_worn_at_its_wearer_s_size`).
 

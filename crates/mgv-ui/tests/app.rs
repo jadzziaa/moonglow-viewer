@@ -331,3 +331,30 @@ fn bare_plt_models_take_colors() {
     h.run_steps(3);
     assert!(h.query_by_label("PLT colors").is_none());
 }
+
+/// The game's shaders draw the view by default, compiled while the frames
+/// go on (Moonglow's shader drawing until they are ready); the toolbar's
+/// Shaders switch turns them off, and the setting keeps it.
+#[test]
+fn the_game_s_shaders_draw_the_view_and_switch_off() {
+    let Some(mut h) = harness(true, Box::new(Answer(None))) else { return };
+    let drawn = |h: &Harness<'_, Viewer>| h.state().gfx.as_ref().unwrap().viewport.drawn();
+    assert!(h.state().settings.game_shaders(), "on by default");
+    h.state_mut()
+        .actions
+        .push(Action::OpenResource(ResKey::parse("plc_a01", ResType::MDL).unwrap()));
+    h.run_steps(3);
+    let start = std::time::Instant::now();
+    while drawn(&h).game_pending > 0 || drawn(&h).game == 0 {
+        assert!(start.elapsed().as_secs() < 60, "never drawn by them: {:?}", drawn(&h));
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        h.run_steps(1);
+    }
+    let d = drawn(&h);
+    assert_eq!(d.game, d.meshes, "every mesh by the game's programs: {d:?}");
+    h.get_by_label("Shaders").click();
+    h.run_steps(2);
+    assert_eq!(h.state().settings.game_shaders, Some(false));
+    assert_eq!(drawn(&h).game, 0, "Moonglow's own shader");
+    assert!(drawn(&h).meshes > 0);
+}

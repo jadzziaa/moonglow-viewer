@@ -37,7 +37,14 @@ use thiserror::Error;
 pub use actor::{Actor, ActorId, Animations, Look, Placement, PlayMode, Player};
 pub use camera::OrbitCamera;
 pub use lighting::Lighting;
-pub use render::Viewport;
+pub use render::{Viewport, set_shader_cache, shader_cache_dir};
+
+/// The game's own shaders draw unless switched off, as in Moonglow
+/// Toolset (its `GAME_SHADERS_BY_DEFAULT`): compiled from the game's
+/// files and the haks added, a hak's replacements of the stock ones and
+/// the custom shaders materials name; Moonglow's own shader draws what
+/// does not compile.
+pub const GAME_SHADERS_BY_DEFAULT: bool = true;
 
 use actor::Current;
 
@@ -383,6 +390,9 @@ impl Stage {
             sky_fade: None,
             lines: Vec::new(),
             time: self.elapsed,
+            // (No area: the game's shaders read no wind, weather or
+            // module clock of one; noon of a new module's day.)
+            environment: Default::default(),
         }
     }
 
@@ -432,6 +442,11 @@ impl Stage {
         self.actors.iter().any(|a| {
             (a.player.playing && a.current.is_some()) || a.particles_live() || a.dangly_moving()
         })
+    }
+
+    /// Whether any actor plays (not paused): what moves by the clock moves.
+    pub fn playing(&self) -> bool {
+        self.actors.iter().any(|a| a.player.playing)
     }
 
     /// Picks up changed models from the library (after an edit, a file

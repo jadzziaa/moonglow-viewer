@@ -217,6 +217,20 @@ struct ShotArgs {
     /// blue in place of the visible meshes.
     #[arg(long)]
     casters: bool,
+    /// Draw with Moonglow's own shader only. By default the game's own
+    /// shaders draw (compiled from the game, the haks added and the custom
+    /// shaders materials name), Moonglow's drawing what does not compile.
+    #[arg(long)]
+    no_game_shaders: bool,
+}
+
+/// The game's shaders drawn with Moonglow's own instead, and why.
+fn shader_warnings(failures: &[(String, String)]) {
+    for (what, why) in failures {
+        eprintln!(
+            "mgv: the game's shader {what} is drawn with Moonglow's own shader instead: {why}"
+        );
+    }
 }
 
 /// `--plt-colors`: `LAYER=ROW,…` or ten rows.
@@ -287,6 +301,8 @@ enum CompileWith {
 }
 
 fn main() -> ExitCode {
+    // (The game's programs, once compiled, kept for the next run.)
+    mgv_stage::set_shader_cache(mgv_stage::shader_cache_dir());
     match run(Cli::parse()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
@@ -340,6 +356,7 @@ fn run(cli: Cli) -> Result<()> {
             let mut lib = library(&cli)?;
             let (mut stage, mut vp, name) = staged(&mut lib, input, shot)?;
             let img = headless::still(&mut stage, &mut vp, &lib, &shot.to_shot()?);
+            shader_warnings(vp.shader_failures());
             let out = output.clone().unwrap_or_else(|| PathBuf::from(format!("{name}.png")));
             mgv_stage::render::save_png(&img, &out)
                 .with_context(|| format!("writing {}", out.display()))?;
@@ -350,6 +367,7 @@ fn run(cli: Cli) -> Result<()> {
             let (mut stage, mut vp, name) = staged(&mut lib, input, shot)?;
             let s = shot.to_shot()?;
             let images = headless::turntable(&mut stage, &mut vp, &lib, &s, *frames);
+            shader_warnings(vp.shader_failures());
             if *frames_only {
                 let dir = output.clone().unwrap_or_else(|| PathBuf::from(&name));
                 std::fs::create_dir_all(&dir)?;
@@ -382,7 +400,7 @@ fn run(cli: Cli) -> Result<()> {
                 incremental: !*full,
             };
             let start = std::time::Instant::now();
-            let entries = mgv_gallery::run(&mut lib, &gpu, &items, &opts, &mut |i, n, item| {
+            let run = mgv_gallery::run(&mut lib, &gpu, &items, &opts, &mut |i, n, item| {
                 eprint!(
                     "\r[{}/{n}] {:<40}",
                     i + 1,
@@ -390,6 +408,8 @@ fn run(cli: Cli) -> Result<()> {
                 );
             })?;
             eprintln!();
+            shader_warnings(&run.shader_failures);
+            let entries = run.entries;
             let rendered = entries.iter().filter(|e| e.rendered && e.error.is_none()).count();
             let kept = entries.iter().filter(|e| !e.rendered).count();
             let failed: Vec<&mgv_gallery::Entry> =
@@ -453,6 +473,7 @@ fn run(cli: Cli) -> Result<()> {
                     );
                 });
             eprintln!();
+            shader_warnings(&sheet.shader_failures);
             for (label, e) in &sheet.failed {
                 eprintln!("mgv: {label}: {e}");
             }
@@ -637,6 +658,7 @@ impl ShotArgs {
             key_light: self.key_light.clamp(0.0, 1.0),
             plt_colors: self.plt_colors.as_deref().map(plt_colors).transpose()?,
             casters: self.casters,
+            game_shaders: !self.no_game_shaders,
         })
     }
 }
@@ -792,7 +814,20 @@ fn info(lib: &Library, name: &str, m: &Model, data: &[u8]) -> serde_json::Value 
 
 #[cfg(test)]
 mod tests {
-    use super::plt_colors;
+    use clap::Parser;
+
+    use super::{Cli, Cmd, plt_colors};
+
+    #[test]
+    fn the_game_s_shaders_unless_switched_off() {
+        let shot = |args: &[&str]| {
+            let cli = Cli::try_parse_from(args).unwrap();
+            let Cmd::Render { shot, .. } = &cli.cmd else { panic!("not render") };
+            shot.to_shot().unwrap().game_shaders
+        };
+        assert!(shot(&["mgv", "render", "plc_a01"]));
+        assert!(!shot(&["mgv", "render", "plc_a01", "--no-game-shaders"]));
+    }
 
     #[test]
     fn plt_colors_by_layer_or_in_order() {

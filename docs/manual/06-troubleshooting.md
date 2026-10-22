@@ -16,10 +16,18 @@ selected mesh, whether the game has each texture. Textures beside a model
 opened from disk are found; others need their folder or hak added (**File
 › Add Folder…**).
 
-**A model looks different in the game.** The viewer runs its own shaders,
-matched to the game's enhanced lighting; hak shaders and MTR custom
-shaders are not run. Dangly-mesh motion and some emitter details follow
-the documentation rather than measurements.
+**A model looks different in the game.** The viewer draws with the game's
+own shaders, from your installation and the haks you added, so add the
+haks the module uses (a hak can replace the game's lighting). Where one
+does not compile, the log names it and Moonglow's own shader draws
+instead; with **Shaders** off, everything is Moonglow's (matched to the
+game's enhanced lighting). Neither draws what reads the screen behind a
+mesh (a refraction), and shiny water is Moonglow's. Dangly-mesh motion and
+some emitter details follow the documentation rather than measurements.
+
+**The view is slow the first time a model shows.** The game's shaders are
+compiled the first time each is needed (Moonglow's shader draws until
+they are) and kept for the next time; turn **Shaders** off to skip them.
 
 **Compiling fails.** The log says which compiler ran and what it said.
 The game's compiler cannot compile skin meshes (use nwnmdlcomp); nwnmdlcomp

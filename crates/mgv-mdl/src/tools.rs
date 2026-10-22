@@ -130,7 +130,7 @@ impl Nwnmdlcomp {
         self.run(&tmp.0, "-d", &file)?;
         let out = tmp.0.join(format!("{file}.ascii"));
         std::fs::read(&out)
-            .map(|b| String::from_utf8_lossy(&b).into_owned())
+            .map(|b| self_illumination_both(&String::from_utf8_lossy(&b)))
             .map_err(|_| ToolError::Failed { tool: "nwnmdlcomp", message: "no output".into() })
     }
 
@@ -154,6 +154,45 @@ impl Nwnmdlcomp {
         std::fs::read(&out)
             .map_err(|_| ToolError::Failed { tool: "nwnmdlcomp", message: "no output".into() })
     }
+}
+
+/// nwnmdlcomp writes self-illumination as `setfillumcolor` (a value, or
+/// a key list), the only spelling it compiles, which the game does not read
+/// (nor Moonglow's reader, since the toolset's 1.34.4). Each is followed by
+/// a copy as `selfillumcolor`, as the native decompiler writes both: the
+/// text keeps it whichever compiler takes it next, and shows it here.
+fn self_illumination_both(ascii: &str) -> String {
+    let mut out = String::with_capacity(ascii.len() + ascii.len() / 50);
+    let mut lines = ascii.split_inclusive('\n');
+    while let Some(line) = lines.next() {
+        out.push_str(line);
+        let mut words = line.split_whitespace();
+        let Some(word) = words.next() else { continue };
+        let Some(rest) = word.to_ascii_lowercase().strip_prefix("setfillumcolor").map(String::from)
+        else {
+            continue;
+        };
+        // A key list: its count of key lines follows it.
+        let mut block = vec![line];
+        if rest.ends_with("key") {
+            let count = words.next().and_then(|n| n.parse::<usize>().ok()).unwrap_or(0);
+            for _ in 0..count {
+                let Some(key) = lines.next() else { break };
+                out.push_str(key);
+                block.push(key);
+            }
+        } else if !rest.is_empty() {
+            continue;
+        }
+        let at = line.find(word).unwrap_or(0);
+        out.push_str(&line[..at]);
+        out.push_str("selfillumcolor");
+        out.push_str(&line[at + "setfillumcolor".len()..]);
+        for key in &block[1..] {
+            out.push_str(key);
+        }
+    }
+    out
 }
 
 /// `spawntype` values other than 0 and 1 (EE-compiled models hold −1) as 0,
@@ -495,6 +534,21 @@ pub fn choose_compiler(_model: &Model) -> Compiler {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn self_illumination_in_both_spellings() {
+        let theirs = "node trimesh m\r\n  setfillumcolor 0 0 0\r\nendnode\r\n\
+                      node trimesh m\r\n  setfillumcolorkey 2\r\n    0 1 1 1\r\n    \
+                      0.5 0 0 0\r\n  alpha 1\r\nendnode\r\n";
+        assert_eq!(
+            super::self_illumination_both(theirs),
+            "node trimesh m\r\n  setfillumcolor 0 0 0\r\n  selfillumcolor 0 0 0\r\nendnode\r\n\
+             node trimesh m\r\n  setfillumcolorkey 2\r\n    0 1 1 1\r\n    0.5 0 0 0\r\n  \
+             selfillumcolorkey 2\r\n    0 1 1 1\r\n    0.5 0 0 0\r\n  alpha 1\r\nendnode\r\n"
+        );
+        let other = "  selfillumcolor 1 1 1\n  setfillum 1\n";
+        assert_eq!(super::self_illumination_both(other), other);
+    }
+
     use super::*;
 
     #[test]

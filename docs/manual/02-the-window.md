@@ -26,6 +26,19 @@ Reset Layout** puts them back):
   **Shadow casters**, also under Overlays, draws the meshes that cast
   shadows without being drawn (`render 0`, `shadow 1`) in blue in place
   of the visible meshes.
+  **Shaders** (also **View › Game Shaders**) draws with the game's own
+  shaders, compiled from your installation and the haks you added: a
+  hak's replacements of the game's (a different lighting), and the custom
+  shaders a material names (`customshaderVS`/`FS`: swaying grass and
+  leaves, flowing water), which move while the model plays. It is on
+  unless you turn it off. The first time a shader is needed it is
+  compiled while you look, Moonglow's own shader drawing until it is
+  ready; compiled shaders are kept for the next time in the viewer's
+  cache folder (`~/.cache/moonglow-viewer/shaders`, `%LOCALAPPDATA%\Moonglow
+  Viewer\shaders`, `~/Library/Caches/Moonglow Viewer/shaders`). One that
+  does not compile is drawn with Moonglow's own shader, and the log says
+  which and why. Off, everything is drawn with Moonglow's own shader,
+  which is matched to the game's.
   Click a part of the model to select its node.
 - **ASCII**: the model's text (see [Editing models](03-editing-models.md)).
 - **Texture**: textures you open.

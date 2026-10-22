@@ -11,6 +11,7 @@ publish.workspace = true
 eframe.workspace = true
 egui.workspace = true
 egui-wgpu.workspace = true
+mgv-stage.workspace = true
 mgv-ui.workspace = true
 rfd.workspace = true
 wgpu.workspace = true

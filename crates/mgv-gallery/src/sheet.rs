@@ -26,6 +26,9 @@ pub struct Options {
 pub struct Sheet {
     pub image: Rgba,
     pub failed: Vec<(String, String)>,
+    /// The game's shaders that could not be drawn (drawn with Moonglow's
+    /// own instead): `vs/fs` pairs or programs, and why.
+    pub shader_failures: Vec<(String, String)>,
 }
 
 /// The text's colours (gamma), over the label strip's.
@@ -172,7 +175,7 @@ pub fn render(
             draw_text(&mut image, &font, small, x0 as f32 + pad, y + px * 1.25, &line, second.1);
         }
     }
-    Sheet { image, failed }
+    Sheet { image, failed, shader_failures: viewport.shader_failures().to_vec() }
 }
 
 #[cfg(test)]

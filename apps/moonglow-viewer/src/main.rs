@@ -111,6 +111,8 @@ fn window_icon() -> egui::IconData {
 
 fn main() -> eframe::Result<()> {
     crash_reports();
+    // (The game's programs, once compiled, kept for the next run.)
+    mgv_stage::set_shader_cache(mgv_stage::shader_cache_dir());
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1440.0, 900.0])

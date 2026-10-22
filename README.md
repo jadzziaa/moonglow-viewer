@@ -53,6 +53,11 @@ installation, so you need Neverwinter Nights: Enhanced Edition.
   `environment.2da` presets by day or night, or an area's own settings;
   emitters running, and `visualeffects.2da` effects on the hooks the game
   uses.
+- **The game's own shaders:** compiled on your machine from your
+  installation and the haks you add, so a hak's lighting and the custom
+  shaders materials name (swaying grass and leaves, flowing water) show as
+  in the game; Moonglow's own shader draws what does not compile, and
+  everything with the switch off.
 - **Decompile and compile in one click:** a native decompiler (all 25,597
   compiled models of the game read back the same), nwnmdlcomp, and the
   game's own model compiler.

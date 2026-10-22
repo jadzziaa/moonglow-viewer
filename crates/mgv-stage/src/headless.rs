@@ -41,6 +41,9 @@ pub struct Shot {
     /// The models' shadow casters in blue in place of their visible meshes
     /// ([`Stage::casters`]).
     pub casters: bool,
+    /// Drawn with the game's own shaders where they compile (else with
+    /// Moonglow's): [`crate::GAME_SHADERS_BY_DEFAULT`].
+    pub game_shaders: bool,
 }
 
 /// How far the key light reaches, as a multiple of the camera's distance.
@@ -60,6 +63,7 @@ impl Default for Shot {
             key_light: 0.0,
             plt_colors: None,
             casters: false,
+            game_shaders: crate::GAME_SHADERS_BY_DEFAULT,
         }
     }
 }
@@ -137,6 +141,10 @@ pub fn picture(
             i.plt_colors = shot.plt_colors;
         }
     }
+    // (A picture drawn once: the frame waits for the game's programs.)
+    let renderer = viewport.renderer();
+    renderer.game_shaders = shot.game_shaders;
+    renderer.game_background = false;
     viewport.image(stage.gpu(), lib.resman(), &scene, &camera, shot.size)
 }
 

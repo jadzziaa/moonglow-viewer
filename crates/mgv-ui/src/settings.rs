@@ -74,6 +74,10 @@ pub struct Settings {
     pub output_folder: Option<PathBuf>,
     /// Pause after the last keystroke before the view reloads, ms.
     pub reload_delay_ms: u32,
+    /// Draw with the game's own shaders (View › Game Shaders); `None`: as
+    /// [`mgv_stage::GAME_SHADERS_BY_DEFAULT`] has it, until the switch is
+    /// used.
+    pub game_shaders: Option<bool>,
 }
 
 impl Default for Settings {
@@ -91,6 +95,7 @@ impl Default for Settings {
             compile_with: CompileWith::Auto,
             output_folder: None,
             reload_delay_ms: 150,
+            game_shaders: None,
         }
     }
 }
@@ -99,6 +104,11 @@ impl Default for Settings {
 const RECENT: usize = 12;
 
 impl Settings {
+    /// Whether the game's own shaders draw.
+    pub fn game_shaders(&self) -> bool {
+        self.game_shaders.unwrap_or(mgv_stage::GAME_SHADERS_BY_DEFAULT)
+    }
+
     /// Puts a file first among the recent ones.
     pub fn remember(&mut self, path: &Path) {
         self.recent.retain(|p| p != path);

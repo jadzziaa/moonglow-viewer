@@ -2,7 +2,7 @@
 //! image.
 
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use mg_image::Rgba;
 use mg_render::{Assets, Camera, Gpu, Renderer, Scene, Targets};
@@ -24,13 +24,55 @@ pub struct Viewport {
     targets: Option<Targets>,
 }
 
+/// Where the game's compiled programs are kept between runs
+/// ([`set_shader_cache`]).
+static SHADER_CACHE: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+
+/// Keeps the game's programs, once compiled, in `dir` for every viewport
+/// made after (the programs' own cache folder; the first call holds).
+/// Without it they are compiled again in each run.
+pub fn set_shader_cache(dir: Option<PathBuf>) {
+    let _ = SHADER_CACHE.set(dir);
+}
+
+/// The viewer's cache folder for the game's compiled programs:
+/// `%LOCALAPPDATA%\Moonglow Viewer\shaders`, `~/Library/Caches/Moonglow
+/// Viewer/shaders`, or `$XDG_CACHE_HOME/moonglow-viewer/shaders`
+/// (`~/.cache/moonglow-viewer/shaders`).
+pub fn shader_cache_dir() -> Option<PathBuf> {
+    let var = |v: &str| std::env::var_os(v).map(PathBuf::from);
+    let base = if cfg!(target_os = "windows") {
+        var("LOCALAPPDATA").map(|d| d.join("Moonglow Viewer"))
+    } else if cfg!(target_os = "macos") {
+        var("HOME").map(|h| h.join("Library/Caches/Moonglow Viewer"))
+    } else {
+        var("XDG_CACHE_HOME")
+            .or_else(|| var("HOME").map(|h| h.join(".cache")))
+            .map(|d| d.join("moonglow-viewer"))
+    };
+    base.map(|d| d.join("shaders"))
+}
+
 impl Viewport {
     pub fn new(gpu: &Gpu) -> Viewport {
-        Viewport {
-            renderer: Renderer::new(gpu, FORMAT, SAMPLES),
-            overlays: OverlayPass::new(gpu),
-            targets: None,
+        let mut renderer = Renderer::new(gpu, FORMAT, SAMPLES);
+        renderer.game_shaders = crate::GAME_SHADERS_BY_DEFAULT;
+        if let Some(Some(dir)) = SHADER_CACHE.get() {
+            renderer.set_shader_cache(Some(dir.clone()));
         }
+        Viewport { renderer, overlays: OverlayPass::new(gpu), targets: None }
+    }
+
+    /// What the last frame drew (how many meshes the game's programs drew,
+    /// how many wait for theirs).
+    pub fn drawn(&self) -> mg_render::Drawn {
+        self.renderer.drawn
+    }
+
+    /// The game's programs that could not be drawn, as `vs/fs` pairs or
+    /// programs, and why (drawn with Moonglow's own shader instead).
+    pub fn shader_failures(&self) -> &[(String, String)] {
+        self.renderer.game_shader_failures()
     }
 
     pub fn renderer(&mut self) -> &mut Renderer {
