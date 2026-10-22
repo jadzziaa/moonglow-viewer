@@ -50,6 +50,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.0" date="2026-10-21">
+      <description>
+        <p>Moonglow Toolset 2.0: models drawn with the game's own shaders, compiled from your installation and haks, a hak's lighting and the custom shaders materials name (swaying grass and leaves, flowing water) included; a switch to draw with Moonglow's own.</p>
+      </description>
+    </release>
     <release version="0.1.8" date="2026-10-14">
       <description>
         <p>A robe or cloak worn by a dwarf, a gnome or a halfling is worn at the wearer's size, no longer at a human's.</p>
