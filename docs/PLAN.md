@@ -839,3 +839,13 @@ authored program pair in a folder draws and sways
 The Domains of Dread's swaying trees move with the clock, and its
 `tdod_shaders` lighting include lightens what it lights, as in the game.
 
+The pin is v2.8.0 since 2026-10-27 (asked for by the toolset's session).
+Nothing in the viewer needed changing: it builds and its tests pass
+unchanged, the game's compiler and client tests included, and pictures
+match 0.2.0's (within 0.02 of a level on average for The Domains of
+Dread's swaying tree, the same elsewhere). Its renderer changes since 2.0
+(measured in the client there: cut-outs solid in the picture, upright
+particles turned to the eye, a placeable's default reflection `chrome1`,
+custom shaders reading `tverts2` and `tverts3`, tangents only with a
+render hint) come with the pin.
+

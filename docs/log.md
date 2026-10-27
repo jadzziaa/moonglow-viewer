@@ -1,5 +1,8 @@
 # Update log
 
+## 2026-10-27
+* **Update**: [The plan](PLAN.md) §10.2: the pin is Moonglow Toolset v2.8.0; nothing in the viewer needed changing.
+
 ## 2026-10-21
 * **Update**: [The plan](PLAN.md) §10.2 and §1.1: Moonglow Toolset 2.0 and the game's own shaders, on by default with a switch, compiled in the window while it draws and waited for in pictures, kept in a cache folder, failures said; nwnmdlcomp's decompile back end writes self-illumination in both spellings. [The window](manual/02-the-window.md) (Shaders), [the command line](manual/05-command-line.md) (`--no-game-shaders`) and [troubleshooting](manual/06-troubleshooting.md) say so.
 
