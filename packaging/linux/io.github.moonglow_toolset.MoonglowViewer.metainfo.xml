@@ -50,6 +50,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.1" date="2026-10-27">
+      <description>
+        <p>Moonglow Toolset 2.8.0's renderer: cut-out textures solid where the game's shaders draw them, upright particles turned to the eye, a placeable's default reflection as in the game, custom shaders reading the third and fourth texture coordinates.</p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-10-21">
       <description>
         <p>Moonglow Toolset 2.0: models drawn with the game's own shaders, compiled from your installation and haks, a hak's lighting and the custom shaders materials name (swaying grass and leaves, flowing water) included; a switch to draw with Moonglow's own.</p>
