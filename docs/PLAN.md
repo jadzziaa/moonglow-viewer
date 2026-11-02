@@ -849,3 +849,24 @@ particles turned to the eye, a placeable's default reflection `chrome1`,
 custom shaders reading `tverts2` and `tverts3`, tangents only with a
 render hint) come with the pin.
 
+The pin is v3.4.0 since 2026-11-02. The renderer's new fields are the
+shadows (`Scene::shadows`, `light_shadows`; `PointLight::casts_shadows`,
+`shadow_lift`) and line shapes (`Scene::line_shapes`): the viewer draws
+no shadows, as the toolset's pictures and thumbnails draw none (its model
+viewer alone lays a shadow-only ground under the model, a switch the
+viewer could take). Nothing else needed changing; the tests pass, the
+game's compiler and client tests included. Pictures against 0.2.1: the
+same for models, tiles, items and creatures; what changed is the
+toolset's, each read from the client there: an additive mesh added by its
+alpha (the globe of invulnerability, `vdr_globemax`, faint where it was
+bright), particles drawn as motion-blurred streaks (`vim_magknock`).
+Others that come with the pin: soft particles in Moonglow's own particle
+shader, a see-through cut-out lit through, tangents split at mirrored
+seams, an animation through a chain of scaled supermodels at each link's
+scale. And the viewer now draws through the targets' framebuffer copies
+(`Renderer::render_targets`, as the toolset's views do, in place of
+`render`): shiny water is the game's `fswater` with what lies under it
+(the toolset's `GAME_WATER`, read closer to the client than Moonglow's
+own water: `ttr01_b20_01` lighter and reflecting), and particles are soft
+where they meet what is behind them.
+

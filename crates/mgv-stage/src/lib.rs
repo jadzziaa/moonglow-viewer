@@ -393,6 +393,11 @@ impl Stage {
             // (No area: the game's shaders read no wind, weather or
             // module clock of one; noon of a new module's day.)
             environment: Default::default(),
+            // (No shadows: the viewer draws none, as the toolset's
+            // pictures and thumbnails draw none.)
+            shadows: None,
+            light_shadows: None,
+            line_shapes: Vec::new(),
         }
     }
 

@@ -111,6 +111,9 @@ impl Shot {
             cutoff: cam.distance * KEY_LIGHT_REACH,
             ambient_only: false,
             priority: 1,
+            // (A studio light: no creature's shadow is cast from it.)
+            casts_shadows: false,
+            shadow_lift: 0.0,
         })
     }
 }

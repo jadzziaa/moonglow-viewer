@@ -1,5 +1,8 @@
 # Update log
 
+## 2026-11-02
+* **Update**: [The plan](PLAN.md) §10.2: the pin is Moonglow Toolset v3.4.0; no shadows drawn; the viewer draws through the framebuffer copies (shiny water by the game's `fswater`, soft particles); what the renderer's changes since 2.8.0 change in the pictures.
+
 ## 2026-10-27
 * **Update**: [The plan](PLAN.md) §10.2: the pin is Moonglow Toolset v2.8.0; nothing in the viewer needed changing.
 

@@ -110,16 +110,10 @@ impl Viewport {
     ) -> &Targets {
         self.targets(gpu, size);
         let t = self.targets.as_ref().expect("made above");
-        self.renderer.render(
-            gpu,
-            assets,
-            scene,
-            camera,
-            t.render_view(),
-            t.resolve_view(),
-            &t.depth,
-            t.size,
-        );
+        // (With the targets' framebuffer copies, as the toolset's views
+        // draw: shiny water by the game's `fswater`, particles soft where
+        // they meet what is behind them.)
+        self.renderer.render_targets(gpu, assets, scene, camera, t);
         t
     }
 
