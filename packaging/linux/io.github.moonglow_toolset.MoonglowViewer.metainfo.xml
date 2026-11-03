@@ -50,6 +50,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.2" date="2026-11-02">
+      <description>
+        <p>Moonglow Toolset 3.4.0's renderer: shiny water drawn by the game's own water shader, soft particles, particles as motion-blurred streaks, additive effects added by their alpha, as the game draws them.</p>
+      </description>
+    </release>
     <release version="0.2.1" date="2026-10-27">
       <description>
         <p>Moonglow Toolset 2.8.0's renderer: cut-out textures solid where the game's shaders draw them, upright particles turned to the eye, a placeable's default reflection as in the game, custom shaders reading the third and fourth texture coordinates.</p>
