@@ -50,6 +50,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.3" date="2026-11-02">
+      <description>
+        <p>The Shadow switch: the model casts the light's shadow on a ground under it, the ground itself unseen, as in Moonglow Toolset's model viewer.</p>
+      </description>
+    </release>
     <release version="0.2.2" date="2026-11-02">
       <description>
         <p>Moonglow Toolset 3.4.0's renderer: shiny water drawn by the game's own water shader, soft particles, particles as motion-blurred streaks, additive effects added by their alpha, as the game draws them.</p>
