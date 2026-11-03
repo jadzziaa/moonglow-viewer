@@ -39,6 +39,13 @@ Reset Layout** puts them back):
   does not compile is drawn with Moonglow's own shader, and the log says
   which and why. Off, everything is drawn with Moonglow's own shader,
   which is matched to the game's.
+  **Shadow** (also **View › Shadow**) lets the model cast the light's
+  shadow on a ground under it, as an area's ground takes a creature's
+  shadow; the ground itself is unseen, in the background's color, a
+  centimeter under the model's lowest point where it stood when it was
+  opened. It follows the lighting's sun or moon (Lighting tab). It is on
+  unless you turn it off. Pictures from `mgv` draw no shadow, as the
+  toolset's thumbnails and galleries draw none.
   Click a part of the model to select its node.
 - **ASCII**: the model's text (see [Editing models](03-editing-models.md)).
 - **Texture**: textures you open.

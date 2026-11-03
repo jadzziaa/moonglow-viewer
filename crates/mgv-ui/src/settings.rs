@@ -78,6 +78,9 @@ pub struct Settings {
     /// [`mgv_stage::GAME_SHADERS_BY_DEFAULT`] has it, until the switch is
     /// used.
     pub game_shaders: Option<bool>,
+    /// The model casts the light's shadow on a ground under it (View ›
+    /// Shadow); `None`: on, until the switch is used.
+    pub model_shadows: Option<bool>,
 }
 
 impl Default for Settings {
@@ -96,6 +99,7 @@ impl Default for Settings {
             output_folder: None,
             reload_delay_ms: 150,
             game_shaders: None,
+            model_shadows: None,
         }
     }
 }
@@ -107,6 +111,12 @@ impl Settings {
     /// Whether the game's own shaders draw.
     pub fn game_shaders(&self) -> bool {
         self.game_shaders.unwrap_or(mgv_stage::GAME_SHADERS_BY_DEFAULT)
+    }
+
+    /// Whether the model casts its shadow on a ground under it (on unless
+    /// turned off, as in Moonglow Toolset's model viewer).
+    pub fn model_shadows(&self) -> bool {
+        self.model_shadows.unwrap_or(true)
     }
 
     /// Puts a file first among the recent ones.

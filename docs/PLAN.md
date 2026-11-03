@@ -854,7 +854,7 @@ shadows (`Scene::shadows`, `light_shadows`; `PointLight::casts_shadows`,
 `shadow_lift`) and line shapes (`Scene::line_shapes`): the viewer draws
 no shadows, as the toolset's pictures and thumbnails draw none (its model
 viewer alone lays a shadow-only ground under the model, a switch the
-viewer could take). Nothing else needed changing; the tests pass, the
+viewer took after the release: the window's **Shadow**, below). Nothing else needed changing; the tests pass, the
 game's compiler and client tests included. Pictures against 0.2.1: the
 same for models, tiles, items and creatures; what changed is the
 toolset's, each read from the client there: an additive mesh added by its
@@ -869,4 +869,17 @@ scale. And the viewer now draws through the targets' framebuffer copies
 (the toolset's `GAME_WATER`, read closer to the client than Moonglow's
 own water: `ttr01_b20_01` lighter and reflecting), and particles are soft
 where they meet what is behind them.
+
+**The Shadow switch** (2026-11-02, as the toolset's model viewer has it,
+its commit `a0679bd1`): with it on (the default; `Settings::model_shadows`,
+the toolbar and View › Shadow), the stage lays a ground under what is
+shown (`Stage::shadow`, `stage::ground`): a square at the foot of its box
+where it stood at its first step after it changed, a centimetre below,
+`max(size) × 1.5 + 0.5` m to each side, unlit and of the background's
+colour (made again when the background changes), receiving the area
+light's shadow at 0.6 (`GROUND_SHADOW_OPACITY`; fading as far up the
+picture as the fog reaches, else all the way). Pictures (`mgv`, galleries,
+sheets) leave it off. `the_shadow_falls_on_an_unseen_ground` holds that it
+only darkens; `the_shadow_switch`, the window's switch. The 3D view's
+toolbar wraps onto a second line where the view is narrow.
 

@@ -1,6 +1,7 @@
 # Update log
 
 ## 2026-11-02
+* **Update**: [The window](manual/02-the-window.md) and [the plan](PLAN.md) §10.2: the Shadow switch, the model's shadow on an unseen ground, as the toolset's model viewer has it.
 * **Update**: [The plan](PLAN.md) §10.2: the pin is Moonglow Toolset v3.4.0; no shadows drawn; the viewer draws through the framebuffer copies (shiny water by the game's `fswater`, soft particles); what the renderer's changes since 2.8.0 change in the pictures.
 
 ## 2026-10-27

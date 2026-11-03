@@ -221,6 +221,10 @@ pub(crate) const SHADERS_HELP: &str = "Draw with the game's own shaders, compile
      (swaying grass and leaves, flowing water). Off, or where one does not compile: Moonglow's own \
      shader";
 
+/// What the Shadow switch does.
+pub(crate) const SHADOW_HELP: &str = "The model casts the light's shadow on a ground under it, the \
+     ground itself unseen (as an area's ground takes a creature's shadow)";
+
 /// The default layout: browser and outliner on the left, the 3D view in
 /// the middle with the editor beside it, inspector on the right, timeline
 /// and log below.
@@ -698,6 +702,7 @@ impl Viewer {
         }
         lighting::update(self);
         let Some(g) = &mut self.gfx else { return };
+        g.stage.shadow = self.settings.model_shadows();
         g.stage.step(&self.lib, dt);
         // A model facing elsewhere: the camera keeps its angle to the front.
         if g.stage.front != self.camera.front {
@@ -1161,6 +1166,10 @@ impl Viewer {
                 let mut shaders = self.settings.game_shaders();
                 if ui.checkbox(&mut shaders, "Game Shaders").on_hover_text(SHADERS_HELP).changed() {
                     self.settings.game_shaders = Some(shaders);
+                }
+                let mut shadow = self.settings.model_shadows();
+                if ui.checkbox(&mut shadow, "Shadow").on_hover_text(SHADOW_HELP).changed() {
+                    self.settings.model_shadows = Some(shadow);
                 }
                 ui.separator();
                 if ui.button("Reset Layout").clicked() {

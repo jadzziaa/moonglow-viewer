@@ -230,7 +230,8 @@ fn walk(camera: &mut mgv_stage::OrbitCamera, ui: &egui::Ui) -> bool {
 }
 
 fn toolbar(app: &mut Viewer, ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
+    // (Onto a second line where the view is narrow: nothing cut off.)
+    ui.horizontal_wrapped(|ui| {
         if ui.button("Frame").on_hover_text("F, or double-click").clicked() {
             app.actions.push(Action::Frame);
         }
@@ -267,6 +268,10 @@ fn toolbar(app: &mut Viewer, ui: &mut egui::Ui) {
         let mut shaders = app.settings.game_shaders();
         if ui.checkbox(&mut shaders, "Shaders").on_hover_text(crate::SHADERS_HELP).changed() {
             app.settings.game_shaders = Some(shaders);
+        }
+        let mut shadow = app.settings.model_shadows();
+        if ui.checkbox(&mut shadow, "Shadow").on_hover_text(crate::SHADOW_HELP).changed() {
+            app.settings.model_shadows = Some(shadow);
         }
         if let Some(g) = &mut app.gfx {
             ui.checkbox(&mut g.stage.model_lights, "Model lights")

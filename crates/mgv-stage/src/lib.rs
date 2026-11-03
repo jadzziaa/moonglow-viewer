@@ -91,6 +91,72 @@ pub struct Stage {
     /// Draw the models' shadow casters (`render 0`, `shadow 1`) in blue in
     /// place of their visible meshes ([`actor::casters_view`]).
     pub casters: bool,
+    /// The models cast the area light's shadow on a ground under them, the
+    /// ground itself unseen ([`ground`]): the window's Shadow switch, as
+    /// Moonglow Toolset's model viewer has it. Off for pictures, as the
+    /// toolset's thumbnails and galleries draw none.
+    pub shadow: bool,
+    /// The box around what is shown at rest, where the ground lies: taken
+    /// at the first step after what is shown changed.
+    rest_box: Option<(Vec3, Vec3)>,
+    /// The ground's model, in the background colour it was made for.
+    ground: Option<([f32; 3], Arc<GpuModel>)>,
+}
+
+/// How dark the models' shadow is on the ground (an area's Shadow
+/// Opacity, of 1), as the toolset's model viewer has it: an area's 0.35
+/// reads faintly on the dark background.
+pub const GROUND_SHADOW_OPACITY: f32 = 0.6;
+
+/// The ground the models cast their shadow on ([`Stage::shadow`]): a 2 m
+/// square about the origin at height 0, facing up alone (seen from below,
+/// the model shows whole), unlit and of the background's colour, so that
+/// it is unseen but for the shadow on it. The toolset's model viewer's.
+fn ground_model(background: [f32; 3]) -> Model {
+    use mg_mdl::{Face, Mesh, Node, NodeKind};
+    let mesh = Mesh {
+        diffuse: background,
+        ambient: background,
+        render: true,
+        vertices: vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [1.0, 1.0, 0.0], [-1.0, 1.0, 0.0]],
+        normals: vec![[0.0, 0.0, 1.0]; 4],
+        uvs: [vec![[0.0, 0.0]; 4], vec![], vec![], vec![]],
+        faces: vec![
+            Face { vertices: [0, 1, 2], material: 0 },
+            Face { vertices: [0, 2, 3], material: 0 },
+        ],
+        source: vec![0, 1, 2, 3],
+        shadow: false,
+        ..Default::default()
+    };
+    let mut root = mg_mdl::Node::new("mgv_ground", NodeKind::Dummy);
+    root.children = vec![1];
+    let mut m = Node::new("ground", NodeKind::Mesh(Box::new(mesh)));
+    m.parent = Some(0);
+    Model {
+        name: "mgv_ground".into(),
+        animation_scale: 1.0,
+        nodes: vec![root, m],
+        ..Default::default()
+    }
+}
+
+/// The ground under what is shown, whose box at rest is `(min, max)`: at
+/// the box's foot, or at the origin's height where the box is above it (a
+/// model hung or floating casts down to where it stands), a centimetre
+/// below so that a flat base on it does not meet it, wide enough for a
+/// shadow about as long as the model is tall.
+fn ground(model: Arc<GpuModel>, (min, max): (Vec3, Vec3)) -> Instance {
+    let size = max - min;
+    let half = size.x.max(size.y).max(size.z) * 1.5 + 0.5;
+    let middle = (min + max) * 0.5;
+    let at = Vec3::new(middle.x, middle.y, min.z.min(0.0) - 0.01);
+    Instance {
+        unlit: true,
+        receives_shadows: true,
+        casts_shadows: false,
+        ..Instance::new(model, Mat4::from_translation(at) * Mat4::from_scale(Vec3::splat(half)))
+    }
 }
 
 impl Stage {
@@ -106,6 +172,9 @@ impl Stage {
             walkmeshes: Vec::new(),
             front: subject::FACING_Y,
             casters: false,
+            shadow: false,
+            rest_box: None,
+            ground: None,
         }
     }
 
@@ -121,6 +190,7 @@ impl Stage {
         self.walkmeshes.clear();
         self.elapsed = 0.0;
         self.front = subject::FACING_Y;
+        self.rest_box = None;
     }
 
     pub fn actors(&self) -> &[Actor] {
@@ -159,6 +229,7 @@ impl Stage {
             assert!(parent.0 < self.actors.len(), "a parent comes before its children");
         }
         self.actors.push(actor);
+        self.rest_box = None;
         ActorId(self.actors.len() - 1)
     }
 
@@ -341,6 +412,18 @@ impl Stage {
                 self.chunks.push(Instance::new(gm, c.transform));
             }
         }
+        // (The ground under it, with the Shadow switch on: where it stood
+        // at its first step, in the background's colour.)
+        if self.shadow {
+            if self.rest_box.is_none() {
+                self.rest_box = self.bounds();
+            }
+            let background = self.lighting.background;
+            if self.ground.as_ref().is_none_or(|(b, _)| *b != background) {
+                let model = Arc::new(ground_model(background));
+                self.ground = Some((background, Arc::new(GpuModel::new(&self.gpu, model))));
+            }
+        }
     }
 
     /// The renderer's scene, for a camera with this view matrix (particles
@@ -378,6 +461,13 @@ impl Stage {
         if !self.casters {
             instances.extend(self.chunks.iter().cloned());
         }
+        let ground = match (&self.ground, self.rest_box) {
+            (Some((_, model)), Some(rest)) if self.shadow && !self.casters => {
+                Some(ground(model.clone(), rest))
+            }
+            _ => None,
+        };
+        instances.extend(ground.clone());
         Scene {
             instances,
             lights,
@@ -393,9 +483,13 @@ impl Stage {
             // (No area: the game's shaders read no wind, weather or
             // module clock of one; noon of a new module's day.)
             environment: Default::default(),
-            // (No shadows: the viewer draws none, as the toolset's
-            // pictures and thumbnails draw none.)
-            shadows: None,
+            // (The area light's on the ground, with the Shadow switch on,
+            // laid as the toolset's model viewer lays them: as far up the
+            // picture as the fog lets them, else all the way.)
+            shadows: ground.is_some().then(|| mg_render::SunShadows {
+                opacity: GROUND_SHADOW_OPACITY,
+                fade_limit: self.lighting.fog.map_or(10_000.0, |f| f.end),
+            }),
             light_shadows: None,
             line_shapes: Vec::new(),
         }
@@ -480,6 +574,9 @@ impl Stage {
             }
         }
         self.chunk_models.clear();
+        if changed > 0 {
+            self.rest_box = None;
+        }
         changed
     }
 

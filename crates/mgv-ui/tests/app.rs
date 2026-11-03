@@ -340,6 +340,8 @@ fn the_game_s_shaders_draw_the_view_and_switch_off() {
     let Some(mut h) = harness(true, Box::new(Answer(None))) else { return };
     let drawn = |h: &Harness<'_, Viewer>| h.state().gfx.as_ref().unwrap().viewport.drawn();
     assert!(h.state().settings.game_shaders(), "on by default");
+    // (The model alone: the Shadow switch's ground is unlit, Moonglow's.)
+    h.state_mut().settings.model_shadows = Some(false);
     h.state_mut()
         .actions
         .push(Action::OpenResource(ResKey::parse("plc_a01", ResType::MDL).unwrap()));
@@ -357,4 +359,21 @@ fn the_game_s_shaders_draw_the_view_and_switch_off() {
     assert_eq!(h.state().settings.game_shaders, Some(false));
     assert_eq!(drawn(&h).game, 0, "Moonglow's own shader");
     assert!(drawn(&h).meshes > 0);
+}
+
+/// The model casts its shadow on a ground under it unless the toolbar's
+/// Shadow switch is turned off; the setting keeps it.
+#[test]
+fn the_shadow_switch() {
+    let Some(mut h) = harness(true, Box::new(Answer(None))) else { return };
+    assert!(h.state().settings.model_shadows(), "on by default");
+    h.state_mut()
+        .actions
+        .push(Action::OpenResource(ResKey::parse("plc_a01", ResType::MDL).unwrap()));
+    h.run_steps(3);
+    assert!(h.state().gfx.as_ref().unwrap().stage.shadow);
+    h.get_by_label("Shadow").click();
+    h.run_steps(2);
+    assert_eq!(h.state().settings.model_shadows, Some(false));
+    assert!(!h.state().gfx.as_ref().unwrap().stage.shadow);
 }

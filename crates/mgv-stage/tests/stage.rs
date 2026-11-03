@@ -689,3 +689,38 @@ fn the_game_s_programs_draw_its_models() {
         assert!(mean < 1.0, "{name}: mean difference {mean:.2} a channel");
     }
 }
+
+/// With the Shadow switch on, the model casts the light's shadow on a
+/// ground nobody sees: the picture only darkens, somewhere beside the
+/// model, and nothing else changes (the ground is the background's own
+/// colour). Off (pictures' default), nothing of it is drawn.
+#[test]
+fn the_shadow_falls_on_an_unseen_ground() {
+    let root = mg_testkit::corpus!();
+    let Some(gpu) = gpu() else { return };
+    let mut lib = Library::open(Some(GameInstall::new(root, None, "en"))).unwrap();
+    let opened = lib.open_input("plc_a01").unwrap();
+    let shoot = |shadow: bool| {
+        let mut stage = Stage::new(gpu.clone());
+        let mut viewport = Viewport::new(&gpu);
+        assert!(!stage.shadow, "pictures: no shadow unless asked");
+        mgv_stage::subject::show(&mut stage, &lib, &opened).unwrap();
+        stage.shadow = shadow;
+        let shot = mgv_stage::headless::Shot { size: (160, 160), zoom: 1.6, ..Default::default() };
+        mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &shot)
+    };
+    let (off, on) = (shoot(false), shoot(true));
+    let luma = |p: &[u8]| u32::from(p[0]) + u32::from(p[1]) + u32::from(p[2]);
+    let pairs: Vec<(u32, u32)> = off
+        .data
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(on.data.as_chunks::<4>().0)
+        .map(|(a, b)| (luma(a), luma(b)))
+        .collect();
+    let darker = pairs.iter().filter(|(a, b)| *b + 30 < *a).count();
+    let lighter = pairs.iter().filter(|(a, b)| *b > *a + 6).count();
+    assert!(darker > 200, "a shadow: {darker} pixels darker");
+    assert_eq!(lighter, 0, "nothing lighter: the ground unseen");
+}
