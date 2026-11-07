@@ -50,6 +50,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.0" date="2026-11-07">
+      <description>
+        <p>mgv clip: a model and its visual effects as a clip from one camera, with each effect's facts as JSON. Instant effects play once and are gone, as in the game; a creature blueprint's effects take its size. Moonglow Toolset 3.14.0.</p>
+      </description>
+    </release>
     <release version="0.2.3" date="2026-11-02">
       <description>
         <p>The Shadow switch: the model casts the light's shadow on a ground under it, the ground itself unseen, as in Moonglow Toolset's model viewer.</p>
