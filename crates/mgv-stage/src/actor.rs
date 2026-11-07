@@ -134,6 +134,10 @@ pub struct Actor {
     /// its own by that name (skinned robes and cloaks, wings, tails).
     pub follows_parent: bool,
     pub visible: bool,
+    /// It disappears once what it plays has ended (an animation played once
+    /// with nothing after it): an instant visual effect's models, which the
+    /// game removes when they have played.
+    pub vanishes: bool,
     pub(crate) particles: Particles,
     pub(crate) dangly: Dangly,
     /// The model's shadow casters as meshes to draw ([`casters_view`]),
@@ -226,6 +230,7 @@ impl Actor {
             look: Look::default(),
             follows_parent: false,
             visible: true,
+            vanishes: false,
             particles,
             dangly,
             casters: None,
@@ -308,7 +313,11 @@ impl Actor {
                 }
                 // Hold the last frame (times within the animation, its
                 // length included, are taken as they are).
-                return Some((name, a.length));
+                let length = a.length;
+                if self.vanishes {
+                    self.visible = false;
+                }
+                return Some((name, length));
             }
             return Some((name, p.time));
         }

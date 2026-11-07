@@ -21,6 +21,7 @@ Inputs are files or the game's resources: `plc_a01`, `nw_chicken.utc`,
 mgv render plc_a01 -o chest.png --size 1024x1024 --time 1.5
 mgv render appearance:6 --vfx 4 --light env:0:night -o warded.png
 mgv turntable c_golemerald --frames 48 -o golem.png      # an animated PNG
+mgv clip nw_bandit001.utc --vfx 22 --duration 2 --fps 12 --frames fireball/ -o fireball.png
 mgv gallery placeables -o gallery/ --size 256x256
 mgv gallery "c_*" -o creatures/
 mgv sheet build/ plc_a01 "c_drg*" -o sheet.png --columns 5 # one picture, a tile each
@@ -52,6 +53,24 @@ mgv lint mymodel.mdl --notes
   error); `--no-game-shaders` draws with Moonglow's own only. A picture is framed as close as shows all of the model from its
   angle; a turntable from far enough for every side. These apply to
   galleries and sheets too.
+- **Clips** (`clip`): a model and its visual effects (`--vfx`, repeatable)
+  as they play, from `--time` for `--duration` seconds at `--fps` frames a
+  second (frame *i* is the moment `time + i / fps`), all from one camera
+  that never moves: `--frame clip` (the default) fits it to everything
+  shown over the whole clip, the effects' models and particles wherever
+  they go; `--frame model` to the model alone. `--view`, `--yaw`,
+  `--pitch` and `--zoom` turn and move it as for pictures. It writes an
+  animated PNG (`-o`, default `NAME.png`) and, with `--frames DIR`, each
+  frame as `NAME_0000.png`… (only the frames, without `-o`). `--json`
+  prints what it wrote, the camera, and for each effect: its type
+  (`F` instant, `D` duration, `P` projectile, `B` beam), whether it
+  `loops` (a duration effect lasts and loops; the others play once and are
+  gone), its models and their `impact`, `duration` and `cessation` lengths
+  in seconds, the sounds it names (`SoundImpact`, `SoundDuration`,
+  `SoundCessastion`) and its programmed effects (`progfx.2da` rows with
+  their type, and the sounds type 11 names), which the viewer does not
+  draw. A projectile or a beam is drawn where the row's models attach to
+  the model, not in flight.
 - **Galleries** (`gallery`): a name pattern (`plc_*`), a 2DA
   (`placeables`, `appearance`, `visualeffects`, `doors`), a hak, module or
   ERF, or a folder. Writes `images/`, `index.html` (a page to browse and

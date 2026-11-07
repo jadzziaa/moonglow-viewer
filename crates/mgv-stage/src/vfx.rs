@@ -31,6 +31,42 @@ pub struct VisualEffect {
     pub root: [Option<String>; 4],
     /// `progfx.2da` rows (impact, duration, cessation).
     pub progfx: [Option<u32>; 3],
+    /// Sounds (resrefs) at its impact, while it lasts and at its cessation
+    /// (`SoundImpact`, `SoundDuration`, `SoundCessastion`, as the table
+    /// spells it).
+    pub sounds: [Option<String>; 3],
+}
+
+/// A `progfx.2da` row: a programmed effect, which the engine draws itself
+/// (skin overlays, glows, beams, projectiles…) and the viewer does not.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProgFx {
+    pub row: u32,
+    pub label: String,
+    /// Its kind, 1 to 13 (nwn.wiki, progfx.2da).
+    pub kind: u32,
+    /// Sounds it names: type 11's start and impact sounds (`Param2`,
+    /// `Param3`).
+    pub sounds: Vec<String>,
+}
+
+/// A row of `progfx.2da`.
+pub fn progfx(lib: &Library, row: u32) -> Option<ProgFx> {
+    let t = lib.game().table("progfx").ok()?;
+    let r = row as usize;
+    let cell = |c: &str| t.get(r, c).filter(|v| !v.is_empty() && *v != "****").map(str::to_string);
+    let kind =
+        cell("Type").and_then(|v| mg_2da::parse_int(&v)).and_then(|v| u32::try_from(v).ok())?;
+    let sounds = if kind == 11 {
+        ["Param2", "Param3"]
+            .iter()
+            .filter_map(|c| cell(c))
+            .map(|s| s.to_ascii_lowercase())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    Some(ProgFx { row, label: cell("Label").unwrap_or_default(), kind, sounds })
 }
 
 impl VisualEffect {
@@ -83,6 +119,11 @@ fn row_of(t: &mg_2da::TwoDa, row: usize) -> Option<VisualEffect> {
         impact: model_cell(t, row, "Imp_Impact_Node"),
         root: ["S", "M", "L", "H"].map(|s| model_cell(t, row, &format!("Imp_Root_{s}_Node"))),
         progfx: [int("ProgFX_Impact"), int("ProgFX_Duration"), int("ProgFX_Cessation")],
+        sounds: [
+            model_cell(t, row, "SoundImpact"),
+            model_cell(t, row, "SoundDuration"),
+            model_cell(t, row, "SoundCessastion").or_else(|| model_cell(t, row, "SoundCessation")),
+        ],
     })
 }
 
@@ -159,6 +200,16 @@ pub fn apply(
         let seq = default_sequence(&m, &actor.animations);
         let names: Vec<&str> = seq.iter().map(String::as_str).collect();
         actor.player.sequence(&names);
+        // A duration effect lasts until it is removed, its last animation
+        // looping; any other plays once and is gone, as the game removes
+        // it.
+        if effect.kind != 'D' {
+            match actor.player.queue.back_mut() {
+                Some(last) => last.1 = PlayMode::Once,
+                None => actor.player.mode = PlayMode::Once,
+            }
+            actor.vanishes = true;
+        }
         actors.push(stage.add(actor));
     }
     Ok(Applied { effect: effect.clone(), actors, missing })
@@ -208,6 +259,7 @@ mod tests {
             impact: None,
             root: [None, Some("m".into()), Some("l".into()), Some("h".into())],
             progfx: [None; 3],
+            sounds: [None, None, None],
         };
         assert_eq!(e.root_for(1), None, "no small model: none");
         assert_eq!(e.root_for(3), Some("m"));

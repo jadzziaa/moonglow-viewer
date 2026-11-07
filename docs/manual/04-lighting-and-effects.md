@@ -35,9 +35,10 @@ command line can add a **key light** at the camera (`mgv render
 Double-click one to apply it to what is shown: its models attach to the
 head, the impact point or the ground, as the game attaches them (for
 placeables and doors, at their own hook nodes), and play their impact then
-their duration. **Remove** plays an effect's cessation; **Clear** takes all
+their duration: a duration effect (`D`) goes on until it is removed, any
+other plays once and is gone, as in the game. **Remove** plays an effect's cessation; **Clear** takes all
 off. Ground effects have a model per creature size: the target's own size
-is used unless you choose another.
+(a creature blueprint's, by its appearance) is used unless you choose another.
 
 Emitters run in every model: fountains, explosions, point-to-point beams,
 lightning and chunks. Restart them with **Animation › Restart**.

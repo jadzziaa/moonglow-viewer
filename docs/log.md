@@ -1,5 +1,8 @@
 # Update log
 
+## 2026-11-07
+* **Update**: [The command line](manual/05-command-line.md) and [the plan](PLAN.md) §10.3: `mgv clip`, a model and its visual effects as a clip from one camera, with each effect's facts as JSON; [effects](manual/04-lighting-and-effects.md): an instant effect plays once and is gone, and a creature blueprint's effects take its size; the toolset's pin is v3.14.0.
+
 ## 2026-11-02
 * **Update**: [The window](manual/02-the-window.md) and [the plan](PLAN.md) §10.2: the Shadow switch, the model's shadow on an unseen ground, as the toolset's model viewer has it.
 * **Update**: [The plan](PLAN.md) §10.2: the pin is Moonglow Toolset v3.4.0; no shadows drawn; the viewer draws through the framebuffer copies (shiny water by the game's `fswater`, soft particles); what the renderer's changes since 2.8.0 change in the pictures.

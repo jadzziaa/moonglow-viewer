@@ -724,3 +724,45 @@ fn the_shadow_falls_on_an_unseen_ground() {
     assert!(darker > 200, "a shadow: {darker} pixels darker");
     assert_eq!(lighter, 0, "nothing lighter: the ground unseen");
 }
+
+/// A clip's framing: over the whole clip, the clip's takes in a fireball's
+/// cloud as it spreads, the model's leaves it out (the bandit alone).
+/// An instant effect (the fireball, type F) plays once and is gone, as the
+/// game removes it; a duration effect (the globe, D) goes on. A creature
+/// blueprint gives its effects its appearance's size.
+#[test]
+fn a_clip_is_framed_on_all_of_it_or_on_the_model() {
+    use mgv_stage::headless::{Framing, Shot, clip_points};
+    let root = mg_testkit::corpus!();
+    let Some(gpu) = gpu() else { return };
+    let mut lib = Library::open(Some(GameInstall::new(root, None, "en"))).unwrap();
+    let opened = lib.open_input("nw_bandit001.utc").unwrap();
+    let set = |row: usize| {
+        let mut stage = Stage::new(gpu.clone());
+        let shown = mgv_stage::subject::show(&mut stage, &lib, &opened).unwrap();
+        assert_eq!(shown.size, 3, "a human: medium");
+        let e = mgv_stage::vfx::row(&lib, row).unwrap();
+        let applied = mgv_stage::vfx::apply(&mut stage, &lib, shown.base, &e, shown.size).unwrap();
+        (stage, applied.actors)
+    };
+    let shot = Shot { fps: 6.0, ..Default::default() };
+    let width = |points: &[Vec3]| {
+        let (min, max) =
+            points.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(a, b), p| {
+                (a.min(*p), b.max(*p))
+            });
+        (max - min).truncate().length()
+    };
+    let (mut stage, effects) = set(22);
+    let all = width(&clip_points(&mut stage, &lib, &shot, 12, Framing::Clip, &effects));
+    let (mut stage, effects) = set(22);
+    let model = width(&clip_points(&mut stage, &lib, &shot, 12, Framing::Model, &effects));
+    assert!(model < 1.6, "the bandit alone: {model} m");
+    assert!(all > model * 2.0, "the cloud too: {all} m against {model} m");
+    // By then (2 s) the fireball's impact (5 s) still plays; at 6 s it is gone.
+    stage.settle(&lib, 6.0, 6.0);
+    assert!(effects.iter().all(|id| !stage.actor(*id).unwrap().visible), "an instant effect ends");
+    let (mut stage, effects) = set(4);
+    stage.settle(&lib, 6.0, 6.0);
+    assert!(effects.iter().all(|id| stage.actor(*id).unwrap().visible), "a duration effect lasts");
+}

@@ -69,6 +69,34 @@ enum Cmd {
         #[command(flatten)]
         shot: ShotArgs,
     },
+    /// Renders a clip from one camera that never moves: a model with visual
+    /// effects (`--vfx`) as they play, from `--time` for `--duration`
+    /// seconds at `--fps` frames a second, as an animated PNG and/or
+    /// numbered frames.
+    Clip {
+        input: String,
+        /// The animated PNG to write (default: NAME.png, unless --frames
+        /// is given).
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Also write each frame as a numbered PNG into this folder.
+        #[arg(long)]
+        frames: Option<PathBuf>,
+        /// Seconds of clip.
+        #[arg(long, default_value_t = 2.0)]
+        duration: f32,
+        /// What the camera is framed on: everything over the whole clip
+        /// (the model, its effects and their particles, wherever they go),
+        /// or the model alone.
+        #[arg(long, value_enum, default_value_t = FramingArg::Clip)]
+        frame: FramingArg,
+        /// Print what was written, and each effect's facts (whether it
+        /// loops, the sounds it names), as JSON.
+        #[arg(long)]
+        json: bool,
+        #[command(flatten)]
+        shot: ShotArgs,
+    },
     /// Renders many models into a gallery: thumbnails, index.html and
     /// manifest.json. Re-running skips what has not changed.
     Gallery {
@@ -270,6 +298,12 @@ fn plt_colors(spec: &str) -> Result<[u8; 10]> {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
+enum FramingArg {
+    Clip,
+    Model,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
 enum ViewArg {
     Front,
     Back,
@@ -380,6 +414,63 @@ fn run(cli: Cli) -> Result<()> {
                 let out = output.clone().unwrap_or_else(|| PathBuf::from(format!("{name}.png")));
                 std::fs::write(&out, headless::apng(&images, s.fps))?;
                 eprintln!("{}", out.display());
+            }
+        }
+        Cmd::Clip { input, output, frames, duration, frame, json, shot } => {
+            let mut lib = library(&cli)?;
+            let s = shot.to_shot()?;
+            if !(duration.is_finite() && *duration > 0.0) {
+                bail!("--duration: seconds, more than 0");
+            }
+            let count = ((duration * s.fps).round() as usize).max(1);
+            if count > 10_000 {
+                bail!("{count} frames: --duration × --fps makes at most 10000");
+            }
+            let gpu = mg_render::Gpu::headless().ok_or_else(|| anyhow!("no GPU adapter found"))?;
+            // Two stages set up alike: the first steps through the clip to
+            // find where everything goes, the second is drawn with one
+            // camera fitted to all of it.
+            let framing = match frame {
+                FramingArg::Clip => headless::Framing::Clip,
+                FramingArg::Model => headless::Framing::Model,
+            };
+            let mut first = staged_on(&gpu, &mut lib, input, shot, true)?;
+            let effect_actors: Vec<mgv_stage::ActorId> =
+                first.effects.iter().flat_map(|e| e.actors.iter().copied()).collect();
+            let points =
+                headless::clip_points(&mut first.stage, &lib, &s, count, framing, &effect_actors);
+            let cam = s.camera_on(first.stage.front, &points);
+            let mut set = staged_on(&gpu, &mut lib, input, shot, false)?;
+            let mut vp = Viewport::new(&gpu);
+            let images = headless::clip(&mut set.stage, &mut vp, &lib, &s, count, &cam);
+            shader_warnings(vp.shader_failures());
+            let name = set.name.clone();
+            let mut files = Vec::new();
+            if let Some(dir) = frames {
+                std::fs::create_dir_all(dir).with_context(|| dir.display().to_string())?;
+                for (i, img) in images.iter().enumerate() {
+                    let p = dir.join(format!("{name}_{i:04}.png"));
+                    mgv_stage::render::save_png(img, &p)
+                        .with_context(|| format!("writing {}", p.display()))?;
+                    files.push(p);
+                }
+            }
+            let animation = match (output, frames) {
+                (Some(o), _) => Some(o.clone()),
+                (None, None) => Some(PathBuf::from(format!("{name}.png"))),
+                (None, Some(_)) => None,
+            };
+            if let Some(out) = &animation {
+                std::fs::write(out, headless::apng(&images, s.fps))
+                    .with_context(|| format!("writing {}", out.display()))?;
+            }
+            if *json {
+                let facts = clip_json(&lib, &set, &s, count, *frame, &cam, &animation, &files);
+                println!("{}", serde_json::to_string_pretty(&facts)?);
+            } else {
+                for p in animation.iter().chain(frames.iter()) {
+                    eprintln!("{}", p.display());
+                }
             }
         }
         Cmd::Gallery { source, output, title, full, limit, shot } => {
@@ -667,28 +758,53 @@ impl ShotArgs {
 /// or `appearance:ROW` (a creature by `appearance.2da` row).
 fn staged(lib: &mut Library, input: &str, shot: &ShotArgs) -> Result<(Stage, Viewport, String)> {
     let gpu = mg_render::Gpu::headless().ok_or_else(|| anyhow!("no GPU adapter found"))?;
+    let set = staged_on(&gpu, lib, input, shot, true)?;
+    Ok((set.stage, Viewport::new(&gpu), set.name))
+}
+
+/// A stage set up for a picture.
+struct Staged {
+    stage: Stage,
+    name: String,
+    /// The effects applied, with their actors.
+    effects: Vec<mgv_stage::vfx::Applied>,
+}
+
+/// Sets up a stage on `gpu`: the input, its effects, its animation and
+/// light. `tell`: say on standard error what could not be found (once, where
+/// a clip sets the same stage up twice).
+fn staged_on(
+    gpu: &mg_render::Gpu,
+    lib: &mut Library,
+    input: &str,
+    shot: &ShotArgs,
+    tell: bool,
+) -> Result<Staged> {
     let mut stage = Stage::new(gpu.clone());
-    let (shown, name, size) = match input.strip_prefix("appearance:") {
+    let (shown, name) = match input.strip_prefix("appearance:") {
         Some(row) => {
             let row: u16 = row.parse().map_err(|_| anyhow!("appearance:ROW takes a row number"))?;
             let look = mgv_stage::subject::CreatureLook::new(row);
             let shown = mgv_stage::subject::show_creature(&mut stage, lib, &look)?;
-            (shown, format!("appearance_{row}"), mgv_stage::vfx::size_of(lib, row.into()))
+            (shown, format!("appearance_{row}"))
         }
         None => {
             let opened = lib.open_input(input)?;
-            (mgv_stage::subject::show(&mut stage, lib, &opened)?, opened.name(), 3)
+            (mgv_stage::subject::show(&mut stage, lib, &opened)?, opened.name())
         }
     };
+    let size = shown.size;
+    let mut effects = Vec::new();
     for row in &shot.vfx {
         let effect = mgv_stage::vfx::row(lib, *row)
             .ok_or_else(|| anyhow!("visualeffects.2da has no row {row}"))?;
         let applied = mgv_stage::vfx::apply(&mut stage, lib, shown.base, &effect, size)?;
-        for m in &applied.missing {
+        for m in applied.missing.iter().filter(|_| tell) {
             eprintln!("mgv: {}: model {m} not found", effect.label);
         }
+        effects.push(applied);
     }
-    for m in &shown.missing {
+    for m in shown.missing.iter().filter(|_| tell) {
         eprintln!("mgv: {input}: model {m} not found");
     }
     if let Some(anim) = &shot.anim {
@@ -701,8 +817,81 @@ fn staged(lib: &mut Library, input: &str, shot: &ShotArgs) -> Result<(Stage, Vie
     }
     stage.model_lights = !shot.no_model_lights;
     stage.lighting = lighting(lib, &shot.light, shot.fog)?;
-    let vp = Viewport::new(&gpu);
-    Ok((stage, vp, name))
+    Ok(Staged { stage, name, effects })
+}
+
+/// What `clip --json` prints: the clip, its camera, and each effect's
+/// facts for a page that plays it: whether it loops (a duration effect, as
+/// long as it lasts) or plays once, its animations' lengths, the sounds it
+/// names, and the programmed effects (`progfx.2da`) the viewer does not draw.
+#[allow(clippy::too_many_arguments)]
+fn clip_json(
+    lib: &Library,
+    set: &Staged,
+    shot: &Shot,
+    frames: usize,
+    framing: FramingArg,
+    cam: &mgv_stage::OrbitCamera,
+    animation: &Option<PathBuf>,
+    files: &[PathBuf],
+) -> serde_json::Value {
+    use serde_json::json;
+    let effects: Vec<serde_json::Value> = set
+        .effects
+        .iter()
+        .map(|a| {
+            let e = &a.effect;
+            // The longest of each animation among its models.
+            let length = |anim: &str| {
+                a.actors
+                    .iter()
+                    .filter_map(|id| set.stage.actor(*id))
+                    .filter_map(|actor| actor.animations.find(anim))
+                    .map(|x| x.length)
+                    .fold(None, |m: Option<f32>, l| Some(m.map_or(l, |m| m.max(l))))
+            };
+            let progfx: Vec<serde_json::Value> = e
+                .progfx
+                .iter()
+                .zip(["impact", "duration", "cessation"])
+                .filter_map(|(row, when)| Some((mgv_stage::vfx::progfx(lib, (*row)?)?, when)))
+                .map(|(p, when)| {
+                    json!({ "when": when, "row": p.row, "label": p.label, "type": p.kind,
+                            "sounds": p.sounds })
+                })
+                .collect();
+            let [impact, duration, cessation] = &e.sounds;
+            json!({
+                "row": e.row,
+                "label": e.label,
+                "type": e.kind.to_string(),
+                // A duration effect lasts until it is removed, its
+                // `duration` animation looping; the others play once.
+                "loops": e.kind == 'D',
+                "models": a.actors.iter().filter_map(|id| set.stage.actor(*id))
+                    .map(|actor| actor.name.clone()).collect::<Vec<_>>(),
+                "missing_models": a.missing,
+                "lengths": { "impact": length("impact"), "duration": length("duration"),
+                             "cessation": length("cessation") },
+                "sounds": { "impact": impact, "duration": duration, "cessation": cessation },
+                "progfx": progfx,
+            })
+        })
+        .collect();
+    json!({
+        "input": set.name,
+        "frames": frames,
+        "fps": shot.fps,
+        "start": shot.time,
+        "duration": frames as f32 / shot.fps,
+        "size": [shot.size.0, shot.size.1],
+        "framing": match framing { FramingArg::Clip => "clip", FramingArg::Model => "model" },
+        "camera": { "yaw_degrees": cam.yaw.to_degrees(), "pitch_degrees": cam.pitch.to_degrees(),
+                    "distance": cam.distance, "target": cam.target.to_array() },
+        "animation": animation,
+        "frame_files": files,
+        "effects": effects,
+    })
 }
 
 /// `studio` or `env:ROW[:night]`.
@@ -827,6 +1016,30 @@ mod tests {
         };
         assert!(shot(&["mgv", "render", "plc_a01"]));
         assert!(!shot(&["mgv", "render", "plc_a01", "--no-game-shaders"]));
+    }
+
+    #[test]
+    fn a_clip_s_arguments() {
+        let cli = Cli::try_parse_from([
+            "mgv",
+            "clip",
+            "nw_bandit001.utc",
+            "--vfx",
+            "10752",
+            "--duration",
+            "2",
+            "--fps",
+            "12",
+            "--frame",
+            "model",
+            "--frames",
+            "out",
+        ])
+        .unwrap();
+        let Cmd::Clip { duration, shot, frames, .. } = &cli.cmd else { panic!("not clip") };
+        let s = shot.to_shot().unwrap();
+        assert_eq!(((duration * s.fps).round() as usize, shot.vfx.as_slice()), (24, &[10752][..]));
+        assert_eq!(frames.as_deref(), Some(std::path::Path::new("out")));
     }
 
     #[test]

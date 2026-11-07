@@ -883,3 +883,39 @@ sheets) leave it off. `the_shadow_falls_on_an_unseen_ground` holds that it
 only darkens; `the_shadow_switch`, the window's switch. The 3D view's
 toolbar wraps onto a second line where the view is narrow.
 
+The pin is v3.14.0 since 2026-11-07, with nothing to change: the
+linter takes the decompiler's `setfillumcolor` and `selfillumcolor` pair
+as it is (reported from here), `Billboard_to_Local_Z` particles lie flat
+in the emitter's plane, a robe's `HIDEHEAD` leaves the head on, a custom
+skeleton's body is drawn as the game draws it.
+
+### 10.3 Clips of visual effects (2026-11-07)
+
+Asked for by The Domains of Dread through the toolset's session: its
+300 to 400 spell and ability effects reviewed in a web gallery, each a
+clip from one camera (a sequence of `render --time` stills is framed
+anew each time, so the model shrinks as the effect grows). `mgv clip`
+(`headless::clip_points`, `headless::clip`): the stage is set up twice
+alike; the first steps through the clip and gathers where everything is
+(`Framing::Clip`: the meshes, and each particle that shows, its alpha at
+least 0.05 and an added one's colour too, by its quad shrunk to half about
+its middle, since a particle's texture fades towards its edges: a
+fireball's smoke reaches 4 m at its corners; `Framing::Model`: the
+model's meshes alone), the second is drawn from the one camera fitted to
+all of it. `--json` gives each effect's facts for the page (loops or
+plays once, its animations' lengths, its sounds and `progfx` rows).
+
+With it, two things the game does that the stage did not:
+
+- **An instant effect plays once and is gone** (`Actor::vanishes`): an
+  effect of any type but `D` plays its sequence once and disappears, as
+  the game removes it; before, its last animation looped (the green
+  vision impact started over after its 1.7 s).
+- **A creature blueprint's effects take its size** (`Shown::size`, from
+  `Appearance_Type`): ground effects had a medium creature's model
+  whatever the blueprint.
+
+Not done: a projectile flying from the model to a point, and beams
+between two (the rows' `P` and `B`, and `progfx` types 7, 10 and 11, are
+the engine's own drawing).
+

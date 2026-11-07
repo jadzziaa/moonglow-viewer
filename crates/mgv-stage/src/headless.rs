@@ -80,8 +80,23 @@ impl Shot {
         self.camera_fit(stage, false)
     }
 
-    fn camera_fit(&self, stage: &Stage, tight: bool) -> OrbitCamera {
-        let mut cam = OrbitCamera { front: stage.front, ..OrbitCamera::default() };
+    /// The camera for points (a clip's, gathered over its frames), as
+    /// close as shows all of them from its angle; `front`: which way what
+    /// is shown faces ([`Stage::front`]).
+    pub fn camera_on(&self, front: f32, points: &[Vec3]) -> OrbitCamera {
+        let mut cam = self.angled(front);
+        if points.is_empty() {
+            cam.frame(Vec3::splat(-1.0), Vec3::splat(1.0));
+        } else {
+            cam.frame_tight(points, self.size.0 as f32 / self.size.1.max(1) as f32);
+        }
+        cam.distance *= self.zoom.max(0.01);
+        cam
+    }
+
+    /// A camera at the shot's angle, not yet framed.
+    fn angled(&self, front: f32) -> OrbitCamera {
+        let mut cam = OrbitCamera { front, ..OrbitCamera::default() };
         cam.set_view(self.view);
         if let Some(y) = self.yaw {
             cam.yaw = y.to_radians();
@@ -89,6 +104,11 @@ impl Shot {
         if let Some(p) = self.pitch {
             cam.pitch = p.to_radians().clamp(-1.55, 1.55);
         }
+        cam
+    }
+
+    fn camera_fit(&self, stage: &Stage, tight: bool) -> OrbitCamera {
+        let mut cam = self.angled(stage.front);
         let points = stage.shown_points();
         if tight && !points.is_empty() {
             cam.frame_tight(&points, self.size.0 as f32 / self.size.1.max(1) as f32);
@@ -171,6 +191,117 @@ pub fn turntable(
         cam.yaw = start + std::f32::consts::TAU * i as f32 / frames as f32;
         out.push(picture(stage, viewport, lib, shot, &cam));
         stage.step(lib, 1.0 / shot.fps.max(1.0));
+    }
+    out
+}
+
+/// How much a particle must show to count in a clip's framing (its alpha,
+/// and an added one's colour too: black adds nothing): fading ones drift
+/// far and would leave the clip small.
+pub const SEEN_ALPHA: f32 = 0.05;
+
+/// Where what is drawn is, for a clip's framing: the meshes' vertices, and
+/// each particle that shows ([`SEEN_ALPHA`]) by its quad shrunk to half
+/// about its middle: a particle's texture fades towards its edges (a
+/// fireball's smoke reaches 4 m at its corners, its cloud far less).
+fn seen_points(stage: &Stage) -> Vec<Vec3> {
+    use mg_render::particles::ParticleBlend;
+    let mut out: Vec<Vec3> = stage
+        .posed(false)
+        .into_iter()
+        .flat_map(|m| m.positions)
+        .filter(|p| p.is_finite())
+        .collect();
+    let scene = stage.scene(glam::Mat4::IDENTITY);
+    for b in &scene.particles {
+        let seen = |c: [f32; 4]| match b.blend {
+            ParticleBlend::Lighten => c[3] * c[0].max(c[1]).max(c[2]),
+            _ => c[3],
+        };
+        // (Six corners a particle: two triangles.)
+        for quad in b.vertices.chunks(6) {
+            if !quad.iter().any(|v| seen(v.color) >= SEEN_ALPHA) {
+                continue;
+            }
+            let mid = quad.iter().map(|v| Vec3::from(v.pos)).sum::<Vec3>() / quad.len() as f32;
+            out.extend(
+                quad.iter()
+                    .map(|v| mid + (Vec3::from(v.pos) - mid) * 0.5)
+                    .filter(|p| p.is_finite()),
+            );
+        }
+    }
+    out
+}
+
+/// What a clip's one camera is framed on ([`clip_points`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Framing {
+    /// Everything shown over the whole clip: the model, its effects'
+    /// models and their particles, wherever they go.
+    Clip,
+    /// The model alone (its meshes over the whole clip), the effects
+    /// framed or not as they fall.
+    Model,
+}
+
+/// The first pass of a clip: steps the stage through the clip's `frames`
+/// (from the shot's time, at its fps) and gathers where everything the
+/// framing takes is in any of them; `effects`: the effects' actors, which
+/// [`Framing::Model`] leaves out. The stage is used up: the frames are
+/// drawn from a stage set up again the same way ([`clip`]), so that the
+/// camera, fitted to all of them, never moves.
+pub fn clip_points(
+    stage: &mut Stage,
+    lib: &Library,
+    shot: &Shot,
+    frames: usize,
+    framing: Framing,
+    effects: &[crate::ActorId],
+) -> Vec<Vec3> {
+    stage.casters = shot.casters;
+    stage.settle(lib, shot.time, shot.fps);
+    let mut points = Vec::new();
+    for i in 0..frames.max(1) {
+        if i > 0 {
+            stage.step(lib, 1.0 / shot.fps.max(1.0));
+        }
+        match framing {
+            Framing::Clip => points.extend(seen_points(stage)),
+            Framing::Model => points.extend(
+                stage
+                    .posed(false)
+                    .into_iter()
+                    .filter(|m| {
+                        !matches!(m.owner, crate::posed::Owner::Actor(a) if effects.contains(&a))
+                    })
+                    .flat_map(|m| m.positions)
+                    .filter(|p| p.is_finite()),
+            ),
+        }
+    }
+    points
+}
+
+/// A clip's `frames` pictures from one camera, the stage stepping at the
+/// shot's fps from its time between them: frame `i` is the stage at
+/// `time + i / fps`, as [`still`] would draw it then.
+pub fn clip(
+    stage: &mut Stage,
+    viewport: &mut Viewport,
+    lib: &Library,
+    shot: &Shot,
+    frames: usize,
+    cam: &OrbitCamera,
+) -> Vec<Rgba> {
+    stage.casters = shot.casters;
+    stage.settle(lib, shot.time, shot.fps);
+    let mut out = Vec::with_capacity(frames.max(1));
+    for i in 0..frames.max(1) {
+        if i > 0 {
+            stage.step(lib, 1.0 / shot.fps.max(1.0));
+        }
+        out.push(picture(stage, viewport, lib, shot, cam));
     }
     out
 }

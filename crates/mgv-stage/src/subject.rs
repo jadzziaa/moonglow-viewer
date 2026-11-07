@@ -20,6 +20,10 @@ pub struct Shown {
     pub parts: Vec<ActorId>,
     /// Models a blueprint names that could not be loaded.
     pub missing: Vec<String>,
+    /// Its size for visual effects (`appearance.2da` `SIZECATEGORY`: a
+    /// creature's; 3, medium, for the rest): which ground model an
+    /// effect's row gives it ([`crate::vfx::VisualEffect::root_for`]).
+    pub size: u32,
 }
 
 /// The animations a model plays when shown on its own, in order (all but
@@ -110,7 +114,7 @@ fn show_kind(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown,
             if let Some((_, w)) = posed::walkmesh_for(lib, &opened.name()) {
                 stage.walkmeshes.push(posed::Walkmesh::new(&opened.name(), w, Some(base)));
             }
-            Ok(Shown { base, parts: Vec::new(), missing: Vec::new() })
+            Ok(Shown { base, parts: Vec::new(), missing: Vec::new(), size: 3 })
         }
         Kind::Walkmesh => {
             // On the model it belongs to (same name), else alone.
@@ -135,7 +139,7 @@ fn show_kind(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown,
             let base = stage.add(actor);
             play_default(stage, base);
             stage.walkmeshes.push(posed::Walkmesh::new(&opened.name(), walkmesh, Some(base)));
-            Ok(Shown { base, parts: Vec::new(), missing: Vec::new() })
+            Ok(Shown { base, parts: Vec::new(), missing: Vec::new(), size: 3 })
         }
         Kind::Blueprint => {
             let key = opened
@@ -158,7 +162,12 @@ fn show_kind(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown,
             if preview.idle.is_none() {
                 play_default(stage, added.base);
             }
-            Ok(Shown { base: added.base, parts: added.parts, missing: added.missing })
+            let appearance = (key.restype == ResType::UTC)
+                .then(|| gff.root.get("Appearance_Type").and_then(|v| v.as_integer()))
+                .flatten()
+                .and_then(|row| usize::try_from(row).ok());
+            let size = appearance.map_or(3, |row| crate::vfx::size_of(lib, row));
+            Ok(Shown { base: added.base, parts: added.parts, missing: added.missing, size })
         }
         Kind::Material => {
             // On a sphere: a mesh whose texture is the material's name finds
@@ -169,7 +178,7 @@ fn show_kind(stage: &mut Stage, lib: &Library, opened: &Opened) -> Result<Shown,
             let actor =
                 stage.actor_for(lib, &name, Arc::new(sphere), Placement::World(Mat4::IDENTITY));
             let base = stage.add(actor);
-            Ok(Shown { base, parts: Vec::new(), missing: Vec::new() })
+            Ok(Shown { base, parts: Vec::new(), missing: Vec::new(), size: 3 })
         }
         k => Err(StageError::NotShown(format!("{k:?}"))),
     }
@@ -198,7 +207,8 @@ pub fn show_creature(
     let preview = creature_preview(lib, look)?;
     let added = stage.add_preview(lib, &preview, Mat4::IDENTITY)?;
     stage.front = FACING_Y;
-    Ok(Shown { base: added.base, parts: added.parts, missing: added.missing })
+    let size = crate::vfx::size_of(lib, look.appearance.into());
+    Ok(Shown { base: added.base, parts: added.parts, missing: added.missing, size })
 }
 
 /// A sphere of 1 m radius wearing a material (an MTR by name), for
