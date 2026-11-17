@@ -1,5 +1,8 @@
 # Update log
 
+## 2026-11-16
+* **Update**: [The plan](PLAN.md) §10.4: a worn part's mesh that names its own material or plain texture keeps it (TDoD's head 253 wore its cap drawn in the head's PLT); the viewer's workaround and the change proposed for the toolset's `mg-preview`.
+
 ## 2026-11-07
 * **Update**: [The command line](manual/05-command-line.md) and [the plan](PLAN.md) §10.3: `mgv clip`, a model and its visual effects as a clip from one camera, with each effect's facts as JSON; [effects](manual/04-lighting-and-effects.md): an instant effect plays once and is gone, and a creature blueprint's effects take its size; the toolset's pin is v3.14.0.
 

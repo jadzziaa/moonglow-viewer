@@ -766,3 +766,32 @@ fn a_clip_is_framed_on_all_of_it_or_on_the_model() {
     stage.settle(&lib, 6.0, 6.0);
     assert!(effects.iter().all(|id| stage.actor(*id).unwrap().visible), "a duration effect lasts");
 }
+
+#[test]
+fn a_worn_parts_meshes_keep_their_own_materials() {
+    // Head 900 has a PLT; its cap names `pmh0_head900c` (a TGA and an
+    // MTR), its eyes `pmh0_head900e` (a TGA); another mesh names head 901's
+    // PLT, another a texture that is nowhere.
+    let dir = scratch("worn");
+    for f in [
+        "pmh0_head900.plt",
+        "pmh0_head901.plt",
+        "pmh0_head900c.tga",
+        "pmh0_head900c.mtr",
+        "pmh0_head900e.tga",
+    ] {
+        std::fs::write(dir.join(f), b"x").unwrap();
+    }
+    let mut lib = Library::open(None).unwrap();
+    lib.add_folder(&dir);
+    let renames: std::collections::BTreeMap<String, String> =
+        ["pmh0_head900c", "pmh0_head900e", "pmh0_head901", "nowhere", ""]
+            .into_iter()
+            .map(|from| (from.to_string(), "pmh0_head900".to_string()))
+            .collect();
+    let kept = mgv_stage::textures::worn_renames(lib.resman(), &renames);
+    let mut kept: Vec<&str> = kept.keys().map(String::as_str).collect();
+    kept.sort();
+    assert_eq!(kept, ["", "nowhere", "pmh0_head901"]);
+    let _ = std::fs::remove_dir_all(&dir);
+}

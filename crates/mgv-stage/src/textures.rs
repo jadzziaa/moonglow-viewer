@@ -36,6 +36,31 @@ pub fn uses_plt(
     })
 }
 
+/// Of a worn part's texture replacements (`mg_preview::Part::textures`),
+/// those the game makes: a mesh naming a material or a plain texture (an
+/// MTR, a DDS or TGA, and no PLT of that name) keeps it, as the game keeps
+/// it (nwn.wiki, PLT: an MTR named as a part mesh's bitmap overrides "the
+/// application of the plt"; TDoD's head 253, whose cap names
+/// `pmh0_head253c`, its own TGA and MTR, drawn so by the client). The
+/// toolset's previews replace every name shaped like a part's (§10.4 of
+/// the plan).
+pub fn worn_renames<'a>(
+    rm: &ResMan,
+    renames: impl IntoIterator<Item = (&'a String, &'a String)>,
+) -> std::collections::HashMap<String, String> {
+    let own = |name: &str| {
+        ResRef::from_str(name).is_ok_and(|r| {
+            !rm.contains(&ResKey::new(r, ResType::PLT))
+                && (rm.contains(&ResKey::new(r, ResType::MTR)) || rm.texture(r).is_some())
+        })
+    };
+    renames
+        .into_iter()
+        .filter(|(from, _)| !own(from))
+        .map(|(a, b)| (a.clone(), b.clone()))
+        .collect()
+}
+
 /// Whether a texture name resolves to anything (an MTR, a DDS or TGA, a
 /// PLT).
 fn exists(rm: &ResMan, name: &str) -> bool {

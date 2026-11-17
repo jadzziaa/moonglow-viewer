@@ -919,3 +919,28 @@ Not done: a projectile flying from the model to a point, and beams
 between two (the rows' `P` and `B`, and `progfx` types 7, 10 and 11, are
 the engine's own drawing).
 
+
+### 10.4 A worn part's own materials (2026-11-16)
+
+Reported by The Domains of Dread: its Vistana man (head 253) wore a cap
+drawn half in the head's PLT, the eyebrow on the cap, though the head
+drawn alone showed the cap whole. `mg-preview`'s `plt_fallbacks`
+(`creature.rs`) gives a worn part's mesh the part's own texture whenever
+the mesh names one shaped like a part's (`p<g><r><pheno>_<rest>`); the
+cap names `pmh0_head253c`, its own TGA and MTR, which TDoD's `heads.py`
+gives every material of a head. The renderer applies the replacement
+after reading the MTR, so the cap's `texture0` became the PLT too.
+
+The game keeps such a mesh's own: nwn.wiki (PLT) says an MTR named as a
+part mesh's bitmap overrides the PLT, and the client drew TDoD's head 253
+with its cap (two pictures, October 2026). The change for the toolset: in
+`plt_fallbacks`, keep a bitmap that names no PLT and resolves to an MTR, a
+DDS or a TGA. The viewer's workaround until then,
+`mgv_stage::textures::worn_renames`, drops those replacements from a
+preview's parts (held by `a_worn_parts_meshes_keep_their_own_materials`).
+No base-game part names such a texture (the game has 7 MTRs, none a
+part's): 80 of its creature blueprints render byte for byte as before.
+
+Not known: whether the game keeps a part-shaped plain TGA or DDS that has
+no MTR (the workaround keeps it, as the 1.87.8193.35 fix "textures on
+body parts that don't use PLT" suggests); the client was not run for it.

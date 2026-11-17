@@ -259,7 +259,7 @@ impl Stage {
             .ok_or_else(|| StageError::NoModel(base_part.model.clone()))?;
         let mut base =
             self.actor_for(lib, &base_part.model, model.clone(), Placement::World(transform));
-        base.look = look(base_part);
+        base.look = look(base_part, lib);
         if let Some(idle) = &preview.idle
             && base.animations.find(idle).is_some()
         {
@@ -276,7 +276,7 @@ impl Stage {
             };
             let node = p.attach.as_deref().and_then(|a| model.node(a));
             let placement = Placement::On { parent: base, node, scale: p.scale, follow: true };
-            let part_look = look(p);
+            let part_look = look(p, lib);
             let mut actor = if p.animated {
                 self.actor_for(lib, &p.model, m, placement)
             } else {
@@ -623,10 +623,10 @@ pub(crate) fn part_textures(look: &mut Look, lib: &Library, name: &str, model: &
     look.textures = Some(Arc::new(map));
 }
 
-fn look(p: &mg_preview::Part) -> Look {
+fn look(p: &mg_preview::Part, lib: &Library) -> Look {
+    let textures = textures::worn_renames(lib.resman(), &p.textures);
     Look {
-        textures: (!p.textures.is_empty())
-            .then(|| Arc::new(p.textures.iter().map(|(a, b)| (a.clone(), b.clone())).collect())),
+        textures: (!textures.is_empty()).then(|| Arc::new(textures)),
         colors: p.colors,
         env_map: p.env_map.clone(),
     }
