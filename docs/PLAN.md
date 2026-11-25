@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T16:12:28Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T16:18:39Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1180,17 +1180,22 @@ The items part B left (§10.7), built on `mg-uikit` 5.3.0:
   at least 120 apart (`ruler_step`).
 - **Texture** (`texture.rs`): the header is an `EditorHeader`: the
   channels (RGBA, RGB, R, G, B, A, as a segmented row) at the left, Mip
-  (only with mip levels) and Zoom at the right, each a mini slider (60)
+  (grayed out without mip levels) and Zoom at the right, each a mini slider (60)
   and a number (48), going under More where the header is narrow. The
   caption line (24 high, the panel's fill, a soft rule under it) gives
   the name and the format, size, mip levels and alpha.
 - **Inspector** (`panels::inspector`): its sections (document, Creature,
   PLT colors, Material, Tileset, Model, Node) in the kit's `FormColumns`.
   The Creature section and the PLT colors are the board's `.pair` grid
-  (`ViewerCreature.html`: label 68, value 90, 8 apart; two pairs a row
-  from 340 wide, one in the 280 tabbed dock; Gender's segmented control
-  across its own row). A color (`palette::pick`) is the kit's
-  `paint_swatch_button` showing the color's tones and a combo (52) with
+  (`ViewerCreature.html`: label 68, value 84, 8 apart; two pairs a row
+  from 328 wide, one in the 280 tabbed dock and in a column of the wide
+  Right Dock (327); Gender's segmented control across its own row). For
+  the two pairs the Right Dock opens 352 wide between the tabbed and
+  the wide layouts (`shell::RIGHT_DOCK_WIDTH`, the viewer boards'
+  `--right-w`), not the kit's 320, whose room (307) holds one pair a
+  row. A color (`palette::pick`) is the kit's
+  `paint_swatch_button` (28 wide with its padding) showing the color's
+  tones and a combo (52) with
   its number; both open the same popup, the kit's `palette_swatches`
   (176 colors, sixteen a row, the current one outlined). PLT colors'
   button reads Reset Colors. A Model section gives the shown model's
@@ -1237,6 +1242,7 @@ The items part B left (§10.7), built on `mg-uikit` 5.3.0:
   `palette::tests::the_swatch_grid_picks_a_color`;
   `panels::tests::the_scrub_bar_seeks`, `the_ruler_steps_as_the_board_s`,
   `the_creature_grid_stands_two_pairs_a_row_where_they_fit`;
+  `shell::tests::the_inspector_holds_two_pairs_a_row_in_the_default_layout`;
   `texture::tests::the_texture_header_and_caption_line`. On the GPU:
   `tests/app.rs`'s `panels_are_dragged_between_docks` and the Timeline's
   labels and scrub in `a_click_opens_and_one_frame_loops_are_a_pose`;
@@ -1251,12 +1257,21 @@ Upstream needs (the viewer's workarounds in place):
   code. A kit `DockDrop` (zones registered by docks, `preview(ui)`,
   `dropped() -> Option<(panel, zone)>`) would serve both.
 - No kit layout record: what is kept, its validation and the forced
-  sizes are the viewer's, as `shell_migrate` is the toolset's.
+  sizes are the viewer's, as the toolset's are `mg-ui`'s (`Settings`'s
+  sizes and `shell_migrate` in `mg-ui/src/settings.rs`). A kit
+  `DockLayout` (serde, versioned, `restore(&Yields)` clamping and
+  folding, `capture` on an edge drag) would serve both.
 - No stacked-panel or column helper (still, §10.7).
 - No labeled mini slider with its number as a header item: Mip and Zoom
-  are `Item::custom` with `.more()` fallbacks.
+  are `Item::custom` with `.more()` fallbacks, as `mg-ui`'s Appearance
+  Gallery header builds its size slider (`appearance_gallery.rs`). A kit
+  `Item::slider(label, value, range, width)` with its number would serve
+  both.
 - No pair grid with a spanning row (the board's `.pair`): an egui `Grid`
-  with the spanning row drawn before it (`panels::pairs`).
+  with the spanning row drawn before it (`panels::pairs`), as `mg-ui`'s
+  blueprint forms lay out their own `egui::Grid`s with a narrow and a
+  wide column count (`blueprint/creature.rs`). A kit `form::PairGrid`
+  (label width, pairs a row by width, a spanning row) would serve both.
 - The swatch and combo pairing (`palette::pick`) is app code, as the
   toolset's `palette_color` is `mg-ui`'s: the kit has the swatch button
   and the swatches grid but not the pair. The combo's popup id is

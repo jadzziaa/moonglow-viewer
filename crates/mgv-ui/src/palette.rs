@@ -1,5 +1,6 @@
-//! The colour chooser for PLT colours, as Moonglow Toolset's: a swatch of
-//! the colour's tones and a list of the palette's 176 colours to pick from.
+//! The color chooser for PLT colors, as Moonglow Toolset's: a swatch of
+//! the color's tones and a combo opening a grid of the palette's 176
+//! colors to pick from.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -37,8 +38,8 @@ impl Palettes {
     }
 }
 
-/// A palette colour's tones: its row (`index` counted from the top) at
-/// four grey levels.
+/// A palette color's tones: its row (`index` counted from the top) at
+/// four gray levels.
 fn tones(palette: &Rgba, index: u8) -> [egui::Color32; 4] {
     let rows = palette.height.max(1);
     let y = rows - 1 - u32::from(index).min(rows - 1);
@@ -51,11 +52,13 @@ fn tones(palette: &Rgba, index: u8) -> [egui::Color32; 4] {
     })
 }
 
-/// How many colours a palette has.
+/// How many colors a palette has.
 pub const COLORS: u8 = 176;
 
-/// The swatch's tones' width (the board's `.tones`: 28 by 16).
-const TONES: f32 = 28.0;
+/// The swatch's tones' width: with the kit's swatch padding the swatch
+/// is 28 wide (the board's `.tones`), so a swatch and its combo are 84,
+/// the pair grid's value (`panels::PAIR_VALUE`).
+const TONES: f32 = 28.0 - 2.0 * mg_uikit::SWATCH_PADDING;
 /// The combo's width beside it (`.pal-combo`).
 const COMBO: f32 = 52.0;
 

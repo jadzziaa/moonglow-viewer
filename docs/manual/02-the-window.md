@@ -3,7 +3,7 @@ type: Manual Page
 title: The window
 description: The window's shell (Top Bar, Left, Right and Bottom Docks, editor area, Status Bar), how it gives way in small and wide windows, its panels and the keys.
 tags: [manual, panels, keys]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T16:12:28Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T16:18:39Z }
 ---
 
 # The window
@@ -112,7 +112,8 @@ The panels:
 - **ASCII**: the model's text (see [Editing models](03-editing-models.md)).
 - **Texture**: textures you open. Its header holds the channels to show
   (RGBA, RGB, R, G, B, A) at the left and **Mip** and **Zoom** at the right (a
-  slider and a number each; Mip only where the texture has mip levels);
+  slider and a number each; Mip is grayed out where the texture has no
+  mip levels);
   the caption line under it gives the texture's name, format, size, mip
   levels and alpha. Ctrl and the wheel zoom it.
 - **Resources**: the game's resources (see [Getting started](01-getting-started.md)),

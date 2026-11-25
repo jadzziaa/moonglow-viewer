@@ -51,6 +51,12 @@ pub const OPEN: &str = "Open";
 
 /// The least a side dock is dragged to.
 const SIDE_LEAST: f32 = 200.0;
+
+/// The Right Dock's width between the tabbed and the wide layouts: the
+/// viewer boards' (`ViewerCreature.html`, `ViewerGallery.html`:
+/// `--right-w: 352px`), wider than the kit's 320 so that the Inspector's
+/// pair grid stands two pairs a row (`panels::pairs_per_row`).
+pub(crate) const RIGHT_DOCK_WIDTH: f32 = 352.0;
 /// The Left Dock's width at first in Gallery mode (the board "Resources
 /// as a Gallery": three pictures of 128 a row).
 const GALLERY_DOCK: f32 = 440.0;
@@ -1136,7 +1142,7 @@ pub(crate) fn right_dock(app: &mut Viewer, ui: &mut Ui) {
     let (chosen, default) = match y.wide {
         true if two => (app.shell.sizes.right_wide, y.right_dock_width),
         true => (app.shell.sizes.right_wide, kit::RIGHT_DOCK_WIDE_SINGLE),
-        false => (app.shell.sizes.right, y.right_dock_width),
+        false => (app.shell.sizes.right, RIGHT_DOCK_WIDTH),
     };
     let mut panel = egui::Panel::right(id).frame(egui::Frame::new().fill(t.panel));
     let mut dragged = false;
@@ -1908,6 +1914,23 @@ mod tests {
         run(&ctx, &mut v, board, 2);
         assert_eq!(v.shell.panels_at(Place::Bottom), [Tab::Log]);
         assert_eq!(v.shell.bottom_front(), Some(Tab::Log));
+    }
+
+    /// The Inspector's room in the default layout (the Right Dock at its
+    /// 352) holds the Creature grid's two pairs a row at the first run's
+    /// 1440 by 900 and the boards' 1600 by 900; the tabbed dock (280,
+    /// under 1400) one.
+    #[test]
+    fn the_inspector_holds_two_pairs_a_row_in_the_default_layout() {
+        for (width, per_row) in [(1440.0, 2), (1600.0, 2), (1300.0, 1)] {
+            let ctx = egui::Context::default();
+            let mut v = viewer();
+            run(&ctx, &mut v, egui::vec2(width, 900.0), 3);
+            let room: f32 = ctx
+                .data(|d| d.get_temp(egui::Id::new(crate::panels::INSPECTOR_ROOM)))
+                .expect("the Inspector drawn");
+            assert_eq!(crate::panels::pairs_per_row(room), per_row, "{width}: {room}");
+        }
     }
 
     /// A layout kept from a wider window still yields to this one's width:

@@ -483,6 +483,10 @@ enum Section {
     Node,
 }
 
+/// Where the tests find the width the Inspector's sections get.
+#[cfg(test)]
+pub(crate) const INSPECTOR_ROOM: &str = "inspector room";
+
 /// What the open thing is, and the selected node: its sections flowing
 /// into columns where the Inspector is wide (the kit's `FormColumns`: a
 /// column of 440 at least; the Inspector dragged to the Bottom Dock),
@@ -490,6 +494,9 @@ enum Section {
 pub(crate) fn inspector(app: &mut Viewer, ui: &mut Ui) {
     let palettes = app.palettes.layers(&app.lib);
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        // (The room the sections get, for the tests of the pair grid.)
+        #[cfg(test)]
+        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(INSPECTOR_ROOM), ui.available_width()));
         if app.doc.is_none() {
             ui.weak("Nothing open.");
             return;
@@ -585,15 +592,16 @@ fn doc_section(app: &Viewer, ui: &mut Ui) {
 /// A pair's label's width in the Inspector's two-column grid (the board's
 /// `.pair`: `68px auto 68px auto`, 8 apart).
 pub(crate) const PAIR_LABEL: f32 = 68.0;
-/// A pair's value's width: a number field (`.nfield`), or a swatch (28
-/// and its padding) and its combo (52), 4 apart (`.pick`).
-pub(crate) const PAIR_VALUE: f32 = 90.0;
+/// A pair's value's width: a number field (`.nfield`), or a swatch (28)
+/// and its combo (52), 4 apart (`.pick`).
+pub(crate) const PAIR_VALUE: f32 = 84.0;
 /// The room between a grid's columns and its rows.
 const PAIR_GAP: f32 = 8.0;
 
 /// How many label and value pairs stand on a row of the grid in a room
-/// `width` wide: two where both fit (the board's Inspector, 340 inside),
-/// one in a narrower Right Dock (280, tabbed).
+/// `width` wide: two where both fit (328, in the Right Dock at its 352,
+/// `shell::RIGHT_DOCK_WIDTH`), one in the tabbed Right Dock (280) or a
+/// dock dragged narrower.
 pub(crate) fn pairs_per_row(width: f32) -> usize {
     if width >= 2.0 * (PAIR_LABEL + PAIR_VALUE) + 3.0 * PAIR_GAP { 2 } else { 1 }
 }
@@ -1230,7 +1238,7 @@ pub(crate) mod tests {
         let palette = Arc::new(crate::palette::tests::palette());
         let palettes: [Option<Arc<mg_image::Rgba>>; 10] =
             std::array::from_fn(|_| Some(palette.clone()));
-        for (width, per_row) in [(340.0, 2), (268.0, 1)] {
+        for (width, per_row) in [(328.0, 2), (268.0, 1)] {
             let ctx = egui::Context::default();
             ctx.enable_accesskit();
             let mut look = mgv_stage::subject::CreatureLook::new(6);
