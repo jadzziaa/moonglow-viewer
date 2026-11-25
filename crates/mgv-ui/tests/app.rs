@@ -367,7 +367,7 @@ fn bare_plt_models_take_colors() {
     h.run_steps(2);
     colors[3] = 17;
     assert_eq!(look(&h), Some(colors));
-    h.get_by_label("Reset colors").click_accesskit();
+    h.get_by_label("Reset Colors").click_accesskit();
     h.run_steps(2);
     assert_eq!(look(&h), None);
     h.state_mut()

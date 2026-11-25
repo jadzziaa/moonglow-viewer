@@ -54,50 +54,56 @@ fn tones(palette: &Rgba, index: u8) -> [egui::Color32; 4] {
 /// How many colours a palette has.
 pub const COLORS: u8 = 176;
 
-/// A PLT colour (0–175) picked from a palette's swatches: `what` names it
-/// (the swatches are "`what` N"). Without the palette (no game), a number
-/// to drag. Returns whether it changed.
+/// The swatch's tones' width (the board's `.tones`: 28 by 16).
+const TONES: f32 = 28.0;
+/// The combo's width beside it (`.pal-combo`).
+const COMBO: f32 = 52.0;
+
+/// A PLT color (0 to 175) chosen from a palette (the board "Creature,
+/// Colors"'s `.pick`): the kit's swatch button showing the color's tones,
+/// and a combo with its number that opens on the palette's 176 colors,
+/// sixteen to a row and eleven rows (`mg_uikit::palette_swatches`, each
+/// named "`what` N"), the color shown outlined; the swatch opens it too.
+/// The combo is named "`what` color". Without the palette (no game), a
+/// number to drag. Whether the color changed.
 pub fn pick(ui: &mut Ui, palette: Option<&Rgba>, what: &str, color: &mut u8) -> bool {
+    use mg_uikit::TokensExt;
     let Some(p) = palette else {
         return ui.add(egui::DragValue::new(color).range(0..=COLORS - 1)).changed();
     };
     let current = (*color).min(COLORS - 1);
     let mut pick = None;
     ui.horizontal(|ui| {
-        let (rect, _) = ui.allocate_exact_size(egui::vec2(28.0, 16.0), egui::Sense::hover());
-        mg_uikit::swatch(ui, rect, &tones(p, current));
-        let combo = egui::ComboBox::from_id_salt(("palette color", what))
+        ui.spacing_mut().item_spacing.x = 4.0;
+        let salt = ("palette color", what);
+        // The combo's own popup id: its button's id is the ui's id with the
+        // salt hashed as an `IdSalt`, its popup's that id with "popup".
+        let popup = ui.make_persistent_id(egui::IdSalt::new(salt)).with("popup");
+        let open = egui::Popup::is_id_open(ui.ctx(), popup);
+        let side = 2.0 * mg_uikit::SWATCH_PADDING;
+        let size = egui::vec2(TONES + side, ui.spacing().interact_size.y.max(16.0 + side));
+        let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
+        let name = format!("{what} swatch");
+        r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::ColorButton, true, &name));
+        let look = mg_uikit::SwatchLook { hovered: r.hovered(), open, focused: r.has_focus() };
+        let t = ui.tokens();
+        let tones = tones(p, current);
+        mg_uikit::paint_swatch_button(ui.painter(), &t, rect, look, |painter, inner| {
+            paint_tones(painter, inner, &tones);
+        });
+        if r.on_hover_text(format!("{what}: color {current}")).clicked() {
+            egui::Popup::toggle_id(ui.ctx(), popup);
+        }
+        let combo = egui::ComboBox::from_id_salt(salt)
             .selected_text(current.to_string())
-            .width(56.0)
+            .width(COMBO)
             .height(11.0 * 16.0 + 24.0)
             .show_ui(ui, |ui| {
-                ui.spacing_mut().item_spacing = egui::vec2(2.0, 2.0);
-                // 176 colours, 16 to a row.
-                for row in 0..COLORS / 16 {
-                    ui.horizontal(|ui| {
-                        for i in row * 16..row * 16 + 16 {
-                            let size = egui::vec2(16.0, 14.0);
-                            let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
-                            mg_uikit::swatch(ui, rect, &tones(p, i));
-                            if i == current {
-                                let stroke = ui.visuals().selection.stroke;
-                                ui.painter().rect_stroke(
-                                    rect,
-                                    0.0,
-                                    stroke,
-                                    egui::StrokeKind::Outside,
-                                );
-                            }
-                            let name = format!("{what} {i}");
-                            r.widget_info(|| {
-                                egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &name)
-                            });
-                            if r.on_hover_text(&name).clicked() {
-                                pick = Some(i);
-                                ui.close();
-                            }
-                        }
-                    });
+                let swatches =
+                    mg_uikit::palette_swatches(ui, |i| self::tones(p, i), what, current, true);
+                if let Some(i) = swatches {
+                    pick = Some(i);
+                    ui.close();
                 }
             });
         combo.response.widget_info(|| {
@@ -110,5 +116,106 @@ pub fn pick(ui: &mut Ui, palette: Option<&Rgba>, what: &str, color: &mut u8) -> 
             true
         }
         None => false,
+    }
+}
+
+/// Paints a color's tones side by side in `rect`.
+fn paint_tones(painter: &egui::Painter, rect: egui::Rect, tones: &[egui::Color32; 4]) {
+    let w = rect.width() / tones.len() as f32;
+    for (i, c) in tones.iter().enumerate() {
+        let x = rect.left() + w * i as f32;
+        let r = egui::Rect::from_x_y_ranges(x..=x + w, rect.y_range());
+        painter.rect_filled(r, 0.0, *c);
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+
+    /// A palette whose row `r` is the gray `r` (rows counted from the
+    /// bottom, as the game's are).
+    pub(crate) fn palette() -> Rgba {
+        let (width, height) = (256, u32::from(COLORS));
+        let mut data = Vec::with_capacity((width * height * 4) as usize);
+        for y in 0..height {
+            for _ in 0..width {
+                let g = (height - 1 - y) as u8;
+                data.extend([g, g, g, 255]);
+            }
+        }
+        Rgba { width, height, data }
+    }
+
+    /// One frame of the chooser for "Skin" at `color`, given `events`; its
+    /// accesskit output.
+    fn frame(
+        ctx: &egui::Context,
+        p: &Rgba,
+        color: &mut u8,
+        events: Vec<egui::Event>,
+    ) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(600.0, 500.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            mg_uikit::apply(ui.ctx(), mg_uikit::Theme::Dark);
+            egui::CentralPanel::default().show(ui, |ui| {
+                pick(ui, Some(p), "Skin", color);
+            });
+        });
+        out.textures_delta.clear();
+        out
+    }
+
+    fn click(ctx: &egui::Context, p: &Rgba, color: &mut u8, at: egui::Pos2) -> egui::FullOutput {
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(ctx, p, color, vec![egui::Event::PointerMoved(at)]);
+        frame(ctx, p, color, vec![button(true)]);
+        frame(ctx, p, color, vec![button(false)]);
+        frame(ctx, p, color, Vec::new())
+    }
+
+    /// The swatch opens the grid of the palette's 176 colors (16 by 11),
+    /// whose click picks one and closes it; the combo opens it as well.
+    #[test]
+    fn the_swatch_grid_picks_a_color() {
+        let named = crate::panels::tests::named_rect;
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let p = palette();
+        let mut color = 3;
+        frame(&ctx, &p, &mut color, Vec::new());
+        let out = frame(&ctx, &p, &mut color, Vec::new());
+        assert!(named(&out, "Skin 37").is_none(), "closed");
+        let swatch = named(&out, "Skin swatch").expect("the swatch");
+        let out = click(&ctx, &p, &mut color, swatch.center());
+        let cells: Vec<egui::Rect> =
+            (0..COLORS).filter_map(|i| named(&out, &format!("Skin {i}"))).collect();
+        assert_eq!(cells.len(), usize::from(COLORS), "the grid, open");
+        // Sixteen a row, eleven rows.
+        let rows =
+            |r: usize| cells[r * 16..r * 16 + 16].iter().all(|c| c.top() == cells[r * 16].top());
+        assert!((0..11).all(rows));
+        assert!(cells[16].top() > cells[0].top() && cells[1].left() > cells[0].left());
+        let out = click(&ctx, &p, &mut color, cells[37].center());
+        assert_eq!(color, 37, "picked");
+        assert!(named(&out, "Skin 37").is_none(), "closed again");
+        // The combo opens it too.
+        let combo = named(&out, "Skin color").expect("the combo");
+        let out = click(&ctx, &p, &mut color, combo.center());
+        let cell = named(&out, "Skin 100").expect("open from the combo");
+        click(&ctx, &p, &mut color, cell.center());
+        assert_eq!(color, 100);
     }
 }

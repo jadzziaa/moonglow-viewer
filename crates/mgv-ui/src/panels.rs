@@ -464,256 +464,412 @@ fn tree(
         });
 }
 
-/// What the open thing is, and the selected node.
+/// The Inspector's sections, in their order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Section {
+    /// What is open: its name, kind, file, origin, format.
+    Doc,
+    /// A creature's looks (the board's two-column grid).
+    Creature,
+    /// A model's PLT colors where it is shown on its own.
+    Plt,
+    /// An MTR's slots, parameters and flags.
+    Material,
+    /// A tileset's tiles.
+    Tileset,
+    /// The model shown.
+    Model,
+    /// The node selected.
+    Node,
+}
+
+/// What the open thing is, and the selected node: its sections flowing
+/// into columns where the Inspector is wide (the kit's `FormColumns`: a
+/// column of 440 at least; the Inspector dragged to the Bottom Dock),
+/// stacked where it is not.
 pub(crate) fn inspector(app: &mut Viewer, ui: &mut Ui) {
     let palettes = app.palettes.layers(&app.lib);
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        let Some(doc) = &app.doc else {
+        if app.doc.is_none() {
             ui.weak("Nothing open.");
             return;
-        };
-        egui::Grid::new("doc").num_columns(2).striped(true).show(ui, |ui| {
-            field_label(ui, "Name");
-            ui.label(doc.name());
-            ui.end_row();
-            field_label(ui, "Kind");
-            ui.label(format!("{:?}", doc.opened.kind));
-            ui.end_row();
-            if let Some(p) = &doc.opened.path {
-                field_label(ui, "File");
-                ui.label(p.display().to_string());
-                ui.end_row();
-            }
-            if let Some(k) = doc.opened.key
-                && let Some(o) = app.lib.origin(&k)
-            {
-                field_label(ui, "From");
-                ui.label(o);
-                ui.end_row();
-            }
-            if doc.opened.kind == Kind::Model {
-                field_label(ui, "Format");
-                ui.label(if mg_mdl::is_binary(&doc.opened.data) { "compiled" } else { "ASCII" });
-                ui.end_row();
-            }
-        });
-        if let Some(mut look) = doc.creature {
-            next_section(ui, "Creature");
-            let before = look;
-            egui::Grid::new("look").num_columns(2).show(ui, |ui| {
-                field_label(ui, "Gender");
-                ui.horizontal(|ui| {
-                    ui.selectable_value(&mut look.gender, 0, "male");
-                    ui.selectable_value(&mut look.gender, 1, "female");
-                });
-                ui.end_row();
-                let drag = |ui: &mut Ui, label: &str, v: &mut u8, max: u8| {
-                    field_label(ui, label);
-                    ui.add(egui::DragValue::new(v).range(0..=max));
-                    ui.end_row();
-                };
-                drag(ui, "Phenotype", &mut look.phenotype, 255);
-                // The look's colours and their PLT layers.
-                for (c, (label, layer)) in look.colors.iter_mut().zip([
-                    ("Skin color", 0),
-                    ("Hair color", 1),
-                    ("Tattoo 1", 8),
-                    ("Tattoo 2", 9),
-                ]) {
-                    field_label(ui, label);
-                    crate::palette::pick(ui, palettes[layer].as_deref(), label, c);
-                    ui.end_row();
-                }
-                field_label(ui, "Head");
-                ui.add(egui::DragValue::new(&mut look.head).range(1..=255));
-                ui.end_row();
-                field_label(ui, "Body parts");
-                ui.add(egui::DragValue::new(&mut look.body).range(1..=255));
-                ui.end_row();
-                field_label(ui, "Wings");
-                ui.add(egui::DragValue::new(&mut look.wings).range(0..=255));
-                ui.end_row();
-                field_label(ui, "Tail");
-                ui.add(egui::DragValue::new(&mut look.tail).range(0..=255));
-                ui.end_row();
-            });
-            if look != before {
-                app.actions.push(Action::OpenCreature(look));
-            }
         }
-        // A model on its own with PLT textures: their colours, which a
-        // creature or an item would give them.
-        if doc.creature.is_none()
-            && doc.opened.kind == Kind::Model
-            && let Some(a) =
-                app.gfx.as_ref().zip(doc.shown.as_ref()).and_then(|(g, s)| g.stage.actor(s.base))
-            && mgv_stage::textures::uses_plt(
-                app.lib.resman(),
-                &a.model.model,
-                a.look.textures.as_deref(),
-            )
-        {
-            next_section(ui, "PLT colors");
-            let before = a.look.colors;
-            let mut colors = before.unwrap_or_default();
-            egui::Grid::new("plt colors").num_columns(2).show(ui, |ui| {
-                for (i, (label, c)) in
-                    mgv_stage::textures::PLT_LAYERS.iter().zip(&mut colors).enumerate()
-                {
-                    field_label(ui, *label);
-                    crate::palette::pick(ui, palettes[i].as_deref(), label, c);
-                    ui.end_row();
+        let sections = sections(app);
+        let columns = mg_uikit::form::FormColumns::new("inspector-sections").keys(&sections);
+        columns.show(ui, sections.len(), |ui, i| match sections[i] {
+            Section::Doc => doc_section(app, ui),
+            Section::Creature => creature_section(app, ui, &palettes),
+            Section::Plt => plt_section(app, ui, &palettes),
+            Section::Material => {
+                if let Some(doc) = &app.doc {
+                    material(ui, &doc.opened.data);
                 }
-            });
-            let mut after = (before.is_some() || colors != [0; 10]).then_some(colors);
-            if ui.add_enabled(before.is_some(), egui::Button::new("Reset colors")).clicked() {
-                after = None;
             }
-            if after != before {
-                app.actions.push(Action::SetColors(after));
-            }
-        }
-        match doc.opened.kind {
-            Kind::Material => material(ui, &doc.opened.data),
-            Kind::Tileset => {
-                if let Some(k) = tileset(ui, app.lib.game().language.codepage(), &doc.opened.data) {
+            Section::Tileset => {
+                let codepage = app.lib.game().language.codepage();
+                let picked = app.doc.as_ref().and_then(|d| tileset(ui, codepage, &d.opened.data));
+                if let Some(k) = picked {
                     app.actions.push(Action::OpenResource(k));
                 }
             }
-            _ => {}
+            Section::Model => model_section(app, ui),
+            Section::Node => node_section(app, ui),
+        });
+    });
+}
+
+/// The sections the open thing has.
+fn sections(app: &Viewer) -> Vec<Section> {
+    let Some(doc) = &app.doc else { return Vec::new() };
+    let mut s = vec![Section::Doc];
+    if doc.creature.is_some() {
+        s.push(Section::Creature);
+    }
+    if plt_actor(app).is_some() {
+        s.push(Section::Plt);
+    }
+    match doc.opened.kind {
+        Kind::Material => s.push(Section::Material),
+        Kind::Tileset => s.push(Section::Tileset),
+        _ => {}
+    }
+    let shown = app.gfx.as_ref().zip(doc.shown.as_ref());
+    if shown.and_then(|(g, sh)| g.stage.actor(sh.base)).is_some() {
+        s.push(Section::Model);
+        if app.selection.is_some() {
+            s.push(Section::Node);
         }
-        let Some(g) = &app.gfx else { return };
-        let Some(base) = doc.shown.as_ref().map(|s| s.base) else { return };
-        let Some(a) = g.stage.actor(base) else { return };
-        let m = &a.model.model;
-        next_section(ui, "Model");
-        egui::Grid::new("model").num_columns(2).striped(true).show(ui, |ui| {
-            field_label(ui, "Model");
-            ui.label(&m.name);
+    }
+    s
+}
+
+/// The actor of a model opened on its own whose textures are PLTs (their
+/// colors are the Inspector's to set, as a creature or an item would).
+fn plt_actor(app: &Viewer) -> Option<&mgv_stage::Actor> {
+    let doc = app.doc.as_ref().filter(|d| d.creature.is_none() && d.opened.kind == Kind::Model)?;
+    let a = app.gfx.as_ref()?.stage.actor(doc.shown.as_ref()?.base)?;
+    let textures = a.look.textures.as_deref();
+    mgv_stage::textures::uses_plt(app.lib.resman(), &a.model.model, textures).then_some(a)
+}
+
+/// The open thing's name, kind, file, origin and format.
+fn doc_section(app: &Viewer, ui: &mut Ui) {
+    let Some(doc) = &app.doc else { return };
+    egui::Grid::new("doc").num_columns(2).striped(true).show(ui, |ui| {
+        field_label(ui, "Name");
+        ui.label(doc.name());
+        ui.end_row();
+        field_label(ui, "Kind");
+        ui.label(format!("{:?}", doc.opened.kind));
+        ui.end_row();
+        if let Some(p) = &doc.opened.path {
+            field_label(ui, "File");
+            ui.label(p.display().to_string());
             ui.end_row();
-            field_label(ui, "Classification");
-            ui.label(format!("{:?}", m.classification));
+        }
+        if let Some(k) = doc.opened.key
+            && let Some(o) = app.lib.origin(&k)
+        {
+            field_label(ui, "From");
+            ui.label(o);
             ui.end_row();
-            field_label(ui, "Supermodel");
-            ui.label(m.supermodel.as_deref().unwrap_or("none"));
+        }
+        if doc.opened.kind == Kind::Model {
+            field_label(ui, "Format");
+            ui.label(if mg_mdl::is_binary(&doc.opened.data) { "compiled" } else { "ASCII" });
             ui.end_row();
-            field_label(ui, "Nodes");
-            ui.label(m.nodes.len().to_string());
-            ui.end_row();
-            let (faces, verts) = m
-                .nodes
-                .iter()
-                .filter_map(|n| n.mesh())
-                .fold((0, 0), |(f, v), mesh| (f + mesh.faces.len(), v + mesh.vertices.len()));
-            field_label(ui, "Faces / vertices");
-            ui.label(format!("{faces} / {verts}"));
-            ui.end_row();
-            field_label(ui, "Animations");
-            ui.label(format!("{} ({} own)", a.animations.0.len(), m.animations.len()));
-            ui.end_row();
+        }
+    });
+}
+
+/// A pair's label's width in the Inspector's two-column grid (the board's
+/// `.pair`: `68px auto 68px auto`, 8 apart).
+pub(crate) const PAIR_LABEL: f32 = 68.0;
+/// A pair's value's width: a number field (`.nfield`), or a swatch (28
+/// and its padding) and its combo (52), 4 apart (`.pick`).
+pub(crate) const PAIR_VALUE: f32 = 90.0;
+/// The room between a grid's columns and its rows.
+const PAIR_GAP: f32 = 8.0;
+
+/// How many label and value pairs stand on a row of the grid in a room
+/// `width` wide: two where both fit (the board's Inspector, 340 inside),
+/// one in a narrower Right Dock (280, tabbed).
+pub(crate) fn pairs_per_row(width: f32) -> usize {
+    if width >= 2.0 * (PAIR_LABEL + PAIR_VALUE) + 3.0 * PAIR_GAP { 2 } else { 1 }
+}
+
+/// A field of the pair grid: its label and its value's control.
+type Field<'a> = (String, Box<dyn FnOnce(&mut Ui) + 'a>);
+
+/// The board's `.pair` grid: each field's label (cut to [`PAIR_LABEL`])
+/// and value, [`pairs_per_row`] pairs a row, in their order across the
+/// rows; `alone` (Gender) on a row of its own first.
+fn pairs<'a>(ui: &mut Ui, id: &str, alone: Option<Field<'a>>, fields: Vec<Field<'a>>) {
+    let per_row = pairs_per_row(ui.available_width());
+    let label = |ui: &mut Ui, text: &str| {
+        let h = ui.spacing().interact_size.y;
+        let layout = egui::Layout::left_to_right(egui::Align::Center);
+        ui.allocate_ui_with_layout(egui::vec2(PAIR_LABEL, h), layout, |ui| {
+            ui.set_width(PAIR_LABEL);
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+            field_label(ui, text);
         });
-        let Some(sel) = app.selection else { return };
-        let Some(sa) = g.stage.actor(sel.actor) else { return };
-        let Some(node) = sa.model.model.nodes.get(sel.node) else { return };
-        next_section(ui, &node.name);
-        egui::Grid::new("node").num_columns(2).striped(true).show(ui, |ui| {
-            let row = |ui: &mut Ui, k: &str, v: String| {
-                field_label(ui, k);
-                ui.label(v);
-                ui.end_row();
-            };
-            row(ui, "Type", node.kind.type_name().into());
-            row(
-                ui,
-                "Parent",
-                node.parent.map_or("none".into(), |p| sa.model.model.nodes[p].name.clone()),
-            );
-            row(ui, "Position", fmt3(node.position));
-            let aa = mg_mdl::ascii_write::axis_angle(node.orientation);
-            row(
-                ui,
-                "Orientation",
-                format!("{} rotated {:.1}°", fmt3([aa[0], aa[1], aa[2]]), aa[3].to_degrees()),
-            );
-            if node.scale != 1.0 {
-                row(ui, "Scale", format!("{}", node.scale));
+    };
+    // `alone` spans the row (the board's Gender), so it stands before the
+    // grid and leaves its columns their own widths.
+    if let Some((text, add)) = alone {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = PAIR_GAP;
+            label(ui, &text);
+            add(ui);
+        });
+        ui.add_space(6.0 - ui.spacing().item_spacing.y);
+    }
+    egui::Grid::new(id)
+        .num_columns(2 * per_row)
+        .spacing([PAIR_GAP, 6.0])
+        .min_col_width(PAIR_LABEL)
+        .show(ui, |ui| {
+            for (i, (text, add)) in fields.into_iter().enumerate() {
+                label(ui, &text);
+                add(ui);
+                if (i + 1) % per_row == 0 {
+                    ui.end_row();
+                }
             }
-            for c in &node.controllers {
-                let v: Vec<String> = c.row(0).iter().map(|x| format!("{x:.4}")).collect();
-                row(ui, &c.name, v.join(" "));
-            }
-            match &node.kind {
-                NodeKind::Mesh(mesh) => {
-                    row(
+        });
+}
+
+/// A number field of the pair grid ([`PAIR_VALUE`] wide), `range` its
+/// values.
+fn number<'a, N: egui::emath::Numeric>(
+    v: &'a mut N,
+    range: std::ops::RangeInclusive<N>,
+) -> Box<dyn FnOnce(&mut Ui) + 'a> {
+    Box::new(move |ui: &mut Ui| {
+        let h = ui.spacing().interact_size.y;
+        ui.add_sized([PAIR_VALUE, h], egui::DragValue::new(v).range(range));
+    })
+}
+
+/// A creature's looks (the board "Creature, Colors": the Inspector's
+/// Creature section, in the two-column grid): Gender on its row, then
+/// Phenotype, the skin's, hair's and tattoos' colors, Head, Body parts,
+/// Wings and Tail. A change shows the creature anew.
+fn creature_section(app: &mut Viewer, ui: &mut Ui, palettes: &[Option<Arc<mg_image::Rgba>>; 10]) {
+    let Some(mut look) = app.doc.as_ref().and_then(|d| d.creature) else { return };
+    section_heading(ui, "Creature");
+    if creature_form(ui, &mut look, palettes) {
+        app.actions.push(Action::OpenCreature(look));
+    }
+}
+
+/// [`creature_section`]'s grid; whether the look changed.
+pub(crate) fn creature_form(
+    ui: &mut Ui,
+    look: &mut mgv_stage::subject::CreatureLook,
+    palettes: &[Option<Arc<mg_image::Rgba>>; 10],
+) -> bool {
+    let before = *look;
+    let l = look;
+    let gender: Field<'_> = (
+        "Gender".into(),
+        Box::new(|ui: &mut Ui| {
+            let choices = [(0u8, "male", ""), (1u8, "female", "")];
+            mg_uikit::segmented(ui, "Gender", &mut l.gender, &choices);
+        }),
+    );
+    let [skin, hair, tattoo1, tattoo2] = &mut l.colors;
+    let mut fields: Vec<Field<'_>> = vec![("Phenotype".into(), number(&mut l.phenotype, 0..=255))];
+    // The look's colors and their PLT layers.
+    for (c, (label, layer)) in [skin, hair, tattoo1, tattoo2].into_iter().zip([
+        ("Skin color", 0),
+        ("Hair color", 1),
+        ("Tattoo 1", 8),
+        ("Tattoo 2", 9),
+    ]) {
+        let palette = palettes[layer].as_deref();
+        fields.push((
+            label.into(),
+            Box::new(move |ui: &mut Ui| {
+                crate::palette::pick(ui, palette, label, c);
+            }),
+        ));
+    }
+    fields.push(("Head".into(), number(&mut l.head, 1..=255)));
+    fields.push(("Body parts".into(), number(&mut l.body, 1..=255)));
+    fields.push(("Wings".into(), number(&mut l.wings, 0..=255)));
+    fields.push(("Tail".into(), number(&mut l.tail, 0..=255)));
+    pairs(ui, "look", Some(gender), fields);
+    *l != before
+}
+
+/// A model on its own with PLT textures: their ten layers' colors (which
+/// a creature or an item would give them) in the two-column grid, and
+/// Reset Colors under them.
+fn plt_section(app: &mut Viewer, ui: &mut Ui, palettes: &[Option<Arc<mg_image::Rgba>>; 10]) {
+    let Some(a) = plt_actor(app) else { return };
+    let before = a.look.colors;
+    let mut colors = before.unwrap_or_default();
+    section_heading(ui, "PLT colors");
+    let fields: Vec<Field<'_>> = (mgv_stage::textures::PLT_LAYERS.iter().zip(&mut colors))
+        .enumerate()
+        .map(|(i, (label, c))| -> Field<'_> {
+            let palette = palettes[i].as_deref();
+            (
+                (*label).into(),
+                Box::new(move |ui: &mut Ui| {
+                    crate::palette::pick(ui, palette, label, c);
+                }),
+            )
+        })
+        .collect();
+    pairs(ui, "plt colors", None, fields);
+    let mut after = (before.is_some() || colors != [0; 10]).then_some(colors);
+    ui.add_space(PAIR_GAP);
+    if ui.add_enabled(before.is_some(), egui::Button::new("Reset Colors")).clicked() {
+        after = None;
+    }
+    if after != before {
+        app.actions.push(Action::SetColors(after));
+    }
+}
+
+/// The model shown: its name, classification, supermodel, nodes, faces
+/// and vertices, animations.
+fn model_section(app: &Viewer, ui: &mut Ui) {
+    let Some(g) = &app.gfx else { return };
+    let Some(base) = app.doc.as_ref().and_then(|d| d.shown.as_ref()).map(|s| s.base) else {
+        return;
+    };
+    let Some(a) = g.stage.actor(base) else { return };
+    let m = &a.model.model;
+    section_heading(ui, "Model");
+    egui::Grid::new("model").num_columns(2).striped(true).show(ui, |ui| {
+        field_label(ui, "Model");
+        ui.label(&m.name);
+        ui.end_row();
+        field_label(ui, "Classification");
+        ui.label(format!("{:?}", m.classification));
+        ui.end_row();
+        field_label(ui, "Supermodel");
+        ui.label(m.supermodel.as_deref().unwrap_or("none"));
+        ui.end_row();
+        field_label(ui, "Nodes");
+        ui.label(m.nodes.len().to_string());
+        ui.end_row();
+        let (faces, verts) = m
+            .nodes
+            .iter()
+            .filter_map(|n| n.mesh())
+            .fold((0, 0), |(f, v), mesh| (f + mesh.faces.len(), v + mesh.vertices.len()));
+        field_label(ui, "Faces / vertices");
+        ui.label(format!("{faces} / {verts}"));
+        ui.end_row();
+        field_label(ui, "Animations");
+        ui.label(format!("{} ({} own)", a.animations.0.len(), m.animations.len()));
+        ui.end_row();
+    });
+}
+
+/// The node selected.
+fn node_section(app: &Viewer, ui: &mut Ui) {
+    let Some(g) = &app.gfx else { return };
+    let Some(sel) = app.selection else { return };
+    let Some(sa) = g.stage.actor(sel.actor) else { return };
+    let Some(node) = sa.model.model.nodes.get(sel.node) else { return };
+    section_heading(ui, &node.name);
+    egui::Grid::new("node").num_columns(2).striped(true).show(ui, |ui| {
+        let row = |ui: &mut Ui, k: &str, v: String| {
+            field_label(ui, k);
+            ui.label(v);
+            ui.end_row();
+        };
+        row(ui, "Type", node.kind.type_name().into());
+        row(
+            ui,
+            "Parent",
+            node.parent.map_or("none".into(), |p| sa.model.model.nodes[p].name.clone()),
+        );
+        row(ui, "Position", fmt3(node.position));
+        let aa = mg_mdl::ascii_write::axis_angle(node.orientation);
+        row(
+            ui,
+            "Orientation",
+            format!("{} rotated {:.1}°", fmt3([aa[0], aa[1], aa[2]]), aa[3].to_degrees()),
+        );
+        if node.scale != 1.0 {
+            row(ui, "Scale", format!("{}", node.scale));
+        }
+        for c in &node.controllers {
+            let v: Vec<String> = c.row(0).iter().map(|x| format!("{x:.4}")).collect();
+            row(ui, &c.name, v.join(" "));
+        }
+        match &node.kind {
+            NodeKind::Mesh(mesh) => {
+                row(
+                    ui,
+                    "Faces / vertices",
+                    format!("{} / {}", mesh.faces.len(), mesh.vertices.len()),
+                );
+                for (i, t) in mesh.textures.iter().enumerate() {
+                    if let Some(t) = t {
+                        let found = mg_render::Assets::texture(app.lib.resman(), t).is_some();
+                        let label =
+                            if i == 0 { "Bitmap".to_string() } else { format!("Texture {i}") };
+                        row(ui, &label, format!("{t}{}", if found { "" } else { " (not found)" }));
+                    }
+                }
+                if let Some(mtr) = &mesh.material {
+                    row(ui, "Material", mtr.clone());
+                }
+                row(ui, "Render / shadow", format!("{} / {}", mesh.render, mesh.shadow));
+                if mesh.transparency_hint != 0 {
+                    row(ui, "Transparency hint", mesh.transparency_hint.to_string());
+                }
+                match &mesh.extra {
+                    MeshExtra::Skin(s) => row(ui, "Bones", s.bones.len().to_string()),
+                    MeshExtra::Dangly(d) => row(
                         ui,
-                        "Faces / vertices",
-                        format!("{} / {}", mesh.faces.len(), mesh.vertices.len()),
-                    );
-                    for (i, t) in mesh.textures.iter().enumerate() {
-                        if let Some(t) = t {
-                            let found = mg_render::Assets::texture(app.lib.resman(), t).is_some();
-                            let label =
-                                if i == 0 { "Bitmap".to_string() } else { format!("Texture {i}") };
-                            row(
-                                ui,
-                                &label,
-                                format!("{t}{}", if found { "" } else { " (not found)" }),
-                            );
-                        }
-                    }
-                    if let Some(mtr) = &mesh.material {
-                        row(ui, "Material", mtr.clone());
-                    }
-                    row(ui, "Render / shadow", format!("{} / {}", mesh.render, mesh.shadow));
-                    if mesh.transparency_hint != 0 {
-                        row(ui, "Transparency hint", mesh.transparency_hint.to_string());
-                    }
-                    match &mesh.extra {
-                        MeshExtra::Skin(s) => row(ui, "Bones", s.bones.len().to_string()),
-                        MeshExtra::Dangly(d) => row(
-                            ui,
-                            "Dangly",
-                            format!(
-                                "displacement {} tightness {} period {}",
-                                d.displacement, d.tightness, d.period
-                            ),
+                        "Dangly",
+                        format!(
+                            "displacement {} tightness {} period {}",
+                            d.displacement, d.tightness, d.period
                         ),
-                        MeshExtra::Anim(am) => {
-                            row(ui, "Sample period", am.sample_period.to_string())
-                        }
-                        MeshExtra::Aabb(t) => row(ui, "AABB entries", t.len().to_string()),
-                        MeshExtra::None => {}
-                    }
+                    ),
+                    MeshExtra::Anim(am) => row(ui, "Sample period", am.sample_period.to_string()),
+                    MeshExtra::Aabb(t) => row(ui, "AABB entries", t.len().to_string()),
+                    MeshExtra::None => {}
                 }
-                NodeKind::Emitter(e) => {
-                    row(
-                        ui,
-                        "Update / render / blend",
-                        format!("{} / {} / {}", e.update, e.render, e.blend),
-                    );
-                    row(ui, "Texture", e.texture.clone().unwrap_or_else(|| "none".into()));
-                    if let Some(c) = &e.chunk {
-                        row(ui, "Chunk", c.clone());
-                    }
-                    row(ui, "Grid", format!("{} × {}", e.xgrid, e.ygrid));
-                    let flags: Vec<&str> = mg_mdl::EMITTER_FLAGS
-                        .iter()
-                        .filter(|(_, b)| e.flags & b != 0)
-                        .map(|(n, _)| *n)
-                        .collect();
-                    row(ui, "Flags", flags.join(", "));
-                }
-                NodeKind::Light(l) => {
-                    row(ui, "Priority", l.priority.to_string());
-                    row(ui, "Ambient only", l.ambient_only.to_string());
-                    row(ui, "Shadow", l.shadow.to_string());
-                }
-                NodeKind::Reference(r) => {
-                    row(ui, "Model", r.model.clone().unwrap_or_else(|| "none".into()));
-                }
-                NodeKind::Dummy | NodeKind::Camera => {}
             }
-        });
+            NodeKind::Emitter(e) => {
+                row(
+                    ui,
+                    "Update / render / blend",
+                    format!("{} / {} / {}", e.update, e.render, e.blend),
+                );
+                row(ui, "Texture", e.texture.clone().unwrap_or_else(|| "none".into()));
+                if let Some(c) = &e.chunk {
+                    row(ui, "Chunk", c.clone());
+                }
+                row(ui, "Grid", format!("{} × {}", e.xgrid, e.ygrid));
+                let flags: Vec<&str> = mg_mdl::EMITTER_FLAGS
+                    .iter()
+                    .filter(|(_, b)| e.flags & b != 0)
+                    .map(|(n, _)| *n)
+                    .collect();
+                row(ui, "Flags", flags.join(", "));
+            }
+            NodeKind::Light(l) => {
+                row(ui, "Priority", l.priority.to_string());
+                row(ui, "Ambient only", l.ambient_only.to_string());
+                row(ui, "Shadow", l.shadow.to_string());
+            }
+            NodeKind::Reference(r) => {
+                row(ui, "Model", r.model.clone().unwrap_or_else(|| "none".into()));
+            }
+            NodeKind::Dummy | NodeKind::Camera => {}
+        }
     });
 }
 
@@ -722,7 +878,7 @@ fn material(ui: &mut Ui, data: &[u8]) {
     const SLOTS: [&str; 6] =
         ["diffuse", "normal", "specular", "roughness", "height", "self-illumination"];
     let m = mg_image::mtr::Mtr::parse(data);
-    next_section(ui, "Material");
+    section_heading(ui, "Material");
     egui::Grid::new("mtr").num_columns(2).striped(true).show(ui, |ui| {
         for (i, t) in m.textures.iter().enumerate() {
             let Some(t) = t else { continue };
@@ -770,7 +926,7 @@ fn tileset(ui: &mut Ui, codepage: mg_core::Codepage, data: &[u8]) -> Option<ResK
             return None;
         }
     };
-    next_section(ui, "Tileset");
+    section_heading(ui, "Tileset");
     ui.label(format!(
         "{} tiles, {} groups, {} terrains, {} crossers",
         set.tiles.len(),
@@ -1028,7 +1184,7 @@ pub(crate) fn log(app: &mut Viewer, ui: &mut Ui) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// The rectangle of the widget named `label` in a frame's accesskit
@@ -1064,6 +1220,42 @@ mod tests {
         });
         out.textures_delta.clear();
         out
+    }
+
+    /// The Creature grid: Gender alone on its row, then two pairs a row
+    /// where they fit (Skin color beside Phenotype, Hair color under it),
+    /// one a row in a narrower dock; a picked color changes the look.
+    #[test]
+    fn the_creature_grid_stands_two_pairs_a_row_where_they_fit() {
+        let palette = Arc::new(crate::palette::tests::palette());
+        let palettes: [Option<Arc<mg_image::Rgba>>; 10] =
+            std::array::from_fn(|_| Some(palette.clone()));
+        for (width, per_row) in [(340.0, 2), (268.0, 1)] {
+            let ctx = egui::Context::default();
+            ctx.enable_accesskit();
+            let mut look = mgv_stage::subject::CreatureLook::new(6);
+            let mut changed = false;
+            let mut draw = |ui: &mut Ui| {
+                ui.allocate_ui(egui::vec2(width, 180.0), |ui| {
+                    ui.set_max_width(width);
+                    changed |= creature_form(ui, &mut look, &palettes);
+                });
+            };
+            frame(&ctx, Vec::new(), &mut draw);
+            let out = frame(&ctx, Vec::new(), &mut draw);
+            let at = |name: &str| named_rect(&out, name).unwrap_or_else(|| panic!("{name}"));
+            let (gender, skin, hair) =
+                (at("Gender"), at("Skin color swatch"), at("Hair color swatch"));
+            assert!(skin.top() > gender.bottom(), "Gender alone first");
+            assert!(hair.top() > skin.bottom(), "Hair under Skin: {skin:?} {hair:?}");
+            if per_row == 2 {
+                // Skin color in the second pair, beside Phenotype.
+                assert!(skin.left() > hair.left() + PAIR_LABEL + PAIR_VALUE, "{skin:?} {hair:?}");
+            } else {
+                assert!((hair.left() - skin.left()).abs() < 1.0, "{skin:?} {hair:?}");
+            }
+            assert!(!changed);
+        }
     }
 
     /// A click on the scrub bar seeks to the time under it, the bar the
