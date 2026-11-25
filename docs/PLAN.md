@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:38:40Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T16:12:28Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1004,8 +1004,8 @@ bookkeeping:
   panel to its dock and a closed Texture or ASCII back beside the other.
   Each dock folds by its one control (the side docks' fold button, the
   Bottom Dock's Status Bar switch); the window crossing a fold width gives
-  the user's fold up. Nothing is kept between runs; Reset Layout salts
-  the docks' ids so their sizes start again.
+  the user's fold up. (Part D, §10.9: panels now move between docks and
+  the layout is kept between runs; Reset Layout clears both.)
 - **Document tabs** (`dock::doc_tabs_style`, `doc_tab_title`,
   `doc_tab_marks`, `shell::doc_tab_parts`): kind icon, close button on
   the front and hovered tab (Texture, ASCII), the modified dot on ASCII
@@ -1051,11 +1051,12 @@ Upstream needs (the viewer's workarounds in place):
 - `PanelHeader` has no badge slot: the diagnostics counts are badges laid
   out among its tools.
 
-Left: Gallery mode and the Creature section's two-column grid and
-swatch-combo color pickers (part C); the Timeline's one transport row
-over a full-width scrub bar and the texture's caption line are unchanged
-inside; dock panels are no longer dragged between docks or closed one by
-one (the docks fold instead); the layout is not kept between runs. The
+Left at part B: Gallery mode (built in part C, §10.8); the Creature
+section's two-column grid and swatch-combo color pickers, the Timeline's
+one transport row over a full-width scrub bar, the texture's caption
+line, panels dragged between docks and the layout kept between runs
+(all built in part D, §10.9). Dock panels are not closed one by one (the
+docks fold instead), as the toolset's are not. The
 app opens at 1440 by 900, under the 1500 at which the Left Dock folds,
 as the toolset opens at 1280 by 800 with its Left Dock folded: the
 owner ruled to keep it ("Viewer width: keep", 2026-11-25). A size the
@@ -1164,3 +1165,103 @@ it is drawn. Walkmeshes have no picture (the stage draws them as an
 overlay). Pictures follow neither the window's Game shaders switch nor
 its Shadow (the command line's shot, as the toolset's thumbnails).
 
+### 10.9 The rest of the redesign (M6 part D, 2026-11-25)
+
+The items part B left (§10.7), built on `mg-uikit` 5.3.0:
+
+- **Timeline** (`panels::timeline`, `panels::scrub`): one transport row,
+  the board's (`Viewer.html`): the Animation combo (150; no list of
+  animations), Pause or Play joined to Restart (`IconButton::joined`),
+  Loop | Once (`segmented`), and at the right the Speed slider (180, the
+  kit's `slider`, only where there is room) and its number. Under it the
+  scrub bar across the panel's width (an egui slider named "Time"), the
+  time's number and "of X.XX s", the events as ticks in the warning
+  color, and a seconds ruler whose step (0.05 s to 60 s) keeps its marks
+  at least 120 apart (`ruler_step`).
+- **Texture** (`texture.rs`): the header is an `EditorHeader`: the
+  channels (RGBA, RGB, R, G, B, A, as a segmented row) at the left, Mip
+  (only with mip levels) and Zoom at the right, each a mini slider (60)
+  and a number (48), going under More where the header is narrow. The
+  caption line (24 high, the panel's fill, a soft rule under it) gives
+  the name and the format, size, mip levels and alpha.
+- **Inspector** (`panels::inspector`): its sections (document, Creature,
+  PLT colors, Material, Tileset, Model, Node) in the kit's `FormColumns`.
+  The Creature section and the PLT colors are the board's `.pair` grid
+  (`ViewerCreature.html`: label 68, value 90, 8 apart; two pairs a row
+  from 340 wide, one in the 280 tabbed dock; Gender's segmented control
+  across its own row). A color (`palette::pick`) is the kit's
+  `paint_swatch_button` showing the color's tones and a combo (52) with
+  its number; both open the same popup, the kit's `palette_swatches`
+  (176 colors, sixteen a row, the current one outlined). PLT colors'
+  button reads Reset Colors. A Model section gives the shown model's
+  name, classification, supermodel, nodes, faces and vertices and
+  animations.
+- **Panels between docks** (`shell::drag_source`, `drop_target`,
+  `drop_panel`): a side panel's `PanelHeader::draggable` header or a
+  Bottom Dock `DockTabs::draggable` tab drags; each dock (each column of
+  the wide Right Dock) records its rectangle as a drop zone, and a folded,
+  closed or empty dock takes a band 96 wide along its edge of the editor
+  area. The zone under the pointer is outlined in the accent on a
+  Foreground layer; release moves the panel there (`Shell::move_panel`),
+  Esc lets go. A header's or tab's context menu does the same by words
+  (Move to the Left, Right (its first or second column in the wide
+  layout) or Bottom Dock; Reset Layout). A dock with no panels left is
+  not drawn. Parity of mechanism, not of feature: the toolset never moves
+  a panel between its Left, Right and Bottom docks (its `Panel::dock` is
+  fixed); its drag only rearranges the area editor's Right Dock
+  (`AreaDropZone`, the accent preview on a Foreground layer, drop on
+  release, a context menu). The viewer uses the same mechanism across its
+  three docks, as the brief asks.
+- **The layout kept** (`Settings::layout`, `settings::Layout`, version
+  1): the panels moved from their default dock (by `Tab::key`), the
+  user's own folds of the side docks and whether the Bottom Dock is
+  closed, the Bottom Dock's and the tabbed Right Dock's front panel, the
+  Left Dock's widths (list and gallery), the Right Dock's (narrow and
+  wide), the Bottom Dock's height and the seams between stacked panels,
+  and the editor area's groups (their tabs in order, the front tab and
+  share). Kept as the toolset keeps its sizes (`Option<u32>`, forced on
+  each frame, captured when the edge is dragged), so a narrow window
+  never overwrites a wide one's sizes. A layout of another version, or
+  one that does not read, is the default (`lenient_layout`: the rest of
+  the settings stay), as is one naming panels, docks or sizes that do not
+  exist. The width rules still apply on top, as the toolset's
+  `shell_migrate`: a layout kept at 1920 opened at 1280 folds the Left
+  Dock and tabs the Right; only a fold made by hand is kept. The first
+  run is 1440 by 900, the default layout.
+- **Tests** (lib, no GPU): `settings::tests::the_layout_is_kept_and_garbage_loads_the_default`;
+  `shell::tests::the_layout_round_trips_through_the_settings`,
+  `an_old_or_garbage_layout_opens_the_default`,
+  `a_panel_dragged_from_left_to_right_stays_after_a_save_and_load`,
+  `panels_move_to_folded_and_empty_docks`,
+  `the_width_rules_fold_a_dock_whose_layout_came_from_a_wider_window`;
+  `palette::tests::the_swatch_grid_picks_a_color`;
+  `panels::tests::the_scrub_bar_seeks`, `the_ruler_steps_as_the_board_s`,
+  `the_creature_grid_stands_two_pairs_a_row_where_they_fit`;
+  `texture::tests::the_texture_header_and_caption_line`. On the GPU:
+  `tests/app.rs`'s `panels_are_dragged_between_docks` and the Timeline's
+  labels and scrub in `a_click_opens_and_one_frame_loops_are_a_pose`;
+  `tests/screens.rs`'s `part_d` (`m6-d-*`).
+
+Upstream needs (the viewer's workarounds in place):
+
+- No kit drop zone or drop preview for moving a panel between docks:
+  `PanelHeader::draggable` and `DockTabs::draggable` say a drag started,
+  but the zones, the outline and the drop are the viewer's
+  (`shell::drop_panel`), as the toolset's `AreaDropZone` is `mg-ui`
+  code. A kit `DockDrop` (zones registered by docks, `preview(ui)`,
+  `dropped() -> Option<(panel, zone)>`) would serve both.
+- No kit layout record: what is kept, its validation and the forced
+  sizes are the viewer's, as `shell_migrate` is the toolset's.
+- No stacked-panel or column helper (still, §10.7).
+- No labeled mini slider with its number as a header item: Mip and Zoom
+  are `Item::custom` with `.more()` fallbacks.
+- No pair grid with a spanning row (the board's `.pair`): an egui `Grid`
+  with the spanning row drawn before it (`panels::pairs`).
+- The swatch and combo pairing (`palette::pick`) is app code, as the
+  toolset's `palette_color` is `mg-ui`'s: the kit has the swatch button
+  and the swatches grid but not the pair. The combo's popup id is
+  derived from egui's `IdSalt` hashing (`make_persistent_id(IdSalt::new(salt))`),
+  which a kit control would hide.
+
+Left: none of the brief's five items. Dock panels still cannot be closed
+one by one (the toolset's cannot either).

@@ -3,7 +3,7 @@ type: Manual Page
 title: The window
 description: The window's shell (Top Bar, Left, Right and Bottom Docks, editor area, Status Bar), how it gives way in small and wide windows, its panels and the keys.
 tags: [manual, panels, keys]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:38:40Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T16:12:28Z }
 ---
 
 # The window
@@ -20,6 +20,14 @@ The window is Moonglow's shell, as Moonglow Toolset's is:
   panels, or a dock's edge, to give one more room. The arrow at the end of
   a dock's first header folds the dock to a strip of its panels' icons;
   click the strip's arrow or an icon to bring it back.
+- Any of these panels moves to another dock: drag it by its header (a
+  Bottom Dock panel by its tab) and drop it on the Left, Right or Bottom
+  Dock, which is outlined while the pointer is over it (a folded, closed
+  or empty dock takes the drop along its edge of the editor area; Esc
+  lets go without moving it). Right-click a header or tab for the same
+  as a menu: **Move to the Left Dock**, **Move to the Right Dock** (its
+  first or second column in a wide window), **Move to the Bottom Dock**
+  and **Reset Layout**.
 - The **Bottom Dock**, under the editor area: **Timeline**, **Effects**
   and **Log** as tabs.
 - The **editor area**: the **3D View** in one group, **Texture** and
@@ -38,10 +46,15 @@ The window is Moonglow's shell, as Moonglow Toolset's is:
   it was read from and the game folder.
 
 The window opens 1440 by 900 points the first time, then at the size you
-left it. The shell gives way in a smaller window: under 1500 points wide the Left
+left it, and with the layout you left: which dock each panel stands in,
+the docks' widths and heights and the lines between their panels, which
+dock is folded and which panel is in front, and the editor area's groups
+and tabs. A layout from an older version opens as the default. The shell gives way in a smaller window: under 1500 points wide the Left
 Dock folds to its strip, under 1400 the Right Dock is 280 points wide with
 its panels as tabs and the game folder leaves the Status Bar, under 796
-the Right Dock folds too (unfold either by hand when you need it). In a
+the Right Dock folds too (unfold either by hand when you need it; a fold
+you make yourself is kept, the window's own are not). A layout kept from a
+wider window gives way the same way. In a
 window 2560 points wide or more (3440 by 1440, say) the Right Dock stands
 in two columns, the Inspector over the Log and Lighting over Effects,
 the Bottom Dock holds the Timeline alone, the editor area opens with the
@@ -97,7 +110,11 @@ The panels:
   swatch at the header's end picks the background's color.
   Click a part of the model to select its node.
 - **ASCII**: the model's text (see [Editing models](03-editing-models.md)).
-- **Texture**: textures you open (Ctrl and the wheel zoom it).
+- **Texture**: textures you open. Its header holds the channels to show
+  (RGBA, RGB, R, G, B, A) at the left and **Mip** and **Zoom** at the right (a
+  slider and a number each; Mip only where the texture has mip levels);
+  the caption line under it gives the texture's name, format, size, mip
+  levels and alpha. Ctrl and the wheel zoom it.
 - **Resources**: the game's resources (see [Getting started](01-getting-started.md)),
   as a **List** or a **Gallery** of pictures: the two buttons beside
   the count switch between them, and the choice is kept for the next
@@ -126,16 +143,28 @@ The panels:
   (head, limbs, equipment, wings) are listed under it.
 - **Inspector**: what is open and the selected node: its type, position,
   orientation, controllers, mesh, textures (and whether the game has
-  them), emitter or light settings.
+  them), emitter or light settings, each in a section of its own, and
+  the shown model's name, classification, supermodel, nodes, faces and
+  animations under **Model**.
+  For a creature (from Resources' **Creatures**) the **Creature** section
+  sets its **Gender** across the top, then **Phenotype**, **Skin color**,
+  **Hair color**, **Tattoo 1**, **Tattoo 2**, **Head**, **Body parts**,
+  **Wings** and **Tail**, two to a row where the dock is wide enough (one
+  in a narrow one). A color is its swatch and a number beside it: click
+  either to open the palette's 176 colors, sixteen to a row, and click
+  one to take it.
   For a model opened on its own that wears PLT textures (a body part, an
   animation base such as `a_halforc`), it has the ten **PLT colors** a
   creature or an item would give them: skin, hair, metal, cloth, leather
-  and tattoos, each picked from its palette's 176 colors (the list
-  beside its swatch shows them, as in Moonglow Toolset). **Reset colors** goes
-  back to the model as opened.
-- **Timeline**: the animations the model can play (its own and its
-  supermodels'), play and pause, loop or once, speed, and a slider through
-  the animation with its events marked.
+  and tattoos, two to a row, each picked from its palette's 176 colors
+  as a creature's are. **Reset Colors** goes back to the model as opened.
+- **Timeline**: one row with the **Animation** to play (its own and its
+  supermodels', chosen from a list), **Pause** or **Play**, **Restart**,
+  **Loop** or **Once**, and the **Speed** (a slider where there is room,
+  and a number); under it the scrub bar across the panel's width (click
+  or drag to go to a time; the number after it says the time and moves
+  it too, beside the animation's length), the animation's events marked
+  on it and a ruler of seconds under it.
 - **Effects** (double-click an effect to apply it) and **Lighting**: see [Lighting and visual effects](04-lighting-and-effects.md).
 - **Log**: what happened, warnings and errors.
 
