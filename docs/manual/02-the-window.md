@@ -3,7 +3,7 @@ type: Manual Page
 title: The window
 description: The window's shell (Top Bar, Left, Right and Bottom Docks, editor area, Status Bar), how it gives way in small and wide windows, its panels and the keys.
 tags: [manual, panels, keys]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:34:38Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:38:40Z }
 ---
 
 # The window
@@ -113,7 +113,9 @@ The panels:
   Home, End, Page Up and Page Down too); a double-click or Enter opens it
   too. Pictures are made a few at a time, those in
   sight first, the kind's icon standing in until each is ready; one that
-  cannot be made says **No picture** (hover it to see why). They are made
+  cannot be made, or a model with nothing to draw (one whose meshes are
+  all hidden, as the base game's `a_ba_coat`), says **No picture** (hover
+  it to see why). They are made
   again after **File › Refresh** (F5) or when a folder or hak changes. In
   Gallery mode the Left Dock opens wider (three pictures a row).
   **Open as Tab** (the icon at the right of the Resources header) puts the

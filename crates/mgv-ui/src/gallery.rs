@@ -368,7 +368,7 @@ impl ViewerPainter {
         }
         let shot = headless::thumbnail_shot(SIZE);
         match headless::still_unwaited(stage, viewport, lib, &shot, as_drawn) {
-            Some(image) => color_image(&image).map(Some),
+            Some(image) => drawn_picture(&image).map(Some),
             None => Ok(None),
         }
     }
@@ -484,6 +484,21 @@ pub(crate) fn shrink(image: &Rgba, side: u32) -> Rgba {
 }
 
 /// An image (rows top first) as egui's.
+/// A model's or creature's picture, unless nothing was drawn in it (every
+/// pixel the background: a model whose meshes all have `render 0`, as the
+/// base game's `a_ba_coat`): then "No picture", as the kit's rule is.
+fn drawn_picture(image: &Rgba) -> Result<ColorImage, String> {
+    let mut pixels = image.data.as_chunks::<4>().0.iter();
+    let first = pixels.next();
+    if first.is_some_and(|p| pixels.all(|q| q == p)) {
+        return Err(NOTHING_DRAWN.into());
+    }
+    color_image(image)
+}
+
+/// Why a picture with nothing drawn in it is none.
+pub const NOTHING_DRAWN: &str = "nothing to draw";
+
 fn color_image(image: &Rgba) -> Result<ColorImage, String> {
     let (w, h) = (image.width as usize, image.height as usize);
     if w == 0 || h == 0 || image.data.len() != w * h * 4 {
@@ -709,6 +724,70 @@ pub(crate) fn size_slider(app: &mut Viewer, ui: &mut Ui, width: f32) {
     });
 }
 
+/// The tab's header row from this width up holds the slider too (the
+/// toolset's palette: a row of its own under a dock of about 370).
+pub const ONE_ROW_FROM: f32 = 370.0;
+
+/// The Gallery tab's header: the filter, Find, then the count and the size
+/// slider in the room left; under [`ONE_ROW_FROM`] (or with no room for
+/// the slider) the count and the slider on a row of their own. Nothing
+/// overlaps at any width.
+fn header(app: &mut Viewer, ui: &mut Ui, count: &str) {
+    const FILTER: f32 = 104.0;
+    const SEARCH: std::ops::RangeInclusive<f32> = 80.0..=200.0;
+    const SLIDER: std::ops::RangeInclusive<f32> = 64.0..=160.0;
+    let gap = ui.spacing().item_spacing.x;
+    let width = ui.available_width();
+    let count_width = {
+        let font = egui::TextStyle::Body.resolve(ui.style());
+        ui.fonts_mut(|f| f.layout_no_wrap(count.to_owned(), font, egui::Color32::WHITE).size().x)
+    };
+    // (The combo's arrow and frame beside its text width.)
+    let filter = FILTER + ui.spacing().icon_width + 2.0 * ui.spacing().button_padding.x;
+    let fixed = filter + count_width + 3.0 * gap;
+    let one_row = width >= ONE_ROW_FROM && width - fixed >= SEARCH.start() + SLIDER.start() + gap;
+    let mut placed = Vec::new();
+    let slider_row = |app: &mut Viewer, ui: &mut Ui, room: f32, placed: &mut Vec<_>| {
+        let at = ui.scope(|ui| size_slider(app, ui, room)).response.rect;
+        placed.push(("Size", at));
+        placed.push(("Count", ui.weak(count).rect));
+    };
+    ui.horizontal(|ui| {
+        placed.push((
+            "Filter",
+            ui.scope(|ui| {
+                crate::panels::filter_combo(app, ui, "gallery-tab-filter", FILTER);
+            })
+            .response
+            .rect,
+        ));
+        let left = (width - filter - gap).max(0.0);
+        let search = match one_row {
+            true => (left - SLIDER.start() - count_width - 2.0 * gap).min(*SEARCH.end()),
+            false => left.min(*SEARCH.end() + 120.0),
+        };
+        placed.push((
+            "Search",
+            ui.scope(|ui| {
+                crate::panels::search_field(app, ui, search.max(0.0));
+            })
+            .response
+            .rect,
+        ));
+        if one_row {
+            let room = width - filter - search - count_width - 4.0 * gap;
+            slider_row(app, ui, room.clamp(*SLIDER.start(), *SLIDER.end()), &mut placed);
+        }
+    });
+    if !one_row {
+        ui.horizontal(|ui| {
+            let room = (width - count_width - 2.0 * gap).min(*SLIDER.end() + 80.0);
+            slider_row(app, ui, room.max(0.0), &mut placed);
+        });
+    }
+    app.browser.tab_header = placed;
+}
+
 /// The Gallery tab: the filter, Find, the size slider and the count in
 /// its header (the board "Gallery Tab at 3440×1440"), the pictures under
 /// it.
@@ -720,14 +799,7 @@ pub(crate) fn tab(app: &mut Viewer, ui: &mut Ui) {
     };
     let count = format!("{} {noun}", cells.len());
     egui::Frame::new().inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
-        ui.horizontal(|ui| {
-            crate::panels::filter_combo(app, ui, "gallery-tab-filter");
-            crate::panels::search_field(app, ui, 160.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.weak(&count);
-                size_slider(app, ui, 140.0);
-            });
-        });
+        header(app, ui, &count);
     });
     // (The filter or the query changed in the header: listed again.)
     let cells = crate::panels::current(app);
@@ -752,8 +824,10 @@ mod tests {
         forgot: usize,
     }
 
-    /// A painter with no GPU: a gray square for each picture, none for
-    /// the names in `fail`, `Ok(None)` the first `wait` times.
+    /// A painter with no GPU: a gray square with a dot for each picture
+    /// (as a model is drawn: `drawn_picture`), the background alone for
+    /// the names starting `empty`, none for the names in `fail`,
+    /// `Ok(None)` the first `wait` times.
     struct Fake {
         log: Arc<Mutex<Log>>,
         fail: Vec<&'static str>,
@@ -772,7 +846,13 @@ mod tests {
                 self.wait -= 1;
                 return Ok(None);
             }
-            Ok(Some(ColorImage::filled([4, 4], egui::Color32::GRAY)))
+            let mut image = Rgba::new(4, 4);
+            image.data = [90, 90, 90, 255].repeat(16);
+            let empty = matches!(what, Pictured::Resource(k) if k.to_string().starts_with("empty"));
+            if !empty {
+                image.data[..4].copy_from_slice(&[200, 40, 40, 255]);
+            }
+            drawn_picture(&image).map(Some)
         }
         fn forget(&mut self) {
             self.log.lock().unwrap().forgot += 1;
@@ -979,6 +1059,35 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// A model drawn with nothing in it (only the background: all its
+    /// meshes `render 0`) is "No picture", "nothing to draw" in its tip;
+    /// one waiting for the game's programs shows the kind's icon (the
+    /// kit's `Making`), never a blank cell.
+    #[test]
+    fn nothing_drawn_is_no_picture_and_waiting_is_the_kinds_icon() {
+        let (mut v, dir) = viewer(2, "empty");
+        std::fs::write(dir.join("empty_coat.mdl"), MODEL.replace("NAME", "empty_coat")).unwrap();
+        v.actions.push(Action::Refresh);
+        v.run_actions();
+        fake(&mut v, Vec::new(), 0);
+        let ctx = egui::Context::default();
+        run(&ctx, &mut v, BOARD, 4);
+        let m = |n: &str| Pictured::Resource(ResKey::parse(n, ResType::MDL).unwrap());
+        assert_eq!(v.pictures.picture(m("empty_coat")), Picture::Missing);
+        assert_eq!(v.pictures.error(m("empty_coat")), Some(NOTHING_DRAWN));
+        assert!(matches!(v.pictures.picture(m("m000")), Picture::Ready(_)));
+        // Waiting: the kind's icon, the picture asked for again.
+        let (mut v, dir2) = viewer(2, "making");
+        fake(&mut v, Vec::new(), u32::MAX);
+        run(&ctx, &mut v, BOARD, 3);
+        assert_eq!(v.pictures.picture(m("m000")), Picture::Making);
+        assert_eq!(v.pictures.error(m("m000")), None);
+        assert!(v.pictures.waiting() > 0);
+        for d in [dir, dir2] {
+            std::fs::remove_dir_all(&d).unwrap();
+        }
+    }
+
     /// A picture still waiting after [`WAIT_AT_MOST`] is taken as drawn;
     /// one no longer asked for stops waiting.
     #[test]
@@ -1102,6 +1211,57 @@ mod tests {
         // Opened again, it comes back in the same place.
         v.focus(Tab::Gallery);
         assert!(beside_the_view(&v));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// The Gallery tab's header never overlaps its controls nor runs past
+    /// its width, from a tab squeezed beside the 3D View (about 330 at
+    /// 1600 by 900) to one across a wide window; the slider and count go on
+    /// a row of their own under [`ONE_ROW_FROM`].
+    #[test]
+    fn the_tab_s_header_never_overlaps() {
+        let (mut v, dir) = viewer(1, "header");
+        fake(&mut v, Vec::new(), 0);
+        let items: Vec<(ResKey, String)> = (0..32_832)
+            .map(|i| (ResKey::parse(&format!("p{i:05}"), ResType::MDL).unwrap(), "game".into()))
+            .collect();
+        v.browser.inject(Arc::new(items));
+        let ctx = egui::Context::default();
+        for width in [180.0, 240.0, 300.0, 330.0, 369.0, 370.0, 420.0, 600.0, 1200.0, 2400.0] {
+            for _ in 0..2 {
+                let input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, BOARD)),
+                    ..Default::default()
+                };
+                let mut out = ctx.run_ui(input, |ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        let at =
+                            egui::Rect::from_min_size(ui.cursor().min, egui::vec2(width, 600.0));
+                        ui.scope_builder(egui::UiBuilder::new().max_rect(at), |ui| tab(&mut v, ui));
+                    });
+                });
+                out.textures_delta.clear();
+            }
+            let placed = v.browser.tab_header.clone();
+            let names: Vec<_> = placed.iter().map(|p| p.0).collect();
+            assert_eq!(names.len(), 4, "{width}: {names:?}");
+            let left = placed[0].1.left();
+            for (i, (a, ra)) in placed.iter().enumerate() {
+                assert!(ra.width() > 0.0, "{width}: {a} {ra:?}");
+                assert!(
+                    ra.right() <= left + width - 12.0 + 0.5,
+                    "{width}: {a} past the tab {ra:?}"
+                );
+                for (b, rb) in &placed[i + 1..] {
+                    let overlap = ra.intersect(*rb);
+                    let touching = overlap.width() <= 0.5 || overlap.height() <= 0.5;
+                    assert!(touching, "{width}: {a} {ra:?} over {b} {rb:?}");
+                }
+            }
+            let rows = |name| placed.iter().find(|p| p.0 == name).unwrap().1.center().y;
+            let one_row = (rows("Size") - rows("Search")).abs() < 2.0;
+            assert_eq!(one_row, width >= ONE_ROW_FROM + 12.0, "{width}");
+        }
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

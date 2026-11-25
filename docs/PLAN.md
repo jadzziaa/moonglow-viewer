@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:34:38Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:38:40Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1116,7 +1116,17 @@ boards "Resources as a Gallery" and "Gallery Tab at 3440×1440"), in
   still 224 a side, decoded and shrunk on the CPU, never uploaded whole.
   Walkmeshes, TXI and the rest show their kind's icon and are never asked
   for. A failure is kept as "No picture" with its reason in the cell's
-  tip, and not tried again. Pictures are kept by what they are of
+  tip, and not tried again; so is a model picture with nothing drawn in
+  it, every pixel the background ("nothing to draw": the base game's
+  `a_ba_coat`, `a_ba2_coat`, `a_ba2_coat_cus` have only `render 0`
+  meshes, which the game hides too; the GPU run C showed them as blank
+  Ready cells). A picture waiting for the game's programs shows the kit's
+  `Making` (the kind's icon), never a blank cell. The Gallery tab's
+  header lays out by width, never overlapping: the filter (104), Find,
+  then the count and the slider in the room left; under
+  `gallery::ONE_ROW_FROM` (370, the toolset palette's measure) or
+  without 64 for the slider, the count and the slider take a row of their
+  own (run C had the slider over Find in a 330-wide tab). Pictures are kept by what they are of
   (`Pictured::Resource`, `Pictured::Creature`); those unseen for two
   frames go past 512 kept (never one asked for in the frame); all go on
   Refresh, a folder or hak added, the game folder changed, a watched file

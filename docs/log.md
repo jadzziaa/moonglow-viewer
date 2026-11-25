@@ -1,6 +1,7 @@
 # Update log
 
 ## 2026-11-25
+* **Update**: [The window](manual/02-the-window.md) and [the plan](PLAN.md) §10.8: a model picture with nothing drawn says No picture ("nothing to draw"); the Gallery tab's header puts the slider and count on a row of their own when narrow, never over Find.
 * **Update**: [The window](manual/02-the-window.md) and [the plan](PLAN.md) §10.8: a click in a gallery shows the resource as in the list, the arrows step and show; the hints read Click Show and the arrows.
 * **Update**: [The window](manual/02-the-window.md), [getting started](manual/01-getting-started.md) and [the plan](PLAN.md) §10.8: Gallery mode (M6 part C): Resources as a List or a Gallery of pictures (the kit's cells and size slider, kept between runs), the creatures' gallery too, a click choosing, a double-click or Enter opening, the arrows moving; Open as Tab puts the gallery in the editor area beside the 3D View; pictures made a few a frame on the window's GPU as `mgv gallery` makes them, textures as themselves, made again after a reload.
 * **Update**: [The plan](PLAN.md) §10.7: the Status Bar yields in the toolset's order (the Log's last line to its cap, 96 beside the 3D View and 160 beside Texture and ASCII, before the hints; the hints drop whole; the line is cut to 48, then goes); Effects rows stay on one line, cut short.

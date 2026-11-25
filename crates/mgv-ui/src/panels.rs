@@ -156,6 +156,8 @@ pub struct Browser {
     take_keys: bool,
     /// Where each gallery's grid stood when last drawn.
     pub drawn: HashMap<crate::gallery::Place, crate::gallery::Drawn>,
+    /// The Gallery tab's header controls as last laid out (each named).
+    pub tab_header: Vec<(&'static str, egui::Rect)>,
     /// A test's long list, listed whatever the library does.
     #[cfg(test)]
     injected: Option<Items>,
@@ -182,9 +184,10 @@ pub(crate) fn search_field(app: &mut Viewer, ui: &mut Ui, width: f32) {
 }
 
 /// The type filter.
-pub(crate) fn filter_combo(app: &mut Viewer, ui: &mut Ui, salt: &str) {
+pub(crate) fn filter_combo(app: &mut Viewer, ui: &mut Ui, salt: &str, width: f32) {
     let b = &mut app.browser;
-    egui::ComboBox::from_id_salt(salt).selected_text(b.filter.name()).show_ui(ui, |ui| {
+    let combo = egui::ComboBox::from_id_salt(salt).width(width);
+    combo.selected_text(b.filter.name()).show_ui(ui, |ui| {
         for f in Filter::ALL {
             ui.selectable_value(&mut b.filter, f, f.name());
         }
@@ -261,7 +264,7 @@ fn count_row(app: &mut Viewer, ui: &mut Ui, count: &str) {
 pub(crate) fn browser(app: &mut Viewer, ui: &mut Ui) {
     ui.horizontal(|ui| {
         search_field(app, ui, 140.0);
-        filter_combo(app, ui, "filter");
+        filter_combo(app, ui, "filter", ui.spacing().combo_width);
     });
     let cells = current(app);
     let gallery = app.settings.resources_view == crate::settings::ResourcesView::Gallery;
