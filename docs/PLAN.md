@@ -944,3 +944,14 @@ part's): 80 of its creature blueprints render byte for byte as before.
 Not known: whether the game keeps a part-shaped plain TGA or DDS that has
 no MTR (the workaround keeps it, as the 1.87.8193.35 fix "textures on
 body parts that don't use PLT" suggests); the client was not run for it.
+
+### 10.5 Moonglow Toolset 5.3.0 (2026-11-25)
+
+The pin moved from v3.14.0 to v5.3.0 with nothing to change in the
+viewer: it builds, and its suite passes without a GPU (the GPU suites,
+`mgv-stage`'s, `mgv-gallery`'s and `mgv-ui`'s, wait for the
+toolset's machine locks). The unused `mg-erf` workspace dependency is
+gone. `mg_testkit::gpu` is now `mg-testkit-gpu`'s, re-exported, and
+lets four tests hold the GPU at once unless `MG_TEST_GPUS` says
+otherwise; the viewer's GPU suites run with `MG_TEST_GPUS=1`, one device
+at a time as §6 says. The worn-parts workaround of §10.4 stays.

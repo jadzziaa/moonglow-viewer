@@ -1,5 +1,8 @@
 # Update log
 
+## 2026-11-25
+* **Update**: [The plan](PLAN.md) §10.5: the toolset's pin is v5.3.0, nothing changed in the viewer; GPU suites run with `MG_TEST_GPUS=1`.
+
 ## 2026-11-16
 * **Update**: [The plan](PLAN.md) §10.4: a worn part's mesh that names its own material or plain texture keeps it (TDoD's head 253 wore its cap drawn in the head's PLT); the viewer's workaround and the change proposed for the toolset's `mg-preview`.
 
