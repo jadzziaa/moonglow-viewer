@@ -1480,16 +1480,9 @@ impl TabViewer for Tabs<'_> {
         if ui.rect_contains_pointer(ui.max_rect()) {
             self.app.shell.hovering = Some(*tab);
         }
-        match tab {
-            // (The 3D View's and the ASCII's headers flush with the tab
-            // bar; the texture's rows with room round them.)
-            Tab::Texture => {
-                egui::Frame::new().inner_margin(egui::Margin::same(6)).show(ui, |ui| {
-                    draw_tab(self.app, ui, *tab);
-                });
-            }
-            _ => draw_tab(self.app, ui, *tab),
-        }
+        // (The 3D View's, the Texture's and the ASCII's headers flush with
+        // the tab bar.)
+        draw_tab(self.app, ui, *tab);
     }
 
     /// The tab's button: kept for its parts, and named by its title for a

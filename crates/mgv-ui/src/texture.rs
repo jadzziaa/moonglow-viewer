@@ -6,6 +6,7 @@ use mg_core::ResType;
 use mg_image::plt::{LAYERS, PALETTES, Plt};
 use mg_image::{Format, Rgba, Texture};
 use mg_resman::ResKey;
+use mg_uikit::TokensExt;
 use mgv_library::{Kind, Library, Opened};
 
 /// Which channels show.
@@ -180,37 +181,129 @@ fn other(t: ResType) -> ResType {
     if t == ResType::DDS { ResType::TGA } else { ResType::DDS }
 }
 
+/// The Texture's header's name (its record, `mg_uikit::header`).
+pub(crate) const HEADER: &str = "Texture header";
+
+/// The channel switch's choices: what each shows, its words and its tip.
+const CHANNELS: [(Channels, &str, &str); 6] = [
+    (Channels::Rgba, "RGBA", "Color over a checkerboard where it is transparent"),
+    (Channels::Rgb, "RGB", "Color, alpha ignored"),
+    (Channels::Red, "R", "Red channel"),
+    (Channels::Green, "G", "Green channel"),
+    (Channels::Blue, "B", "Blue channel"),
+    (Channels::Alpha, "A", "Alpha channel"),
+];
+
+/// A mini slider's width in the header (the board's `.mini-slider`).
+const MINI_SLIDER: f32 = 60.0;
+/// A number's width beside it (`.mini-num`).
+const MINI_NUMBER: f32 = 48.0;
+/// The caption line's height (`.tex-cap`).
+const CAPTION: f32 = 24.0;
+/// The room round the picture (`.tex-body`).
+const BODY_MARGIN: i8 = 8;
+
+/// The Texture tab (the board "Creature, Colors, Texture"'s second
+/// group): its header (the channel switch at the left; Mip and Zoom,
+/// each a slider and a number, at the right), the caption line with the
+/// texture's name and what it is, then the picture (Ctrl + Wheel zooms),
+/// a PLT's layers' colors and its TXI.
 pub(crate) fn ui(app: &mut crate::Viewer, ui: &mut Ui) {
     let Some(v) = &mut app.texture else {
-        ui.weak("Textures (TGA, DDS, PLT) open here.");
+        egui::Frame::new().inner_margin(egui::Margin::same(BODY_MARGIN)).show(ui, |ui| {
+            ui.weak("Textures (TGA, DDS, PLT) open here.");
+        });
         return;
     };
-    ui.horizontal(|ui| {
-        ui.strong(&v.name);
-        ui.weak(&v.info);
-    });
+    header(v, ui);
+    caption(ui, &v.name, &v.info);
+    egui::Frame::new().inner_margin(egui::Margin::same(BODY_MARGIN)).show(ui, |ui| body(v, ui));
+}
+
+/// The Texture's header.
+fn header(v: &mut TextureView, ui: &mut Ui) {
+    use mg_uikit::header::{EditorHeader, Item};
+    let style = egui::TextStyle::Button.resolve(ui.style());
+    let words =
+        |w: &str| ui.painter().layout_no_wrap(w.into(), style.clone(), Color32::WHITE).size().x;
+    let pad = 2.0 * mg_uikit::metrics::CONTROL_PADDING_X;
+    let channels_width = CHANNELS.iter().map(|c| words(c.1) + pad + 1.0).sum::<f32>() + 2.0;
+    let gap = ui.spacing().item_spacing.x;
+    let mip_width = words("Mip") + MINI_SLIDER + MINI_NUMBER + 2.0 * gap;
+    let zoom_width = words("Zoom") + MINI_SLIDER + MINI_NUMBER + 2.0 * gap;
+    let mips = v.image.as_ref().map_or(1, |t| t.mips.len());
+    let channels = &mut v.channels;
+    // (Mip and Zoom drawn on the row or in More where the row is short:
+    // each of the two forms sets the one value.)
+    let mip = std::cell::Cell::new(v.mip);
+    let zoom = std::cell::Cell::new(v.zoom);
+    let label = |ui: &mut Ui, w: &str| ui.label(egui::RichText::new(w).color(ui.tokens().text_2));
+    let mip_ui = |ui: &mut Ui| {
+        let mut m = mip.get();
+        label(ui, "Mip");
+        let most = mips.saturating_sub(1);
+        ui.spacing_mut().slider_width = MINI_SLIDER;
+        let slider = egui::Slider::new(&mut m, 0..=most).show_value(false);
+        mg_uikit::slider(ui, slider)
+            .widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Slider, true, "Mip level"));
+        let number = egui::DragValue::new(&mut m).range(0..=most);
+        ui.add_sized([MINI_NUMBER, ui.spacing().interact_size.y], number);
+        mip.set(m);
+    };
+    let zoom_ui = |ui: &mut Ui| {
+        let mut z = zoom.get();
+        label(ui, "Zoom");
+        ui.spacing_mut().slider_width = MINI_SLIDER;
+        let slider = egui::Slider::new(&mut z, 0.125..=8.0).logarithmic(true).show_value(false);
+        mg_uikit::slider(ui, slider)
+            .on_hover_text("Ctrl + Wheel over the picture")
+            .widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Slider, true, "Zoom"));
+        let number = egui::DragValue::new(&mut z).range(0.125..=8.0).speed(0.01).fixed_decimals(2);
+        ui.add_sized([MINI_NUMBER, ui.spacing().interact_size.y], number);
+        zoom.set(z);
+    };
+    EditorHeader::new(HEADER)
+        .left(Item::custom("Channels", channels_width, |ui| {
+            mg_uikit::segmented(ui, "Channels", channels, &CHANNELS);
+        }))
+        .right(Item::custom("Mip", mip_width, mip_ui).more(mip_width, mip_ui).enabled(mips > 1))
+        .right(Item::separator())
+        .right(Item::custom("Zoom", zoom_width, zoom_ui).more(zoom_width, zoom_ui))
+        .show(ui);
+    v.mip = mip.get();
+    v.zoom = zoom.get();
+}
+
+/// The caption line (the board's `.tex-cap`): the texture's name in
+/// `text`, what it is (format, size, mip levels, alpha; a PLT's layers)
+/// in `text-3`, on the panel with a line under it.
+pub(crate) fn caption(ui: &mut Ui, name: &str, info: &str) {
+    let t = ui.tokens();
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), CAPTION), egui::Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 0.0, t.panel);
+    painter.hline(rect.x_range(), rect.bottom() - 0.5, egui::Stroke::new(1.0, t.line_soft));
+    let font = egui::FontId::proportional(mg_uikit::metrics::BODY_SIZE);
+    let name_galley = painter.layout_no_wrap(name.to_string(), font.clone(), t.text);
+    let y = |h: f32| (rect.center().y - h / 2.0).round();
+    let x = rect.left() + 8.0;
+    let name_width = name_galley.size().x;
+    painter.galley(egui::pos2(x, y(name_galley.size().y)), name_galley, t.text);
+    let info_galley = painter.layout_no_wrap(info.to_string(), font, t.text_3);
+    let at = egui::pos2(x + name_width + 8.0, y(info_galley.size().y));
+    painter.galley(at, info_galley, t.text_3);
+    let words = format!("{name} {info}");
+    let r = ui.interact(rect, ui.id().with("texture-caption"), egui::Sense::hover());
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &words));
+}
+
+/// The picture, a PLT's layers' colors and the TXI.
+fn body(v: &mut TextureView, ui: &mut Ui) {
     if let Some(e) = &v.error {
         ui.colored_label(ui.visuals().error_fg_color, e);
         return;
     }
-    ui.horizontal(|ui| {
-        for (c, n) in [
-            (Channels::Rgba, "RGBA"),
-            (Channels::Rgb, "RGB"),
-            (Channels::Red, "R"),
-            (Channels::Green, "G"),
-            (Channels::Blue, "B"),
-            (Channels::Alpha, "A"),
-        ] {
-            ui.selectable_value(&mut v.channels, c, n);
-        }
-        if let Some(t) = &v.image
-            && t.mips.len() > 1
-        {
-            ui.add(egui::Slider::new(&mut v.mip, 0..=t.mips.len() - 1).text("mip"));
-        }
-        ui.add(egui::Slider::new(&mut v.zoom, 0.125..=8.0).logarithmic(true).text("zoom"));
-    });
     if let Some((p, _)) = &v.plt {
         let used = p.layers();
         ui.horizontal_wrapped(|ui| {
@@ -232,17 +325,100 @@ pub(crate) fn ui(app: &mut crate::Viewer, ui: &mut Ui) {
     }
     let Some((h, _)) = &v.handle else { return };
     let size = h.size_vec2() * v.zoom;
-    egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-        let r = ui.add(egui::Image::new((h.id(), size)).sense(egui::Sense::hover()));
-        if r.hovered() {
-            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
-            if scroll != 0.0 && ui.input(|i| i.modifiers.command) {
-                v.zoom = (v.zoom * (scroll * 0.003).exp()).clamp(0.125, 8.0);
+    let txi = v.txi.clone();
+    // (The TXI under the picture, the picture's room the rest.)
+    let below = if txi.is_some() { 120.0 } else { 0.0 };
+    egui::ScrollArea::both()
+        .auto_shrink([false, false])
+        .max_height((ui.available_height() - below).max(80.0))
+        .show(ui, |ui| {
+            let r = ui.add(egui::Image::new((h.id(), size)).sense(egui::Sense::hover()));
+            if r.hovered() {
+                let scroll = ui.input(|i| i.smooth_scroll_delta.y);
+                if scroll != 0.0 && ui.input(|i| i.modifiers.command) {
+                    v.zoom = (v.zoom * (scroll * 0.003).exp()).clamp(0.125, 8.0);
+                }
             }
-        }
-    });
-    if let Some(txi) = &v.txi {
+        });
+    if let Some(txi) = &txi {
         crate::panels::next_section(ui, "TXI");
         ui.code(txi);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Action, NoDialogs, Settings, Viewer};
+    use mg_uikit::header::{self, Place as At};
+
+    /// An uncompressed TGA `w` by `h`, 32 bits, gray and half transparent.
+    fn tga(w: u16, h: u16) -> Vec<u8> {
+        let mut d = vec![0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        d.extend(w.to_le_bytes());
+        d.extend(h.to_le_bytes());
+        d.extend([32, 8]);
+        for _ in 0..u32::from(w) * u32::from(h) {
+            d.extend([90, 100, 110, 128]);
+        }
+        d
+    }
+
+    /// The Texture tab's header (the channel switch; Mip and Zoom, on the
+    /// row or in More, never cut) and its caption line with the name and
+    /// what it is, drawn without a GPU at the board's size and the wide
+    /// one, in both themes; the channel switch chooses.
+    #[test]
+    fn the_texture_header_and_caption_line() {
+        let dir = std::env::temp_dir().join(format!("mgv-ui-texture-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("stone.tga");
+        std::fs::write(&file, tga(8, 8)).unwrap();
+        for theme in mg_uikit::Theme::ALL {
+            for size in [(1600.0, 900.0), (3440.0, 1440.0)] {
+                let size = egui::vec2(size.0, size.1);
+                let settings = Settings {
+                    game_root: Some(std::path::PathBuf::from("/nonexistent")),
+                    use_user_dir: false,
+                    theme,
+                    ..Settings::default()
+                };
+                let mut v = Viewer::new(settings, Box::new(NoDialogs));
+                v.actions.push(Action::Open(file.clone()));
+                let ctx = egui::Context::default();
+                ctx.enable_accesskit();
+                header::record_headers(&ctx);
+                let mut caption = None;
+                for _ in 0..4 {
+                    let input = egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                        ..Default::default()
+                    };
+                    let mut out = ctx.run_ui(input, |ui| v.ui(ui));
+                    out.textures_delta.clear();
+                    v.run_actions();
+                    let update = out.platform_output.accesskit_update.as_ref();
+                    caption = update.and_then(|u| {
+                        u.nodes.iter().find_map(|(_, n)| {
+                            let words = n.label().or(n.value());
+                            words.filter(|l| l.starts_with("stone ")).map(str::to_string)
+                        })
+                    });
+                }
+                assert!(v.texture.is_some(), "{size:?}: the texture opened");
+                assert_eq!(caption.as_deref(), Some("stone Rgba8 8×8, 1 mip levels, alpha"));
+                let places = header::places(&ctx, HEADER);
+                let at = |name: &str| places.iter().find(|(n, _)| n == name).map(|p| p.1);
+                assert_eq!(at("Channels"), Some(At::Row), "{size:?}");
+                for name in ["Mip", "Zoom"] {
+                    assert!(matches!(at(name), Some(At::Row | At::More)), "{size:?}: {name}");
+                }
+                if size.x >= mg_uikit::shell::WIDE_FROM {
+                    assert_eq!(at("Zoom"), Some(At::Row), "all on the wide row");
+                }
+                v.texture.as_mut().unwrap().channels = Channels::Alpha;
+            }
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
