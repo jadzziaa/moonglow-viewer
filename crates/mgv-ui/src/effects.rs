@@ -83,9 +83,15 @@ pub(crate) fn ui(app: &mut Viewer, ui: &mut Ui) {
                         .chain(v.root.iter().map(Option::as_deref))
                         .flatten()
                         .collect();
+                    // (On one line, cut short in a narrow column: the
+                    // wide layout's second column of the Right Dock.)
+                    let text = format!("{} {} ({})", v.row, v.label, v.kind);
                     let r = ui
-                        .selectable_label(false, format!("{} {} ({})", v.row, v.label, v.kind))
-                        .on_hover_text(format!("{}\ndouble-click to apply", models.join(", ")));
+                        .add(egui::Button::selectable(false, text.as_str()).truncate())
+                        .on_hover_text(format!(
+                            "{text}\n{}\ndouble-click to apply",
+                            models.join(", ")
+                        ));
                     if r.double_clicked() {
                         apply = Some(v.row);
                     }

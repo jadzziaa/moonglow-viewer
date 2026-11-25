@@ -405,20 +405,32 @@ fn right_parts(app: &Viewer) -> Vec<Part> {
     parts
 }
 
-/// The widest the Log's last line is drawn.
-const LOG_LINE_MOST: f32 = 360.0;
+/// The Log's last line's widest beside the 3D View's hints, which are
+/// many (the toolset's `LAST_LINE_CAP_AREA`, beside an area's).
+pub const LOG_LINE_CAP_VIEW: f32 = 96.0;
+/// Its widest beside Texture and ASCII (the toolset's `LAST_LINE_CAP`).
+pub const LOG_LINE_CAP: f32 = 160.0;
+/// The least it is cut to before it goes (the toolset's
+/// `LAST_LINE_LEAST`).
+pub const LOG_LINE_LEAST: f32 = 48.0;
 
-/// The room the Log's last line is given in a Status Bar `bar` wide whose
-/// switches take `switches`, right-hand group `right` and hints `hints`
-/// (all of them, [`Hints`]' own width): what they leave, at most
-/// [`LOG_LINE_MOST`]; none under [`status::NOTE_LEAST`] (the line goes
-/// before the hints do).
-pub fn log_line_room(bar: f32, switches: f32, right: f32, hints: f32) -> Option<f32> {
-    // (The bar's padding, the gaps round the middle and the separator
-    // before the line.)
-    let fixed = 2.0 * status::PADDING + 4.0 * status::GAP + status::SEPARATOR_WIDTH;
-    let room = (bar - fixed - switches - right - hints).min(LOG_LINE_MOST);
-    (room >= status::NOTE_LEAST).then_some(room.floor())
+/// The room the Log's last line (`line` wide whole) is given in the
+/// Status Bar's `middle` (the bar less its padding and gaps, the
+/// switches and the right-hand group), `cap` at most. As Moonglow
+/// Toolset's Status Bar yields (`mg-ui`'s `shell::status_bar`, parity
+/// the rule): the line takes its room up to its cap before the hints get
+/// any, so the hints drop whole from the end first (they take what is
+/// left, `Hints::show`); then the line is cut down to [`LOG_LINE_LEAST`],
+/// then it goes.
+pub fn log_line_room(middle: f32, line: f32, cap: f32) -> Option<f32> {
+    let want = line.min(cap);
+    if middle >= want {
+        Some(want.ceil())
+    } else if middle >= LOG_LINE_LEAST {
+        Some(middle.floor())
+    } else {
+        None
+    }
 }
 
 /// The Status Bar.
@@ -454,9 +466,21 @@ fn status_row(app: &mut Viewer, ui: &mut Ui) {
         .map(|t| StatusSwitch::new(t.icon(), t.title(), false).icon_only(icons).width(ui))
         .map(|w| w + status::GAP)
         .sum();
-    let hints_width = Hints::new(&hints).width(ui);
-    let log_room = log_line_room(ui.available_width(), switch_width, right_width, hints_width);
-    let last = last.zip(log_room);
+    // (The bar's padding, the gaps round the middle, the separator before
+    // the line.)
+    let fixed = 2.0 * status::PADDING + 3.0 * status::GAP + status::SEPARATOR_WIDTH;
+    let middle = ui.available_width() - fixed - switch_width - right_width;
+    // (Its cap: the 3D View's, whose hints are many, where it is the
+    // editor in front of the focused group.)
+    let active = (app.dock.focused_leaf())
+        .and_then(|p| app.dock.leaf(p).ok())
+        .and_then(|l| l.tabs.get(l.active.0).copied())
+        .unwrap_or(Tab::View);
+    let cap = if active == Tab::View { LOG_LINE_CAP_VIEW } else { LOG_LINE_CAP };
+    let last = last.and_then(|(text, color)| {
+        let whole = StatusLog::new(text.clone()).width(ui);
+        log_line_room(middle, whole, cap).map(|room| ((text, color), room))
+    });
     let (clicked, _, ()) = status::bar_sized(
         ui,
         right_width,
@@ -893,15 +917,27 @@ mod tests {
         assert_eq!(words(None), view);
     }
 
-    /// The Log's last line takes what the switches, the right-hand group
-    /// and the hints leave, at most 360, and goes before the hints do.
+    /// The toolset's order: the Log's last line takes its room up to its
+    /// cap before the hints get any (they drop whole from the end first),
+    /// then it is cut down to 48, then it goes.
     #[test]
-    fn the_log_line_yields_to_the_hints() {
-        assert_eq!(log_line_room(1600.0, 200.0, 500.0, 400.0), Some(360.0));
-        let room = log_line_room(1440.0, 200.0, 600.0, 400.0).unwrap();
-        assert!((status::NOTE_LEAST..360.0).contains(&room));
-        assert_eq!(log_line_room(800.0, 80.0, 380.0, 400.0), None);
-        assert_eq!(log_line_room(640.0, 80.0, 380.0, 0.0), Some(135.0));
+    fn the_hints_drop_before_the_log_line_is_cut() {
+        // A short line whole; a long one at its cap.
+        assert_eq!(log_line_room(900.0, 70.0, LOG_LINE_CAP_VIEW), Some(70.0));
+        assert_eq!(log_line_room(900.0, 400.0, LOG_LINE_CAP_VIEW), Some(96.0));
+        assert_eq!(log_line_room(900.0, 400.0, LOG_LINE_CAP), Some(160.0));
+        // The 3D View's hints (some 700 wide) beside it in a middle of 400:
+        // the line keeps its cap, the hints drop to what the rest holds.
+        let hints = hints(Some(Tab::View));
+        let widths = [70.0, 110.0, 80.0, 70.0, 120.0, 100.0, 90.0, 90.0];
+        assert_eq!(hints.len(), widths.len());
+        let line = log_line_room(400.0, 400.0, LOG_LINE_CAP_VIEW).unwrap();
+        let left = 400.0 - line - status::GAP;
+        let fit = status::hints_that_fit(&widths, status::HINT_GAP, left);
+        assert!(fit > 0 && fit < hints.len(), "{fit}");
+        // No room for a hint: the line is cut, to 48 at least, then goes.
+        assert_eq!(log_line_room(60.0, 400.0, LOG_LINE_CAP), Some(60.0));
+        assert_eq!(log_line_room(47.0, 400.0, LOG_LINE_CAP), None);
     }
 
     /// Asking for a dock's panel brings it into sight: its dock unfolded,

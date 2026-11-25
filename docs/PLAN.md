@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T14:33:32Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T14:55:46Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1025,12 +1025,18 @@ bookkeeping:
   row with the error and warning counts as badges.
 - **Status Bar** (`status::bar_sized`, `StatusSwitch`, `StatusLog`,
   `Hints`, `StatusItem`, `StatusJob`): the Bottom Dock's switches, the
-  Log's last line while it is out of sight (given what the other parts and
-  all the hints leave, at most 360; none under the kit's `NOTE_LEAST`), the hints of the panel under
+  Log's last line while it is out of sight, the hints of the panel under
   the pointer at the last frame (the 3D view's camera, as `view3d.rs`
   does it; Double-click Apply effect over Effects; Ctrl + Wheel Zoom
   texture over Texture), the document with its dot, its origin and the
-  game folder (from 1400).
+  game folder (from 1400). The bar yields in Moonglow Toolset's order
+  (`mg-ui`'s `shell::status_bar`, parity the rule): the Log's last line
+  takes its room up to its cap before the hints get any (96 while the 3D
+  View is the focused editor, its hints being many as an area's are; 160
+  beside Texture and ASCII), the hints drop whole from the end, then the
+  line is cut down to 48, then it goes (`shell::log_line_room`).
+- **Effects** rows stay on one line, cut short with the whole name in the
+  tip, so the wide layout's narrow second column does not wrap them.
 
 Upstream needs (the viewer's workarounds in place):
 

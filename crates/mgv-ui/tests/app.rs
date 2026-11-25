@@ -330,17 +330,16 @@ fn bare_plt_models_take_colors() {
     assert_eq!(look(&h), Some(colors));
     // The chooser: its swatches by name, from the game's palette.
     // (The Inspector shares its column with Lighting: scrolled to them.)
-    h.get_by_label("Metal 2 color").scroll_to_me();
+    // (The Inspector shares its column with Lighting, and the PLT colors
+    // may be scrolled out of its sight: chosen through accesskit, which
+    // reaches a control out of sight, as a user's scroll would.)
+    h.get_by_label("Metal 2 color").click_accesskit();
     h.run_steps(2);
-    h.get_by_label("Metal 2 color").click();
-    h.run_steps(2);
-    h.get_by_label("Metal 2 17").click();
+    h.get_by_label("Metal 2 17").click_accesskit();
     h.run_steps(2);
     colors[3] = 17;
     assert_eq!(look(&h), Some(colors));
-    h.get_by_label("Reset colors").scroll_to_me();
-    h.run_steps(2);
-    h.get_by_label("Reset colors").click();
+    h.get_by_label("Reset colors").click_accesskit();
     h.run_steps(2);
     assert_eq!(look(&h), None);
     h.state_mut()
@@ -491,7 +490,11 @@ fn the_ascii_tab_s_dot_and_the_diagnostics_counts() {
     let Some(mut h) = harness(false, Box::new(Answer(None))) else { return };
     h.state_mut().actions.push(Action::Open(file.clone()));
     h.run_steps(3);
-    assert!(h.query_by_label("ASCII").is_some(), "the tab, named by its title");
+    // (The tab's button, named by its title: the Inspector says "ASCII" too.)
+    let tab = |h: &Harness<'_, Viewer>| {
+        h.query_by_role_and_label(egui::accesskit::Role::Button, "ASCII").is_some()
+    };
+    assert!(tab(&h), "the tab, named by its title");
     assert!(h.query_by_label("Modified").is_none(), "nothing edited");
     let strip = |h: &Harness<'_, Viewer>, what: &str| {
         h.get_by_label(DIAGNOSTICS).query_by_label(what).is_some()
