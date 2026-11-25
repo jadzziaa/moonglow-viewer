@@ -14,6 +14,7 @@ use mg_mdl::keywords::{self, Class};
 use mg_mdl::lint::{Diagnostic, Severity};
 use mg_mdl::outline::Outline;
 use mg_resman::ResKey;
+use mg_uikit::{Tokens, TokensExt};
 
 use crate::code::CodeEditor;
 use crate::{Action, Viewer};
@@ -176,17 +177,17 @@ impl Buffer {
     }
 
     /// The worst diagnostic on each line, as gutter colours.
-    fn marks(&self) -> std::collections::HashMap<usize, Color32> {
+    fn marks(&self, t: &Tokens) -> std::collections::HashMap<usize, Color32> {
         let mut m: std::collections::HashMap<usize, Severity> = std::collections::HashMap::new();
         for d in &self.diagnostics {
             let e = m.entry(d.line).or_insert(d.severity);
             *e = (*e).max(d.severity);
         }
-        m.into_iter().map(|(l, s)| (l, severity_color(s))).collect()
+        m.into_iter().map(|(l, s)| (l, severity_color(s, t))).collect()
     }
 }
 
-/// Colours of the highlighting, for light and dark themes.
+/// Colours of the highlighting: the theme's `mdl-*` tokens.
 struct Palette {
     plain: Color32,
     structure: Color32,
@@ -198,35 +199,23 @@ struct Palette {
 }
 
 impl Palette {
-    fn new(dark: bool) -> Palette {
-        if dark {
-            Palette {
-                plain: Color32::from_rgb(0xD4, 0xD4, 0xD4),
-                structure: Color32::from_rgb(0xC5, 0x86, 0xC0),
-                keyword: Color32::from_rgb(0x9C, 0xDC, 0xFE),
-                keyed: Color32::from_rgb(0x4E, 0xC9, 0xB0),
-                node_type: Color32::from_rgb(0xDC, 0xDC, 0xAA),
-                number: Color32::from_rgb(0xB5, 0xCE, 0xA8),
-                comment: Color32::from_rgb(0x6A, 0x99, 0x55),
-            }
-        } else {
-            Palette {
-                plain: Color32::from_rgb(0x20, 0x20, 0x20),
-                structure: Color32::from_rgb(0xAF, 0x00, 0xDB),
-                keyword: Color32::from_rgb(0x00, 0x10, 0x80),
-                keyed: Color32::from_rgb(0x26, 0x7F, 0x99),
-                node_type: Color32::from_rgb(0x79, 0x5E, 0x26),
-                number: Color32::from_rgb(0x09, 0x86, 0x58),
-                comment: Color32::from_rgb(0x00, 0x80, 0x00),
-            }
+    fn new(t: &Tokens) -> Palette {
+        Palette {
+            plain: t.mdl_plain,
+            structure: t.mdl_structure,
+            keyword: t.mdl_keyword,
+            keyed: t.mdl_keyed,
+            node_type: t.mdl_node_type,
+            number: t.mdl_number,
+            comment: t.mdl_comment,
         }
     }
 }
 
 /// The text as coloured sections: the first word of a line by what it is
 /// (a word after `node` is the node type), numbers, comments.
-pub fn highlight(text: &str, font: FontId, dark: bool) -> LayoutJob {
-    let p = Palette::new(dark);
+pub fn highlight(text: &str, font: FontId, tokens: &Tokens) -> LayoutJob {
+    let p = Palette::new(tokens);
     let mut job = LayoutJob::default();
     let fmt = |c: Color32| TextFormat::simple(font.clone(), c);
     for line in text.split_inclusive('\n') {
@@ -266,11 +255,11 @@ pub fn highlight(text: &str, font: FontId, dark: bool) -> LayoutJob {
     job
 }
 
-fn severity_color(s: Severity) -> Color32 {
+fn severity_color(s: Severity, t: &Tokens) -> Color32 {
     match s {
-        Severity::Error => Color32::from_rgb(0xE5, 0x48, 0x4D),
-        Severity::Warning => Color32::from_rgb(0xE8, 0xA3, 0x3D),
-        Severity::Info => Color32::from_rgb(0x5B, 0x9B, 0xD5),
+        Severity::Error => t.error,
+        Severity::Warning => t.warn,
+        Severity::Info => t.info,
     }
 }
 
@@ -281,6 +270,7 @@ fn editor_id() -> egui::Id {
 /// The editor tab.
 pub fn ui(app: &mut Viewer, ui: &mut Ui) {
     let now = ui.input(|i| i.time);
+    let tokens = ui.tokens();
     let Some(buffer) = &mut app.buffer else {
         ui.vertical_centered(|ui| {
             ui.add_space(20.0);
@@ -327,12 +317,15 @@ pub fn ui(app: &mut Viewer, ui: &mut Ui) {
             Severity::Info => (e, w),
         });
         ui.separator();
-        ui.colored_label(severity_color(Severity::Error), format!("{e} errors"));
-        ui.colored_label(severity_color(Severity::Warning), format!("{w} warnings"));
+        ui.colored_label(severity_color(Severity::Error, &tokens), format!("{e} errors"));
+        ui.colored_label(severity_color(Severity::Warning, &tokens), format!("{w} warnings"));
     });
     if buffer.disk_changed {
         ui.horizontal(|ui| {
-            ui.colored_label(severity_color(Severity::Warning), "The file changed on disk.");
+            ui.colored_label(
+                severity_color(Severity::Warning, &tokens),
+                "The file changed on disk.",
+            );
             if ui.button("Load it (drop my edits)").clicked()
                 && let Some(p) = buffer.path.clone()
                 && let Ok(t) = std::fs::read(&p)
@@ -356,8 +349,10 @@ pub fn ui(app: &mut Viewer, ui: &mut Ui) {
             for d in &buffer.diagnostics {
                 let text = format!("{}: {}", d.line + 1, d.message);
                 let r = ui.add(
-                    egui::Label::new(egui::RichText::new(text).color(severity_color(d.severity)))
-                        .sense(egui::Sense::click()),
+                    egui::Label::new(
+                        egui::RichText::new(text).color(severity_color(d.severity, &tokens)),
+                    )
+                    .sense(egui::Sense::click()),
                 );
                 if r.clicked() {
                     jump = Some(d.line);
@@ -371,10 +366,9 @@ pub fn ui(app: &mut Viewer, ui: &mut Ui) {
         buffer.editor.jump = Some(line);
     }
     let font = egui::TextStyle::Monospace.resolve(ui.style());
-    let dark = ui.visuals().dark_mode;
-    let marks = buffer.marks();
+    let marks = buffer.marks(&tokens);
     let line_font = font.clone();
-    let highlight_line = move |line: &str| highlight(line, line_font.clone(), dark);
+    let highlight_line = move |line: &str| highlight(line, line_font.clone(), &tokens);
     let out = buffer.editor.show(ui, editor_id(), &font, &highlight_line, &marks);
     if out.changed {
         buffer.edited(now);
@@ -400,6 +394,24 @@ pub fn ui(app: &mut Viewer, ui: &mut Ui) {
 mod tests {
     use super::*;
 
+    /// The `mdl-*` tokens of the dark theme are the colors the editor had
+    /// before it took them; the light ones are its light palette.
+    #[test]
+    fn the_syntax_colors_are_the_tokens() {
+        let rgb = |c: Color32| (c.r(), c.g(), c.b());
+        let dark = Palette::new(&Tokens::DARK);
+        assert_eq!(rgb(dark.plain), (0xD4, 0xD4, 0xD4));
+        assert_eq!(rgb(dark.structure), (0xC5, 0x86, 0xC0));
+        assert_eq!(rgb(dark.keyword), (0x9C, 0xDC, 0xFE));
+        assert_eq!(rgb(dark.keyed), (0x4E, 0xC9, 0xB0));
+        assert_eq!(rgb(dark.node_type), (0xDC, 0xDC, 0xAA));
+        assert_eq!(rgb(dark.number), (0xB5, 0xCE, 0xA8));
+        assert_eq!(rgb(dark.comment), (0x6A, 0x99, 0x55));
+        let light = Palette::new(&Tokens::LIGHT);
+        assert_eq!(rgb(light.plain), (0x20, 0x20, 0x20));
+        assert_eq!(rgb(light.keyword), (0x00, 0x10, 0x80));
+    }
+
     /// Nodes of the same name: the cursor's block is the node of its
     /// place in the model, not the first of the name.
     #[test]
@@ -419,7 +431,7 @@ mod tests {
     #[test]
     fn highlighting_keeps_every_character() {
         let text = "node trimesh box # c\n  verts 2\n    0 1 2\n  positionkey 1\nendnode";
-        let job = highlight(text, FontId::monospace(12.0), true);
+        let job = highlight(text, FontId::monospace(12.0), &Tokens::DARK);
         assert_eq!(job.text, text);
     }
 

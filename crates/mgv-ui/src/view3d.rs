@@ -10,6 +10,8 @@ use mgv_stage::camera::View;
 use mgv_stage::overlay::Overlay;
 use mgv_stage::{Stage, Viewport};
 
+use mg_uikit::TokensExt;
+
 use crate::{Action, Selection, Viewer};
 
 /// The window's GPU and what draws with it.
@@ -70,6 +72,7 @@ impl Projector {
 /// The 3D view tab.
 pub fn ui(app: &mut Viewer, ui: &mut egui::Ui) {
     toolbar(app, ui);
+    let select = ui.tokens().select;
     let Some(g) = &mut app.gfx else {
         ui.centered_and_justified(|ui| ui.label("No GPU: the 3D view is off."));
         return;
@@ -129,7 +132,7 @@ pub fn ui(app: &mut Viewer, ui: &mut egui::Ui) {
         skeleton(&mut overlay, &g.stage);
     }
     if let Some(sel) = app.selection {
-        selected_box(&mut overlay, &g.stage, sel);
+        selected_box(&mut overlay, &g.stage, sel, select);
     }
     g.viewport.draw_overlay(&gpu, &overlay, &camera);
     let targets = g.viewport.current().expect("drawn above");
@@ -166,7 +169,7 @@ pub fn ui(app: &mut Viewer, ui: &mut egui::Ui) {
         skeleton_markers(&painter, &proj, &g.stage);
     }
     if let Some(sel) = app.selection {
-        selected(&painter, &proj, &g.stage, sel);
+        selected(&painter, &proj, &g.stage, sel, select);
     }
 
     // Camera.
@@ -330,10 +333,9 @@ pub(crate) fn node_world(stage: &Stage, sel: Selection) -> Option<Mat4> {
     Some(a.world() * *a.pose().get(sel.node)?)
 }
 
-const SELECTED: egui::Color32 = egui::Color32::from_rgb(0xFF, 0xB0, 0x2E);
-
 /// The selected mesh's box, over everything.
-fn selected_box(overlay: &mut Overlay, stage: &Stage, sel: Selection) {
+/// (Its color is the theme's `select`, the selection in a 3D view.)
+fn selected_box(overlay: &mut Overlay, stage: &Stage, sel: Selection, color: egui::Color32) {
     let Some(a) = stage.actor(sel.actor) else { return };
     let Some(world) = node_world(stage, sel) else { return };
     let Some(m) = a.model.meshes.iter().find(|m| m.node == sel.node) else { return };
@@ -359,15 +361,20 @@ fn selected_box(overlay: &mut Overlay, stage: &Stage, sel: Selection) {
         (3, 7),
     ];
     for (i, j) in edges {
-        overlay.xray_line(corner(i), corner(j), rgba(SELECTED));
+        overlay.xray_line(corner(i), corner(j), rgba(color));
     }
 }
 
 /// The selected node's name, and a cross where it is if it has no mesh.
-fn selected(painter: &egui::Painter, proj: &Projector, stage: &Stage, sel: Selection) {
+fn selected(
+    painter: &egui::Painter,
+    proj: &Projector,
+    stage: &Stage,
+    sel: Selection,
+    color: egui::Color32,
+) {
     let Some(a) = stage.actor(sel.actor) else { return };
     let Some(world) = node_world(stage, sel) else { return };
-    let color = SELECTED;
     let stroke = egui::Stroke::new(1.5, color);
     if !a.model.meshes.iter().any(|m| m.node == sel.node)
         && let Some(p) = proj.point(world.w_axis.truncate())

@@ -51,18 +51,6 @@ fn tones(palette: &Rgba, index: u8) -> [egui::Color32; 4] {
     })
 }
 
-/// Paints a swatch: the tones side by side.
-fn swatch(ui: &Ui, rect: egui::Rect, tones: &[egui::Color32; 4]) {
-    let w = rect.width() / tones.len() as f32;
-    for (i, c) in tones.iter().enumerate() {
-        let r = egui::Rect::from_min_size(
-            rect.min + egui::vec2(w * i as f32, 0.0),
-            egui::vec2(w, rect.height()),
-        );
-        ui.painter().rect_filled(r, 0.0, *c);
-    }
-}
-
 /// How many colours a palette has.
 pub const COLORS: u8 = 176;
 
@@ -77,7 +65,7 @@ pub fn pick(ui: &mut Ui, palette: Option<&Rgba>, what: &str, color: &mut u8) -> 
     let mut pick = None;
     ui.horizontal(|ui| {
         let (rect, _) = ui.allocate_exact_size(egui::vec2(28.0, 16.0), egui::Sense::hover());
-        swatch(ui, rect, &tones(p, current));
+        mg_uikit::swatch(ui, rect, &tones(p, current));
         let combo = egui::ComboBox::from_id_salt(("palette color", what))
             .selected_text(current.to_string())
             .width(56.0)
@@ -90,7 +78,7 @@ pub fn pick(ui: &mut Ui, palette: Option<&Rgba>, what: &str, color: &mut u8) -> 
                         for i in row * 16..row * 16 + 16 {
                             let size = egui::vec2(16.0, 14.0);
                             let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
-                            swatch(ui, rect, &tones(p, i));
+                            mg_uikit::swatch(ui, rect, &tones(p, i));
                             if i == current {
                                 let stroke = ui.visuals().selection.stroke;
                                 ui.painter().rect_stroke(

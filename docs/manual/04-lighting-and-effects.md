@@ -3,7 +3,7 @@ type: Manual Page
 title: Lighting and visual effects
 description: Lighting a model as the game does (studio, area presets, custom area) and applying the game's visual effects and emitters to it.
 tags: [manual, lighting, visual-effects]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-02T00:52:54Z }
+generated: { by: claude-code/claude-sonnet-5-5, at: 2026-11-25T14:02:46Z }
 ---
 
 # Lighting and visual effects
@@ -41,4 +41,4 @@ off. Ground effects have a model per creature size: the target's own size
 (a creature blueprint's, by its appearance) is used unless you choose another.
 
 Emitters run in every model: fountains, explosions, point-to-point beams,
-lightning and chunks. Restart them with **Animation › Restart**.
+lightning and chunks. Restart them with **Timeline › Restart**.

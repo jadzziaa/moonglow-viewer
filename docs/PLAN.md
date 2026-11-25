@@ -810,7 +810,7 @@ of stock includes and the custom shaders MTRs name. The viewer takes it
 as the toolset does:
 
 - **On by default, with a switch.** `mgv_stage::GAME_SHADERS_BY_DEFAULT`;
-  the window's **Shaders** (toolbar, View › Game Shaders; kept as
+  the window's **Shaders** (toolbar, View › Game shaders; kept as
   `Settings::game_shaders`, `None` following the default) and `mgv`'s
   `--no-game-shaders` (render, turntable, gallery, sheet; `Shot::game_shaders`,
   part of a gallery's input hash).
@@ -955,3 +955,24 @@ gone. `mg_testkit::gpu` is now `mg-testkit-gpu`'s, re-exported, and
 lets four tests hold the GPU at once unless `MG_TEST_GPUS` says
 otherwise; the viewer's GPU suites run with `MG_TEST_GPUS=1`, one device
 at a time as §6 says. The worn-parts workaround of §10.4 stays.
+
+### 10.6 The 5.x look (M6 part A, 2026-11-25)
+
+The viewer takes the toolset's shared look from `mg-uikit` (same tag,
+without its `dock` feature, which is part B's choice): `mg_uikit::apply`
+each frame with `Settings::theme` (Dark until View › Theme says Light;
+kept between runs, a settings file without it loads as Dark), its fonts,
+`form::field_label` and `section_heading` in place of the copied
+`widgets.rs` and its Ubuntu Bold file (the kit has no `next_section`, only
+its `SECTION_GAP`: a three-line helper stays in `panels.rs`). The
+ASCII editor's colors are the `mdl-*` tokens (their dark values are the
+colors it had), its ground `inset`, its selection `code-select`, its
+diagnostics `error`, `warn` and `info`; the 3D view's selection is
+`select`, the Timeline's event ticks `warn`. What is data stays as it is:
+axes, grid, walkmesh and wireframe colors, node markers, PLT palettes,
+textures, a light's color. The ruled renames (§9.17 of the toolset's
+`docs/ui-redesign-proposal.md`) are made: Outliner, Timeline, and the View
+menu's Grid, Axes, Model lights, Game shaders, Shadow, with the manual.
+The dock layout is not stored (only `Settings` is), so no saved layout
+names a tab. Not yet: the Top Bar, the docks, the 3D View header, the
+editor header, the Status Bar and Gallery mode (parts B and C).

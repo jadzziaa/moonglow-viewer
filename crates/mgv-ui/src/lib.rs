@@ -17,7 +17,6 @@ mod panels;
 pub mod settings;
 mod texture;
 pub mod view3d;
-mod widgets;
 
 use std::path::{Path, PathBuf};
 
@@ -116,9 +115,9 @@ impl Tab {
             Tab::Editor => "ASCII",
             Tab::Texture => "Texture",
             Tab::Browser => "Resources",
-            Tab::Outliner => "Nodes",
+            Tab::Outliner => "Outliner",
             Tab::Inspector => "Inspector",
-            Tab::Timeline => "Animation",
+            Tab::Timeline => "Timeline",
             Tab::Effects => "Effects",
             Tab::Lighting => "Lighting",
             Tab::Log => "Log",
@@ -667,7 +666,8 @@ impl Viewer {
 
     /// The whole window, once a frame.
     pub fn ui(&mut self, ui: &mut Ui) {
-        widgets::install_fonts(ui.ctx());
+        // (The suite's look: fonts, style and tokens; cheap once applied.)
+        mg_uikit::apply(ui.ctx(), self.settings.theme);
         self.shortcuts(ui);
         self.watch_files(ui.input(|i| i.time));
         self.jobs_done();
@@ -1158,18 +1158,23 @@ impl Viewer {
                     }
                 }
                 ui.separator();
-                ui.checkbox(&mut self.settings.show_grid, "Ground Grid");
+                ui.checkbox(&mut self.settings.show_grid, "Grid");
                 ui.checkbox(&mut self.settings.show_axes, "Axes");
                 if let Some(g) = &mut self.gfx {
-                    ui.checkbox(&mut g.stage.model_lights, "Model Lights");
+                    ui.checkbox(&mut g.stage.model_lights, "Model lights");
                 }
                 let mut shaders = self.settings.game_shaders();
-                if ui.checkbox(&mut shaders, "Game Shaders").on_hover_text(SHADERS_HELP).changed() {
+                if ui.checkbox(&mut shaders, "Game shaders").on_hover_text(SHADERS_HELP).changed() {
                     self.settings.game_shaders = Some(shaders);
                 }
                 let mut shadow = self.settings.model_shadows();
                 if ui.checkbox(&mut shadow, "Shadow").on_hover_text(SHADOW_HELP).changed() {
                     self.settings.model_shadows = Some(shadow);
+                }
+                ui.separator();
+                ui.label("Theme");
+                for theme in mg_uikit::Theme::ALL {
+                    ui.radio_value(&mut self.settings.theme, theme, theme.name());
                 }
                 ui.separator();
                 if ui.button("Reset Layout").clicked() {
@@ -1281,5 +1286,37 @@ impl TabViewer for Tabs<'_> {
 
     fn is_closeable(&self, tab: &Tab) -> bool {
         *tab != Tab::View
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mg_uikit::{Theme, Tokens};
+
+    /// What the viewer applies each frame gives the context the kit's own
+    /// tokens, for each theme the setting can hold.
+    #[test]
+    fn the_applied_theme_is_the_kits_tokens() {
+        let ctx = egui::Context::default();
+        for (theme, tokens) in [(Theme::Dark, Tokens::DARK), (Theme::Light, Tokens::LIGHT)] {
+            mg_uikit::apply(&ctx, theme);
+            assert_eq!(mg_uikit::tokens(&ctx), tokens);
+            assert_eq!(mg_uikit::applied(&ctx), Some(theme));
+        }
+    }
+
+    /// The ruled names (the proposal's section 9.17). The dock layout is
+    /// not stored (only `Settings` is: eframe keeps nothing else of the
+    /// window), so no layout from before the renames can name a tab; the
+    /// titles are drawn each run.
+    #[test]
+    fn the_panels_carry_their_ruled_names() {
+        assert_eq!(Tab::Outliner.title(), "Outliner");
+        assert_eq!(Tab::Timeline.title(), "Timeline");
+        let dock = default_dock();
+        let titles: Vec<&str> = dock.iter_all_tabs().map(|(_, t)| t.title()).collect();
+        assert!(titles.contains(&"Outliner") && titles.contains(&"Timeline"));
+        assert!(!titles.contains(&"Nodes") && !titles.contains(&"Animation"));
     }
 }

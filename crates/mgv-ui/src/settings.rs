@@ -74,13 +74,15 @@ pub struct Settings {
     pub output_folder: Option<PathBuf>,
     /// Pause after the last keystroke before the view reloads, ms.
     pub reload_delay_ms: u32,
-    /// Draw with the game's own shaders (View › Game Shaders); `None`: as
+    /// Draw with the game's own shaders (View › Game shaders); `None`: as
     /// [`mgv_stage::GAME_SHADERS_BY_DEFAULT`] has it, until the switch is
     /// used.
     pub game_shaders: Option<bool>,
     /// The model casts the light's shadow on a ground under it (View ›
     /// Shadow); `None`: on, until the switch is used.
     pub model_shadows: Option<bool>,
+    /// The look: dark (the default) or light (View › Theme).
+    pub theme: mg_uikit::Theme,
 }
 
 impl Default for Settings {
@@ -100,6 +102,7 @@ impl Default for Settings {
             reload_delay_ms: 150,
             game_shaders: None,
             model_shadows: None,
+            theme: mg_uikit::Theme::Dark,
         }
     }
 }
@@ -153,6 +156,20 @@ pub fn scratch_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The theme choice is kept in the settings, dark until chosen, and a
+    /// settings file from before it (no `theme`) still loads.
+    #[test]
+    fn the_theme_choice_is_kept() {
+        use mg_uikit::Theme;
+        assert_eq!(Settings::default().theme, Theme::Dark);
+        let s = Settings { theme: Theme::Light, ..Settings::default() };
+        let text = serde_json::to_string(&s).unwrap();
+        assert_eq!(serde_json::from_str::<Settings>(&text).unwrap().theme, Theme::Light);
+        let old = serde_json::from_str::<Settings>(r#"{"show_grid":false}"#).unwrap();
+        assert_eq!(old.theme, Theme::Dark);
+        assert!(!old.show_grid);
+    }
 
     #[test]
     fn recent_files() {

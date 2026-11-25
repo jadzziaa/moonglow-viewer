@@ -1,6 +1,7 @@
 # Update log
 
 ## 2026-11-25
+* **Update**: [The window](manual/02-the-window.md), [lighting and effects](manual/04-lighting-and-effects.md) and [the plan](PLAN.md) §10.6: the viewer takes the toolset's 5.x look from `mg-uikit` (theme, fonts, tokens, form helpers; View › Theme, dark or light, kept between runs); the panels Nodes and Animation are now **Outliner** and **Timeline**, and the View menu reads Grid, Axes, Model lights, Game shaders, Shadow (M6 part A).
 * **Update**: [The plan](PLAN.md) §10.5: the toolset's pin is v5.3.0, nothing changed in the viewer; GPU suites run with `MG_TEST_GPUS=1`.
 
 ## 2026-11-16

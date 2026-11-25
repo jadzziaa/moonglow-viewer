@@ -8,8 +8,15 @@ use mg_resman::ResKey;
 use mgv_library::Kind;
 use mgv_stage::{ActorId, PlayMode};
 
-use crate::widgets::{field_label, next_section};
 use crate::{Action, Level, Selection, Viewer};
+use mg_uikit::{TokensExt, field_label, section_heading};
+
+/// A section's heading after other content: the kit's [`section_heading`]
+/// under its `SECTION_GAP` (the kit has the heading, not the room above it).
+pub(crate) fn next_section(ui: &mut egui::Ui, text: impl Into<String>) -> egui::Response {
+    ui.add_space(mg_uikit::form::SECTION_GAP);
+    section_heading(ui, text)
+}
 
 /// Which resources the browser lists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -753,7 +760,7 @@ pub(crate) fn timeline(app: &mut Viewer, ui: &mut Ui) {
             let x = rect.left() + width * (et / length).clamp(0.0, 1.0);
             painter.line_segment(
                 [egui::pos2(x, rect.bottom()), egui::pos2(x, rect.bottom() + 6.0)],
-                egui::Stroke::new(2.0, egui::Color32::from_rgb(0xE8, 0xA3, 0x3D)),
+                egui::Stroke::new(2.0, ui.tokens().warn),
             );
             let _ = name;
         }

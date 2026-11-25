@@ -11,6 +11,7 @@ use std::collections::HashMap;
 
 use egui::text::{CCursor, LayoutJob};
 use egui::{Color32, Event, EventFilter, FontId, Key, Modifiers, Rect, Sense, Ui, pos2, vec2};
+use mg_uikit::TokensExt;
 
 /// A place in the text: a line and a character within it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -506,9 +507,11 @@ impl CodeEditor {
             self.go_to_line(line);
         }
         let mut scroll_target = None;
+        // (The code editor's ground, the theme's `inset`.)
+        ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.tokens().inset);
         let text_color = ui.visuals().text_color();
         let weak = ui.visuals().weak_text_color();
-        let select_color = ui.visuals().selection.bg_fill;
+        let select_color = ui.tokens().code_select;
         let cursor_color = ui.visuals().text_cursor.stroke.color;
         egui::ScrollArea::both().id_salt(id).auto_shrink([false, false]).show_viewport(
             ui,

@@ -9,7 +9,7 @@ The user manual, a chapter per file, also built into the program (Help › User 
 # Manual Page
 
 * [Getting started](01-getting-started.md) - What Moonglow Viewer needs, the ways to open models and game resources, and how each file type is shown.
-* [The window](02-the-window.md) - The panels of the window (3D view, ASCII, texture, resources, nodes, inspector, animation, effects, lighting, log) and the keys.
+* [The window](02-the-window.md) - The panels of the window (3D view, ASCII, texture, resources, outliner, inspector, timeline, effects, lighting, log) and the keys.
 * [Editing models](03-editing-models.md) - The ASCII editor with its live reload and problem list, decompiling compiled models, and compiling with the game's compiler or nwnmdlcomp.
 * [Lighting and visual effects](04-lighting-and-effects.md) - Lighting a model as the game does (studio, area presets, custom area) and applying the game's visual effects and emitters to it.
 * [The command line](05-command-line.md) - The mgv command-line tool - pictures, turntables, galleries, model information, decompiling, compiling and linting without a window.

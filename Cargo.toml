@@ -33,6 +33,7 @@ mg-schema = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.3.
 mg-set = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.3.0" }
 mg-testkit = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.3.0" }
 mg-tlk = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.3.0" }
+mg-uikit = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.3.0" }
 
 # Third party (the toolset's versions)
 ab_glyph = "0.2"

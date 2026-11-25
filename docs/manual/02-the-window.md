@@ -1,15 +1,16 @@
 ---
 type: Manual Page
 title: The window
-description: The panels of the window (3D view, ASCII, texture, resources, nodes, inspector, animation, effects, lighting, log) and the keys.
+description: The panels of the window (3D view, ASCII, texture, resources, outliner, inspector, timeline, effects, lighting, log) and the keys.
 tags: [manual, panels, keys]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-03T08:16:10Z }
+generated: { by: claude-code/claude-sonnet-5-5, at: 2026-11-25T14:02:46Z }
 ---
 
 # The window
 
 The window is made of panels you can drag into other places (**View ›
-Reset Layout** puts them back):
+Reset Layout** puts them back). **View › Theme** chooses the dark
+or the light look; it is kept for the next run:
 
 - **3D View**: what is open. Drag with the left button to turn around it,
   with the right or middle button to move, and turn the wheel to come
@@ -26,7 +27,7 @@ Reset Layout** puts them back):
   **Shadow casters**, also under Overlays, draws the meshes that cast
   shadows without being drawn (`render 0`, `shadow 1`) in blue in place
   of the visible meshes.
-  **Shaders** (also **View › Game Shaders**) draws with the game's own
+  **Shaders** (also **View › Game shaders**) draws with the game's own
   shaders, compiled from your installation and the haks you added: a
   hak's replacements of the game's (a different lighting), and the custom
   shaders a material names (`customshaderVS`/`FS`: swaying grass and
@@ -50,7 +51,7 @@ Reset Layout** puts them back):
 - **ASCII**: the model's text (see [Editing models](03-editing-models.md)).
 - **Texture**: textures you open.
 - **Resources**: the game's resources (see [Getting started](01-getting-started.md)).
-- **Nodes**: the model's node tree; click to select. Parts of a creature
+- **Outliner**: the model's node tree; click to select. Parts of a creature
   (head, limbs, equipment, wings) are listed under it.
 - **Inspector**: what is open and the selected node: its type, position,
   orientation, controllers, mesh, textures (and whether the game has
@@ -61,7 +62,7 @@ Reset Layout** puts them back):
   and tattoos, each picked from its palette's 176 colors (the list
   beside its swatch shows them, as in Moonglow Toolset). **Reset colors** goes
   back to the model as opened.
-- **Animation**: the animations the model can play (its own and its
+- **Timeline**: the animations the model can play (its own and its
   supermodels'), play and pause, loop or once, speed, and a slider through
   the animation with its events marked.
 - **Effects** and **Lighting**: see [Lighting and visual effects](04-lighting-and-effects.md).
