@@ -145,6 +145,33 @@ pub fn still(stage: &mut Stage, viewport: &mut Viewport, lib: &Library, shot: &S
     picture(stage, viewport, lib, shot, &shot.camera(stage))
 }
 
+/// The shot of a gallery's pictures, `side` pixels square: the command
+/// line's (`mgv gallery`, `mgv render`) as its options are by default, at
+/// that size, so that the window's pictures are framed and lit as its
+/// galleries are.
+pub fn thumbnail_shot(side: u32) -> Shot {
+    Shot { size: (side, side), ..Shot::default() }
+}
+
+/// [`still`] for a window that keeps going: the game's programs are made
+/// while the frames go on, not waited for. The picture, and whether it is
+/// whole: `false` while a program it needs is still being made (its
+/// meshes drawn with Moonglow's own shader) or a texture read; asked for
+/// again later it is [`still`]'s picture.
+pub fn still_unwaited(
+    stage: &mut Stage,
+    viewport: &mut Viewport,
+    lib: &Library,
+    shot: &Shot,
+) -> (Rgba, bool) {
+    stage.casters = shot.casters;
+    stage.settle(lib, shot.time, shot.fps);
+    let cam = shot.camera(stage);
+    let image = drawn(stage, viewport, lib, shot, &cam, false);
+    let d = viewport.drawn();
+    (image, d.game_pending == 0 && d.textures_pending == 0)
+}
+
 /// Renders the stage as it is, from a camera.
 pub fn picture(
     stage: &Stage,
@@ -152,6 +179,19 @@ pub fn picture(
     lib: &Library,
     shot: &Shot,
     cam: &OrbitCamera,
+) -> Rgba {
+    drawn(stage, viewport, lib, shot, cam, true)
+}
+
+/// [`picture`]; `wait`: the frame waits for the game's programs (else
+/// they are made in the background, Moonglow's shader drawing meanwhile).
+fn drawn(
+    stage: &Stage,
+    viewport: &mut Viewport,
+    lib: &Library,
+    shot: &Shot,
+    cam: &OrbitCamera,
+    wait: bool,
 ) -> Rgba {
     let camera = cam.camera();
     let mut scene = stage.scene(camera.view());
@@ -164,10 +204,11 @@ pub fn picture(
             i.plt_colors = shot.plt_colors;
         }
     }
-    // (A picture drawn once: the frame waits for the game's programs.)
+    // (A picture drawn once: the frame waits for the game's programs,
+    // unless the caller draws it again.)
     let renderer = viewport.renderer();
     renderer.game_shaders = shot.game_shaders;
-    renderer.game_background = false;
+    renderer.game_background = !wait;
     viewport.image(stage.gpu(), lib.resman(), &scene, &camera, shot.size)
 }
 
@@ -348,6 +389,16 @@ mod tests {
         assert_eq!(light.cutoff, 4.0 * KEY_LIGHT_REACH);
         assert!(!light.ambient_only);
         assert_eq!(light.priority, 1);
+    }
+
+    /// A gallery's pictures in the window are framed and lit as the
+    /// command line's are by default, at their own size.
+    #[test]
+    fn the_thumbnail_shot_is_the_command_line_s() {
+        let shot = thumbnail_shot(224);
+        assert_eq!(shot.size, (224, 224));
+        assert_eq!(Shot { size: (512, 512), ..shot }, Shot::default());
+        assert!(shot.game_shaders);
     }
 
     #[test]
