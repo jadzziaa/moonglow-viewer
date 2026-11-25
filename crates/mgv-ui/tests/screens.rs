@@ -65,6 +65,26 @@ fn window() {
 
 #[test]
 #[ignore]
+fn light_theme() {
+    mg_testkit::gpu::hold();
+    let root = mg_testkit::corpus!();
+    let (mut v, rs) = viewer(root);
+    v.settings.theme = mg_uikit::Theme::Light;
+    v.actions.push(Action::OpenResource(ResKey::parse("c_golemerald", ResType::MDL).unwrap()));
+    v.actions.push(Action::Decompile);
+    let mut h = Harness::builder()
+        .with_size(egui::vec2(1500.0, 900.0))
+        .renderer(egui_kittest::wgpu::WgpuTestRenderer::from_render_state(rs))
+        .build_ui_state(|ui, v: &mut Viewer| v.ui(ui), v);
+    shoot(&mut h, "light-decompiled");
+    h.state_mut()
+        .actions
+        .push(Action::OpenResource(ResKey::parse("plc_a01", ResType::MDL).unwrap()));
+    shoot(&mut h, "light-placeable");
+}
+
+#[test]
+#[ignore]
 fn overlays() {
     mg_testkit::gpu::hold();
     let root = mg_testkit::corpus!();
