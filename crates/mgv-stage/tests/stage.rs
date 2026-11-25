@@ -703,9 +703,10 @@ fn a_picture_unwaited_is_the_still_once_whole() {
         let shot = mgv_stage::headless::thumbnail_shot(128);
         let mut stage = Stage::new(gpu.clone());
         let mut viewport = Viewport::new(&gpu);
-        mgv_stage::subject::show(&mut stage, &lib, &opened).unwrap();
         let started = std::time::Instant::now();
         let unwaited = loop {
+            // (Shown again for each try, as the gallery's painter does.)
+            mgv_stage::subject::show(&mut stage, &lib, &opened).unwrap();
             let at =
                 mgv_stage::headless::still_unwaited(&mut stage, &mut viewport, &lib, &shot, false);
             if let Some(image) = at {

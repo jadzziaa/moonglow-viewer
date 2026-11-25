@@ -630,12 +630,16 @@ fn the_resources_gallery() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
-/// Both clicks of a double click before one step (a step is a quarter of
-/// a second, longer than a double click may take).
+/// Both clicks of a double click in one frame: a step is a quarter of a
+/// second, longer than a double click may take, and the harness steps once
+/// for each queued event, so they go into the frame's input. Three steps
+/// first, so an earlier click does not make it a triple click (0.6 s).
 fn double_click(h: &mut Harness<'_, Viewer>, at: egui::Pos2) {
-    h.hover_at(at);
+    h.run_steps(3);
+    let input = &mut h.input_mut().events;
+    input.push(egui::Event::PointerMoved(at));
     for pressed in [true, false, true, false] {
-        h.event(egui::Event::PointerButton {
+        input.push(egui::Event::PointerButton {
             pos: at,
             button: egui::PointerButton::Primary,
             pressed,

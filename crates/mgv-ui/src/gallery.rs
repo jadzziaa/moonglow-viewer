@@ -967,6 +967,30 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// A picture still waiting after [`WAIT_AT_MOST`] is taken as drawn;
+    /// one no longer asked for stops waiting.
+    #[test]
+    fn a_long_wait_takes_the_picture_as_drawn_and_unseen_ones_stop_waiting() {
+        let (mut v, dir) = viewer(3, "wait");
+        fake(&mut v, Vec::new(), u32::MAX);
+        let ctx = egui::Context::default();
+        run(&ctx, &mut v, BOARD, 2);
+        let m = Pictured::Resource(ResKey::parse("m000", ResType::MDL).unwrap());
+        assert_eq!(v.pictures.picture(m), Picture::Making);
+        let since = v.pictures.tries.get_mut(&m).expect("waiting");
+        *since -= WAIT_AT_MOST;
+        run(&ctx, &mut v, BOARD, 1);
+        assert!(matches!(v.pictures.picture(m), Picture::Ready(_)));
+        assert!(!v.pictures.tries.contains_key(&m));
+        // Out of sight: the waits go.
+        run(&ctx, &mut v, BOARD, 1);
+        assert!(!v.pictures.tries.is_empty(), "the next one waits");
+        v.settings.resources_view = ResourcesView::List;
+        run(&ctx, &mut v, BOARD, 1);
+        assert!(v.pictures.tries.is_empty(), "{:?}", v.pictures.tries.keys());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     /// Reading the game's data again (Refresh) lets go of every picture
     /// and the painter's own; opening one from the gallery keeps them.
     #[test]
