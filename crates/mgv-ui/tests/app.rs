@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 use mg_core::ResType;
 use mg_resman::ResKey;
 use mgv_ui::{Action, Dialogs, Settings, Viewer};
@@ -41,7 +41,20 @@ impl Dialogs for Answer {
     }
 }
 
+/// The window at the board's size (proposal section 9.17, "Model with
+/// ASCII Editor"): both side docks open, the Bottom Dock under the editor
+/// area.
+const BOARD: egui::Vec2 = egui::vec2(1600.0, 900.0);
+
 fn harness(game: bool, dialogs: Box<dyn Dialogs>) -> Option<Harness<'static, Viewer>> {
+    harness_sized(game, dialogs, BOARD)
+}
+
+fn harness_sized(
+    game: bool,
+    dialogs: Box<dyn Dialogs>,
+    size: egui::Vec2,
+) -> Option<Harness<'static, Viewer>> {
     mg_testkit::gpu::hold();
     let root = if game { Some(mg_testkit::nwn_root()?) } else { None };
     // CI runners may have no GPU adapter at all.
@@ -62,7 +75,7 @@ fn harness(game: bool, dialogs: Box<dyn Dialogs>) -> Option<Harness<'static, Vie
     v.set_render_state(rs.clone());
     Some(
         Harness::builder()
-            .with_size(egui::vec2(1200.0, 800.0))
+            .with_size(size)
             .renderer(egui_kittest::wgpu::WgpuTestRenderer::from_render_state(rs))
             .build_ui_state(|ui, v: &mut Viewer| v.ui(ui), v),
     )
@@ -354,7 +367,7 @@ fn the_game_s_shaders_draw_the_view_and_switch_off() {
     }
     let d = drawn(&h);
     assert_eq!(d.game, d.meshes, "every mesh by the game's programs: {d:?}");
-    h.get_by_label("Shaders").click();
+    h.get_by_label(mgv_ui::view3d::HEADER).get_by_label("Shaders").click();
     h.run_steps(2);
     assert_eq!(h.state().settings.game_shaders, Some(false));
     assert_eq!(drawn(&h).game, 0, "Moonglow's own shader");
@@ -372,8 +385,186 @@ fn the_shadow_switch() {
         .push(Action::OpenResource(ResKey::parse("plc_a01", ResType::MDL).unwrap()));
     h.run_steps(3);
     assert!(h.state().gfx.as_ref().unwrap().stage.shadow);
-    h.get_by_label("Shadow").click();
+    h.get_by_label(mgv_ui::view3d::HEADER).get_by_label("Shadow").click();
     h.run_steps(2);
     assert_eq!(h.state().settings.model_shadows, Some(false));
     assert!(!h.state().gfx.as_ref().unwrap().stage.shadow);
+}
+
+/// The Top Bar's buttons do what their menu items do, and are disabled
+/// where those are: Save without an ASCII model, Open asking for a file.
+#[test]
+fn the_top_bar_s_buttons_are_the_menus() {
+    let dir = scratch("top-bar");
+    let file = dir.join("tri.mdl");
+    std::fs::write(&file, MODEL).unwrap();
+    let Some(mut h) = harness(false, Box::new(Answer(Some(file.clone())))) else { return };
+    h.run_steps(2);
+    let disabled = |h: &Harness<'_, Viewer>, name: &str| {
+        h.get_by_label("Top Bar").get_by_label(name).accesskit_node().is_disabled()
+    };
+    assert!(disabled(&h, "Save"), "nothing to save");
+    assert!(!disabled(&h, "Open"));
+    // Open asks for a file (the dialog answers with the model).
+    h.get_by_label("Top Bar").get_by_label("Open").click();
+    h.run_steps(3);
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "tri");
+    assert!(!disabled(&h, "Save"));
+    // Save writes the edits.
+    let edited = MODEL.replace("node dummy hook", "node dummy grip");
+    let now = h.ctx.input(|i| i.time);
+    h.state_mut().buffer.as_mut().unwrap().set_text(&edited, now);
+    h.run_steps(2);
+    h.get_by_label("Top Bar").get_by_label("Save").click();
+    h.run_steps(2);
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), edited);
+    // Decompile says, as the menu's does, that an ASCII model does not.
+    h.get_by_label("Top Bar").get_by_label("Decompile").click();
+    h.run_steps(2);
+    assert!(h.state().log.iter().any(|l| l.text == "Only compiled models decompile."));
+    // Compile and Compile and View start the compiler on the editor's text.
+    for name in ["Compile", "Compile and View"] {
+        let before = h.state().log.len();
+        h.get_by_label("Top Bar").get_by_label(name).click();
+        h.run_steps(2);
+        assert!(h.state().log[before..].iter().any(|l| l.text.starts_with("Compiling tri")));
+    }
+    // (The compiles run on, their files landing in the scratch folder:
+    // waited for, so that the folder goes after them.)
+    let done = |h: &Harness<'_, Viewer>| {
+        let log = &h.state().log;
+        log.iter()
+            .filter(|l| l.text.starts_with("Compiled tri") || l.text.starts_with("Compiling tri:"))
+            .count()
+    };
+    for _ in 0..500 {
+        if done(&h) >= 2 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        h.run_steps(1);
+    }
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// The 3D View's Overlays popover: its rows toggle the overlays and leave
+/// it open.
+#[test]
+fn the_overlays_popover_toggles() {
+    let Some(mut h) = harness(false, Box::new(Answer(None))) else { return };
+    h.run_steps(2);
+    let header = mgv_ui::view3d::HEADER;
+    h.get_by_label(header).get_by_label("Overlays").click();
+    h.run_steps(2);
+    h.get_by_label("Wireframe").click();
+    h.run_steps(2);
+    assert!(h.state().settings.overlays.wireframe);
+    h.get_by_label("Walkmesh").click();
+    h.run_steps(2);
+    assert!(h.state().settings.overlays.walkmesh, "still open after a row");
+    h.get_by_label("Wireframe").click();
+    h.run_steps(2);
+    assert!(!h.state().settings.overlays.wireframe);
+    // Grid and Axes are the header's toggles.
+    let grid = h.state().settings.show_grid;
+    h.key_press(egui::Key::Escape);
+    h.run_steps(2);
+    h.get_by_label(header).get_by_label("Grid").click();
+    h.run_steps(2);
+    assert_eq!(h.state().settings.show_grid, !grid);
+}
+
+/// The ASCII tab shows the modified dot (no " *" in its title) while its
+/// edits are unsaved; its header's Save takes it away. The diagnostics
+/// strip under the text counts the errors and the warnings.
+#[test]
+fn the_ascii_tab_s_dot_and_the_diagnostics_counts() {
+    use mgv_ui::editor::{DIAGNOSTICS, HEADER, counts, plural};
+    let dir = scratch("dot");
+    let file = dir.join("tri.mdl");
+    std::fs::write(&file, MODEL).unwrap();
+    let Some(mut h) = harness(false, Box::new(Answer(None))) else { return };
+    h.state_mut().actions.push(Action::Open(file.clone()));
+    h.run_steps(3);
+    assert!(h.query_by_label("ASCII").is_some(), "the tab, named by its title");
+    assert!(h.query_by_label("Modified").is_none(), "nothing edited");
+    let strip = |h: &Harness<'_, Viewer>, what: &str| {
+        h.get_by_label(DIAGNOSTICS).query_by_label(what).is_some()
+    };
+    assert!(strip(&h, "0 errors") && strip(&h, "0 warnings"));
+    // A node without a name, and an endnode without a node.
+    let broken = MODEL.replace("endmodelgeom tri", "node\nendnode\nendnode\nendmodelgeom tri");
+    let now = h.ctx.input(|i| i.time);
+    h.state_mut().buffer.as_mut().unwrap().set_text(&broken, now);
+    h.run_steps(30);
+    assert!(h.query_by_label("Modified").is_some(), "the dot");
+    assert!(h.query_by_label("ASCII *").is_none());
+    let (e, w) = counts(&h.state().buffer.as_ref().unwrap().diagnostics);
+    assert!(e > 0 && w > 0);
+    assert!(strip(&h, &plural(e, "error")) && strip(&h, &plural(w, "warning")));
+    h.get_by_label(HEADER).get_by_label("Save").click();
+    h.run_steps(2);
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), broken);
+    assert!(h.query_by_label("Modified").is_none(), "saved");
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// The Status Bar: the document and its origin at the right, the game
+/// folder (none here), the 3D view's hints as key caps, and the Bottom
+/// Dock's switches (the switch of the tab in front closes the dock).
+#[test]
+fn the_status_bar() {
+    let dir = scratch("status");
+    let file = dir.join("tri.mdl");
+    std::fs::write(&file, MODEL).unwrap();
+    let Some(mut h) = harness(false, Box::new(Answer(None))) else { return };
+    h.run_steps(2);
+    let bar = |h: &Harness<'_, Viewer>, what: &str| {
+        h.get_by_label("Status Bar").query_by_label(what).is_some()
+    };
+    assert!(bar(&h, "Open a model (Ctrl+O) or pick one under Resources"));
+    assert!(bar(&h, "No game folder: File › Game Folder…"));
+    h.state_mut().actions.push(Action::Open(file.clone()));
+    h.run_steps(3);
+    assert!(bar(&h, "tri"));
+    assert!(bar(&h, &file.display().to_string()));
+    assert!(h.get_by_label("Status Bar").query_by_label_contains("Orbit").is_some());
+    // The Log's switch brings the Log to the front; again, closes the dock.
+    assert!(h.state().shell.bottom_open);
+    h.get_by_label("Status Bar").get_by_label("Log").click();
+    h.run_steps(2);
+    assert_eq!(h.state().shell.bottom_tab, mgv_ui::Tab::Log);
+    h.get_by_label("Status Bar").get_by_label("Log").click();
+    h.run_steps(2);
+    assert!(!h.state().shell.bottom_open);
+    // The Log out of sight, its last line is in the Status Bar.
+    let last = h.state().log.last().unwrap().text.clone();
+    assert!(bar(&h, &last));
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// A narrow window (under 1500) folds the Left Dock to its strip; its
+/// chevron brings it back, and Resources opens what it lists.
+#[test]
+fn a_narrow_window_folds_the_left_dock() {
+    let dir = scratch("narrow");
+    std::fs::write(dir.join("tri.mdl"), MODEL).unwrap();
+    std::fs::write(dir.join("other.mdl"), MODEL.replace(" tri", " other")).unwrap();
+    let size = egui::vec2(1200.0, 800.0);
+    let Some(mut h) = harness_sized(false, Box::new(Answer(None)), size) else { return };
+    h.state_mut().actions.push(Action::Open(dir.join("tri.mdl")));
+    h.run_steps(3);
+    assert!(h.state().shell.left_folded());
+    assert!(h.query_by_label("other.mdl").is_none());
+    h.get_by_label("Show the Left Dock").click();
+    h.run_steps(3);
+    assert!(!h.state().shell.left_folded());
+    h.get_by_label("other.mdl").click();
+    h.run_steps(3);
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "other");
+    // View › Reset Layout folds it again, as the width says.
+    h.state_mut().actions.push(Action::ResetLayout);
+    h.run_steps(2);
+    assert!(h.state().shell.left_folded());
+    std::fs::remove_dir_all(&dir).unwrap();
 }

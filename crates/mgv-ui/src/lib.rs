@@ -15,13 +15,14 @@ pub mod manual;
 pub mod palette;
 mod panels;
 pub mod settings;
+pub mod shell;
 mod texture;
 pub mod view3d;
 
 use std::path::{Path, PathBuf};
 
 use egui::{Ui, WidgetText};
-use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
+use egui_dock::{DockState, NodeIndex, TabViewer};
 use mg_core::ResType;
 use mg_resman::{GameInstall, ResKey};
 use mgv_library::watch::Watcher;
@@ -123,6 +124,29 @@ impl Tab {
             Tab::Log => "Log",
         }
     }
+
+    /// Its icon: a document tab's kind icon, a dock tab's and a folded
+    /// dock's strip's.
+    pub fn icon(self) -> mg_uikit::Icon {
+        use mg_uikit::Icon;
+        match self {
+            Tab::View => Icon::Model,
+            Tab::Editor => Icon::Ascii,
+            Tab::Texture => Icon::Texture,
+            Tab::Browser => Icon::FolderOpen,
+            Tab::Outliner => Icon::Outliner,
+            Tab::Inspector => Icon::Inspector,
+            Tab::Timeline => Icon::Timeline,
+            Tab::Effects => Icon::Sparkles,
+            Tab::Lighting => Icon::Sun,
+            Tab::Log => Icon::Log,
+        }
+    }
+
+    /// A document tab the user closes (the 3D View stays).
+    pub(crate) fn closeable(self) -> bool {
+        matches!(self, Tab::Editor | Tab::Texture)
+    }
 }
 
 /// A log line.
@@ -194,7 +218,10 @@ pub struct Viewer {
     pub manual: manual::Manual,
     pub log: Vec<LogLine>,
     pub actions: Vec<Action>,
+    /// The editor area's document tabs (3D View, Texture, ASCII).
     pub dock: DockState<Tab>,
+    /// The docks around it, the bars and what the window's width yields.
+    pub shell: shell::Shell,
     pub dialogs: Box<dyn Dialogs>,
     pub jobs: jobs::Jobs,
     pub quit_requested: bool,
@@ -224,18 +251,27 @@ pub(crate) const SHADERS_HELP: &str = "Draw with the game's own shaders, compile
 pub(crate) const SHADOW_HELP: &str = "The model casts the light's shadow on a ground under it, the \
      ground itself unseen (as an area's ground takes a creature's shadow)";
 
-/// The default layout: browser and outliner on the left, the 3D view in
-/// the middle with the editor beside it, inspector on the right, timeline
-/// and log below.
+/// The editor area's layout (proposal section 9.17): the 3D View in one
+/// group, Texture and ASCII (in front) in a second beside it. The docks'
+/// panels are not in it: they stand where [`shell::place`] says.
 pub fn default_dock() -> DockState<Tab> {
-    let mut dock = DockState::new(vec![Tab::View, Tab::Texture]);
+    default_dock_for(false)
+}
+
+/// [`default_dock`], or in the wide layout (section 5.3, a window from
+/// 2560 wide) the 3D View, Texture and ASCII in three groups side by side.
+pub fn default_dock_for(wide: bool) -> DockState<Tab> {
+    let mut dock = DockState::new(vec![Tab::View]);
     let surface = dock.main_surface_mut();
-    let [middle, _left] =
-        surface.split_left(NodeIndex::root(), 0.2, vec![Tab::Browser, Tab::Outliner]);
-    let [middle, _right] = surface.split_right(middle, 0.78, vec![Tab::Inspector, Tab::Lighting]);
-    let [view, _bottom] =
-        surface.split_below(middle, 0.76, vec![Tab::Timeline, Tab::Effects, Tab::Log]);
-    surface.split_right(view, 0.55, vec![Tab::Editor]);
+    if wide {
+        let [_, rest] = surface.split_right(NodeIndex::root(), 0.4, vec![Tab::Texture]);
+        surface.split_right(rest, 0.4, vec![Tab::Editor]);
+    } else {
+        surface.split_right(NodeIndex::root(), 0.55, vec![Tab::Texture, Tab::Editor]);
+        if let Some(at) = dock.find_tab(&Tab::Editor) {
+            let _ = dock.set_active_tab(at);
+        }
+    }
     dock
 }
 
@@ -261,6 +297,7 @@ impl Viewer {
             log,
             actions: Vec::new(),
             dock: default_dock(),
+            shell: shell::Shell::default(),
             dialogs,
             jobs: jobs::Jobs::default(),
             quit_requested: false,
@@ -503,14 +540,55 @@ impl Viewer {
         self.focus(Tab::Editor);
     }
 
-    /// Makes a tab visible (opening it if it was closed).
+    /// Makes a tab visible: a dock's panel brought into sight in its
+    /// dock; a document tab put in front of its group, or opened again
+    /// where it was closed (Texture and ASCII beside each other, in a
+    /// group of their own beside the 3D View).
     pub fn focus(&mut self, tab: Tab) {
-        match self.dock.find_tab(&tab) {
-            Some(at) => {
-                let _ = self.dock.set_active_tab(at);
-            }
-            None => self.dock.push_to_focused_leaf(tab),
+        if shell::place(tab, self.shell.yields.wide) != shell::Place::Editor {
+            self.shell.show_panel(tab);
+            return;
         }
+        if let Some(at) = self.dock.find_tab(&tab) {
+            let _ = self.dock.set_active_tab(at);
+            return;
+        }
+        let partner = match tab {
+            Tab::Editor => self.dock.find_tab(&Tab::Texture),
+            Tab::Texture => self.dock.find_tab(&Tab::Editor),
+            _ => None,
+        };
+        match (partner, self.dock.find_tab(&Tab::View)) {
+            (Some(at), _) => {
+                let path = egui_dock::NodePath { surface: at.surface, node: at.node };
+                self.dock.set_focused_node_and_surface(path);
+                self.dock.push_to_focused_leaf(tab);
+            }
+            (None, Some(view)) if view.surface.is_main() => {
+                self.dock.main_surface_mut().split_right(view.node, 0.55, vec![tab]);
+            }
+            _ => self.dock.push_to_first_leaf(tab),
+        }
+    }
+
+    /// Closes a document tab (Texture or ASCII; its document stays open).
+    pub fn close_tab(&mut self, tab: Tab) {
+        if tab.closeable()
+            && let Some(at) = self.dock.find_tab(&tab)
+        {
+            self.dock.remove_tab(at);
+        }
+    }
+
+    /// Whether Save (the menu's and the Top Bar's) can be chosen.
+    pub fn can_save(&self) -> bool {
+        self.buffer.is_some()
+    }
+
+    /// Whether a document tab shows the modified dot: the ASCII while it
+    /// has unsaved edits.
+    pub fn tab_modified(&self, tab: Tab) -> bool {
+        tab == Tab::Editor && self.buffer.as_ref().is_some_and(Buffer::is_dirty)
     }
 
     /// Drops the editor's buffer and the library's copy of it.
@@ -643,7 +721,10 @@ impl Viewer {
                 }
             }
             Action::Refresh => self.refresh(),
-            Action::ResetLayout => self.dock = default_dock(),
+            Action::ResetLayout => {
+                self.dock = default_dock_for(self.shell.yields.wide);
+                self.shell.reset();
+            }
             Action::Quit => {
                 if self.confirm_discard() {
                     self.quit_requested = true;
@@ -668,20 +749,31 @@ impl Viewer {
     pub fn ui(&mut self, ui: &mut Ui) {
         // (The suite's look: fonts, style and tokens; cheap once applied.)
         mg_uikit::apply(ui.ctx(), self.settings.theme);
+        // What the window's width yields (the editor area's as it was at
+        // the last frame); the editor area laid out for it at the first.
+        let window = ui.max_rect().width();
+        self.shell.frame_yields(window, self.shell.editor_width.unwrap_or(window));
+        if self.shell.laid_out.is_none() {
+            let wide = self.shell.yields.wide;
+            if wide {
+                self.dock = default_dock_for(true);
+            }
+            self.shell.laid_out = Some(wide);
+        }
         self.shortcuts(ui);
         self.watch_files(ui.input(|i| i.time));
         self.jobs_done();
         self.tick(ui);
 
-        egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
-        egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
-        egui::CentralPanel::default().show(ui, |ui| {
-            let mut dock = std::mem::replace(&mut self.dock, DockState::new(Vec::new()));
-            DockArea::new(&mut dock)
-                .show_close_buttons(true)
-                .show_inside(ui, &mut Tabs { app: self });
-            self.dock = dock;
-        });
+        // The bars, the side docks the whole height between them, the
+        // Bottom Dock under the editor area (proposal section 5).
+        shell::top_bar(self, ui);
+        shell::status_bar(self, ui);
+        shell::left_dock(self, ui);
+        shell::right_dock(self, ui);
+        shell::bottom_dock(self, ui);
+        shell::editor_area(self, ui);
+        self.shell.end_frame();
         manual::windows(self, ui.ctx());
         self.run_actions();
         self.tell_shader_failures();
@@ -1030,8 +1122,29 @@ impl Viewer {
         }
     }
 
-    fn menu_bar(&mut self, ui: &mut Ui) {
-        egui::MenuBar::new().ui(ui, |ui| {
+    /// The menus, in the Top Bar (the kit's menu bar and menu styles).
+    /// egui's menu bar takes the width it is given: given the menus' own,
+    /// as they took it in the last frame, the Top Bar's buttons follow
+    /// them; when that changes, the frame is drawn again.
+    pub(crate) fn menu_bar(&mut self, ui: &mut Ui) {
+        let width_id = ui.id().with("menu-bar-width");
+        let start = ui.cursor().min.x;
+        let width = ui.data(|d| d.get_temp::<f32>(width_id)).unwrap_or(ui.available_width());
+        let size = egui::vec2(width.min(ui.available_width()), ui.available_height());
+        let layout = egui::Layout::left_to_right(egui::Align::Center);
+        let mut end = start;
+        ui.allocate_ui_with_layout(size, layout, |ui| self.menus(ui, &mut end));
+        let measured = (end - start).ceil();
+        if (measured - width).abs() > 0.5 {
+            ui.data_mut(|d| d.insert_temp(width_id, measured));
+            ui.ctx().request_discard("the menu bar's width changed");
+        }
+    }
+
+    /// File, Model, View and Help; `end`: where the last menu's title ends.
+    fn menus(&mut self, ui: &mut Ui, end: &mut f32) {
+        let config = egui::containers::menu::MenuConfig::new().style(mg_uikit::menu_style);
+        egui::MenuBar::new().style(mg_uikit::menu_bar_style).config(config).ui(ui, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.add(egui::Button::new("Open…").shortcut_text("Ctrl+O")).clicked() {
                     self.actions.push(Action::OpenDialog);
@@ -1047,7 +1160,7 @@ impl Viewer {
                     }
                 });
                 ui.separator();
-                let has_buffer = self.buffer.is_some();
+                let has_buffer = self.can_save();
                 if ui
                     .add_enabled(has_buffer, egui::Button::new("Save").shortcut_text("Ctrl+S"))
                     .clicked()
@@ -1181,7 +1294,7 @@ impl Viewer {
                     self.actions.push(Action::ResetLayout);
                 }
             });
-            ui.menu_button("Help", |ui| {
+            let help = ui.menu_button("Help", |ui| {
                 if ui.add(egui::Button::new("User Manual").shortcut_text("F1")).clicked() {
                     self.manual.open = true;
                 }
@@ -1189,33 +1302,7 @@ impl Viewer {
                     self.manual.about = true;
                 }
             });
-        });
-    }
-
-    fn status_bar(&mut self, ui: &mut Ui) {
-        ui.horizontal(|ui| {
-            match &self.doc {
-                Some(d) => {
-                    ui.label(d.name());
-                    if let Some(k) = d.opened.key
-                        && let Some(o) = self.lib.origin(&k)
-                    {
-                        ui.weak(o);
-                    }
-                }
-                None => {
-                    ui.weak("Open a model (Ctrl+O) or pick one under Resources");
-                }
-            }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                match self.lib.install() {
-                    Some(i) => ui.weak(format!("Game: {}", i.root.display())),
-                    None => ui.weak("No game folder: File › Game Folder…"),
-                };
-                if self.jobs.busy() {
-                    ui.spinner();
-                }
-            });
+            *end = help.response.rect.right();
         });
     }
 }
@@ -1248,8 +1335,40 @@ fn same_file(a: &Path, b: &Path) -> bool {
     }
 }
 
-struct Tabs<'a> {
-    app: &'a mut Viewer,
+/// A dock panel's or a document tab's own drawing.
+pub(crate) fn draw_tab(app: &mut Viewer, ui: &mut Ui, tab: Tab) {
+    match tab {
+        Tab::View => view3d::ui(app, ui),
+        Tab::Editor => editor::ui(app, ui),
+        Tab::Texture => texture::ui(app, ui),
+        Tab::Browser => panels::browser(app, ui),
+        Tab::Outliner => panels::outliner(app, ui),
+        Tab::Inspector => panels::inspector(app, ui),
+        Tab::Timeline => panels::timeline(app, ui),
+        Tab::Effects => effects::ui(app, ui),
+        Tab::Lighting => lighting::ui(app, ui),
+        Tab::Log => panels::log(app, ui),
+    }
+}
+
+/// The editor area's tabs for egui_dock: their titles laid out with room
+/// for their parts (`mg_uikit::dock::doc_tab_title`), their buttons kept
+/// for the parts painted over them (`shell::editor_area`).
+pub(crate) struct Tabs<'a> {
+    pub(crate) app: &'a mut Viewer,
+    pub(crate) ctx: egui::Context,
+    pub(crate) buttons: Vec<shell::TabButton>,
+    /// Each group's tab in front, as the frame began (the dock is out of
+    /// `app` while it is drawn).
+    pub(crate) fronts: Vec<Tab>,
+}
+
+impl Tabs<'_> {
+    fn title_of(&self, tab: Tab) -> mg_uikit::dock::DocTabTitle {
+        let font = egui::FontId::proportional(mg_uikit::metrics::BODY_SIZE);
+        let modified = self.app.tab_modified(tab);
+        mg_uikit::dock::doc_tab_title(&self.ctx, font, tab.title(), f32::INFINITY, modified)
+    }
 }
 
 impl TabViewer for Tabs<'_> {
@@ -1260,32 +1379,41 @@ impl TabViewer for Tabs<'_> {
     }
 
     fn title(&mut self, tab: &mut Tab) -> WidgetText {
-        match tab {
-            Tab::Editor => {
-                let dirty = self.app.buffer.as_ref().is_some_and(Buffer::is_dirty);
-                format!("{}{}", tab.title(), if dirty { " *" } else { "" }).into()
-            }
-            t => t.title().into(),
-        }
+        WidgetText::Galley(self.title_of(*tab).galley)
     }
 
     fn ui(&mut self, ui: &mut Ui, tab: &mut Tab) {
-        match tab {
-            Tab::View => view3d::ui(self.app, ui),
-            Tab::Editor => editor::ui(self.app, ui),
-            Tab::Texture => texture::ui(self.app, ui),
-            Tab::Browser => panels::browser(self.app, ui),
-            Tab::Outliner => panels::outliner(self.app, ui),
-            Tab::Inspector => panels::inspector(self.app, ui),
-            Tab::Timeline => panels::timeline(self.app, ui),
-            Tab::Effects => effects::ui(self.app, ui),
-            Tab::Lighting => lighting::ui(self.app, ui),
-            Tab::Log => panels::log(self.app, ui),
+        if ui.rect_contains_pointer(ui.max_rect()) {
+            self.app.shell.hovering = Some(*tab);
         }
+        draw_tab(self.app, ui, *tab);
+    }
+
+    /// The tab's button: kept for its parts, and named by its title for a
+    /// screen reader (and tests), said selected where it is in front.
+    fn on_tab_button(&mut self, tab: &mut Tab, response: &egui::Response) {
+        let shown = response.rect.intersect(response.interact_rect);
+        let title_width = self.title_of(*tab).width;
+        self.buttons.push(shell::TabButton {
+            tab: *tab,
+            rect: response.rect,
+            layer: response.layer_id,
+            shown,
+            title_width,
+        });
+        let front = self.fronts.contains(tab);
+        response.widget_info(|| {
+            egui::WidgetInfo::selected(egui::WidgetType::Button, true, front, tab.title())
+        });
     }
 
     fn is_closeable(&self, tab: &Tab) -> bool {
-        *tab != Tab::View
+        tab.closeable()
+    }
+
+    /// No floating windows: the viewer's editors stay in the window.
+    fn allowed_in_windows(&self, _: &mut Tab) -> bool {
+        false
     }
 }
 
@@ -1306,17 +1434,20 @@ mod tests {
         }
     }
 
-    /// The ruled names (the proposal's section 9.17). The dock layout is
-    /// not stored (only `Settings` is: eframe keeps nothing else of the
+    /// The ruled names (the proposal's section 9.17). The layout is not
+    /// stored (only `Settings` is: eframe keeps nothing else of the
     /// window), so no layout from before the renames can name a tab; the
-    /// titles are drawn each run.
+    /// titles are drawn each run. The Outliner stands in the Left Dock,
+    /// the Timeline in the Bottom Dock.
     #[test]
     fn the_panels_carry_their_ruled_names() {
         assert_eq!(Tab::Outliner.title(), "Outliner");
         assert_eq!(Tab::Timeline.title(), "Timeline");
-        let dock = default_dock();
-        let titles: Vec<&str> = dock.iter_all_tabs().map(|(_, t)| t.title()).collect();
-        assert!(titles.contains(&"Outliner") && titles.contains(&"Timeline"));
-        assert!(!titles.contains(&"Nodes") && !titles.contains(&"Animation"));
+        let titles =
+            |at| -> Vec<&str> { shell::panels_at(at, false).into_iter().map(Tab::title).collect() };
+        assert_eq!(titles(shell::Place::Left), ["Resources", "Outliner"]);
+        assert_eq!(titles(shell::Place::Bottom), ["Timeline", "Effects", "Log"]);
+        let all = [titles(shell::Place::Left), titles(shell::Place::Bottom)].concat();
+        assert!(!all.contains(&"Nodes") && !all.contains(&"Animation"));
     }
 }

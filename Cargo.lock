@@ -2260,6 +2260,7 @@ version = "0.0.0"
 source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
 dependencies = [
  "egui",
+ "egui_dock",
  "serde",
  "serde_json",
 ]

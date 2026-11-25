@@ -19,7 +19,7 @@ mg-mdl.workspace = true
 mg-render.workspace = true
 mg-resman.workspace = true
 mg-set.workspace = true
-mg-uikit.workspace = true
+mg-uikit = { workspace = true, features = ["dock"] }
 mgv-library.workspace = true
 mgv-mdl.workspace = true
 mgv-stage.workspace = true

@@ -232,57 +232,145 @@ fn walk(camera: &mut mgv_stage::OrbitCamera, ui: &egui::Ui) -> bool {
     true
 }
 
+/// The 3D View's header's name (a group, and its record).
+pub const HEADER: &str = "3D View header";
+
+/// The views the View menu turns the camera to.
+const VIEWS: [(View, &str); 7] = [
+    (View::ThreeQuarter, "Three-quarter"),
+    (View::Front, "Front"),
+    (View::Back, "Back"),
+    (View::Left, "Left"),
+    (View::Right, "Right"),
+    (View::Top, "Top"),
+    (View::Bottom, "Bottom"),
+];
+
+/// The 3D View's header (proposal section 9.17, the kit's header row):
+/// Frame and the View menu at the left; Grid and Axes, the Overlays
+/// popover, Shaders, Shadow and Model lights as icon toggles and the
+/// background's swatch at the right. In the wide layout (a window from
+/// 2560) the toggles carry their words and the Overlays popover unfolds
+/// into word toggles; where the row is short, they go into More.
 fn toolbar(app: &mut Viewer, ui: &mut egui::Ui) {
-    // (Onto a second line where the view is narrow: nothing cut off.)
-    ui.horizontal_wrapped(|ui| {
-        if ui.button("Frame").on_hover_text("F, or double-click").clicked() {
-            app.actions.push(Action::Frame);
-        }
-        egui::ComboBox::from_id_salt("view").selected_text("View").show_ui(ui, |ui| {
-            for (v, name) in [
-                (View::ThreeQuarter, "Three-quarter"),
-                (View::Front, "Front"),
-                (View::Back, "Back"),
-                (View::Left, "Left"),
-                (View::Right, "Right"),
-                (View::Top, "Top"),
-                (View::Bottom, "Bottom"),
-            ] {
-                if ui.selectable_label(false, name).clicked() {
-                    app.actions.push(Action::SetView(v));
-                }
-            }
-        });
-        ui.checkbox(&mut app.settings.show_grid, "Grid");
-        ui.checkbox(&mut app.settings.show_axes, "Axes");
-        ui.menu_button("Overlays", |ui| {
-            let o = &mut app.settings.overlays;
-            ui.checkbox(&mut o.walkmesh, "Walkmesh")
-                .on_hover_text("Faces colored by surface material: green walkable, red not");
-            ui.checkbox(&mut o.wireframe, "Wireframe");
-            ui.checkbox(&mut o.normals, "Normals");
-            ui.checkbox(&mut o.skeleton, "Nodes")
-                .on_hover_text("The node tree: bones, hooks, emitters and lights");
-            ui.checkbox(&mut o.casters, "Shadow casters").on_hover_text(
-                "The meshes that cast shadows without being drawn (render 0, shadow 1), in \
+    use mg_uikit::Icon;
+    use mg_uikit::header::{EditorHeader, Item};
+    use mg_uikit::popover::{PopCheck, Popover};
+    let wide = app.shell.yields.wide;
+    fn toggle<'a>(wide: bool, icon: Icon, words: &str, on: &'a mut bool, tip: &str) -> Item<'a> {
+        let item = Item::toggle(Some(icon), words, on).tip(tip);
+        if wide { item } else { item.icon_only() }
+    }
+    let mut shaders = app.settings.game_shaders();
+    let mut shadow = app.settings.model_shadows();
+    let mut no_gpu_lights = false;
+    let has_gpu = app.gfx.is_some();
+    let (lights, mut bg) = match &mut app.gfx {
+        Some(g) => (&mut g.stage.model_lights, Some(g.stage.lighting.background)),
+        None => (&mut no_gpu_lights, None),
+    };
+    let mut view: Option<View> = None;
+    let s = &mut app.settings;
+    let o = &mut s.overlays;
+    let overlays = Popover::new("Overlays")
+        .title(Some(Icon::Overlays), "Overlays")
+        .check(
+            PopCheck::new(&mut o.walkmesh, "Walkmesh")
+                .icon(Icon::Walkmesh)
+                .tip("Faces colored by surface material: green walkable, red not"),
+        )
+        .check(PopCheck::new(&mut o.wireframe, "Wireframe").icon(Icon::Wireframe))
+        .check(PopCheck::new(&mut o.normals, "Normals").icon(Icon::ArrowUp))
+        .check(
+            PopCheck::new(&mut o.skeleton, "Nodes")
+                .icon(Icon::NodeDummy)
+                .tip("The node tree: bones, hooks, emitters and lights"),
+        )
+        .check(PopCheck::new(&mut o.casters, "Shadow casters").icon(Icon::Shadow).tip(
+            "The meshes that cast shadows without being drawn (render 0, shadow 1), in \
                  blue in place of the visible meshes",
-            );
-        });
-        let mut shaders = app.settings.game_shaders();
-        if ui.checkbox(&mut shaders, "Shaders").on_hover_text(crate::SHADERS_HELP).changed() {
-            app.settings.game_shaders = Some(shaders);
-        }
-        let mut shadow = app.settings.model_shadows();
-        if ui.checkbox(&mut shadow, "Shadow").on_hover_text(crate::SHADOW_HELP).changed() {
-            app.settings.model_shadows = Some(shadow);
-        }
-        if let Some(g) = &mut app.gfx {
-            ui.checkbox(&mut g.stage.model_lights, "Model lights")
-                .on_hover_text("Light the scene with the model's own light nodes");
-            let mut bg = g.stage.lighting.background;
-            if ui.color_edit_button_rgb(&mut bg).on_hover_text("Background").changed() {
-                g.stage.lighting.background = bg;
+        ));
+    let overlays =
+        Item::popover(Some(Icon::Overlays), overlays).tip("What the view draws over the scene");
+    let overlays = if wide { overlays.unfolds() } else { overlays.icon_only() };
+    let view_menu = Item::menu(None, "View", |ui| {
+        for (v, name) in VIEWS {
+            if ui.button(name).clicked() {
+                view = Some(v);
             }
+        }
+    })
+    .tip("Turn the camera to a view");
+    let swatch = mg_uikit::metrics::ICON_BUTTON;
+    let background = Item::custom("Background", swatch, |ui| {
+        if let Some(bg) = &mut bg {
+            background_swatch(ui, bg);
+        }
+    })
+    .enabled(has_gpu);
+    let out = EditorHeader::new(HEADER)
+        .left(Item::button(Icon::Frame, "Frame").tip("Frame the model (F, or double-click)"))
+        .left(view_menu)
+        .right(toggle(wide, Icon::Grid, "Grid", &mut s.show_grid, "The ground grid"))
+        .right(toggle(wide, Icon::Axes, "Axes", &mut s.show_axes, "X red, Y green, Z blue"))
+        .right(overlays)
+        .right(Item::separator())
+        .right(toggle(wide, Icon::Shaders, "Shaders", &mut shaders, crate::SHADERS_HELP))
+        .right(toggle(wide, Icon::Shadow, "Shadow", &mut shadow, crate::SHADOW_HELP))
+        .right(
+            toggle(
+                wide,
+                Icon::Lightbulb,
+                "Model lights",
+                lights,
+                "Light the scene with the model's own light nodes",
+            )
+            .enabled(has_gpu),
+        )
+        .right(background)
+        .show(ui);
+    if out.clicked("Frame") {
+        app.actions.push(Action::Frame);
+    }
+    if let Some(v) = view {
+        app.actions.push(Action::SetView(v));
+    }
+    if shaders != app.settings.game_shaders() {
+        app.settings.game_shaders = Some(shaders);
+    }
+    if shadow != app.settings.model_shadows() {
+        app.settings.model_shadows = Some(shadow);
+    }
+    if let (Some(g), Some(bg)) = (&mut app.gfx, bg) {
+        g.stage.lighting.background = bg;
+    }
+}
+
+/// The background's color as the kit's swatch button (the mock's
+/// `.swatch`), named "Background", and egui's color picker hung from it.
+fn background_swatch(ui: &mut egui::Ui, bg: &mut [f32; 3]) {
+    let t = ui.tokens();
+    let side = mg_uikit::metrics::ICON_BUTTON;
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::click());
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::ColorButton, true, "Background")
+    });
+    let popup = egui::Popup::from_toggle_button_response(&response)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+    let open = egui::Popup::is_id_open(ui.ctx(), popup.get_id());
+    let color: egui::Color32 = egui::Rgba::from_rgb(bg[0], bg[1], bg[2]).into();
+    let look =
+        mg_uikit::SwatchLook { hovered: response.hovered(), open, focused: response.has_focus() };
+    mg_uikit::paint_swatch_button(ui.painter(), &t, rect, look, |p, inner| {
+        p.rect_filled(inner, 0.0, color);
+    });
+    let response = response.on_hover_text("Background");
+    let _ = response;
+    popup.show(|ui| {
+        let mut c = color;
+        if egui::color_picker::color_picker_color32(ui, &mut c, egui::color_picker::Alpha::Opaque) {
+            let r = egui::Rgba::from(c);
+            *bg = [r.r(), r.g(), r.b()];
         }
     });
 }

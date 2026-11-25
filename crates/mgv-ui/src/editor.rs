@@ -14,7 +14,9 @@ use mg_mdl::keywords::{self, Class};
 use mg_mdl::lint::{Diagnostic, Severity};
 use mg_mdl::outline::Outline;
 use mg_resman::ResKey;
-use mg_uikit::{Tokens, TokensExt};
+use mg_uikit::header::{EditorHeader, Item};
+use mg_uikit::shell::PanelHeader;
+use mg_uikit::{Badge, BadgeKind, Icon, Tokens, TokensExt};
 
 use crate::code::CodeEditor;
 use crate::{Action, Viewer};
@@ -263,6 +265,61 @@ fn severity_color(s: Severity, t: &Tokens) -> Color32 {
     }
 }
 
+/// The ASCII editor's header's name (a group, and its record).
+pub const HEADER: &str = "ASCII header";
+/// The diagnostics strip's name (its title row).
+pub const DIAGNOSTICS: &str = "Diagnostics";
+/// The widest the header's state text is drawn (cut with "…" past it,
+/// whole in its tip).
+const STATE_MOST: f32 = 320.0;
+
+/// The errors and the warnings among `diagnostics`.
+pub fn counts(diagnostics: &[Diagnostic]) -> (usize, usize) {
+    diagnostics.iter().fold((0, 0), |(e, w), d| match d.severity {
+        Severity::Error => (e + 1, w),
+        Severity::Warning => (e, w + 1),
+        Severity::Info => (e, w),
+    })
+}
+
+/// "1 error", "2 errors".
+pub fn plural(n: usize, what: &str) -> String {
+    if n == 1 { format!("{n} {what}") } else { format!("{n} {what}s") }
+}
+
+/// The buffer's state: where it is kept (or that it is not yet), and
+/// whether it has edits not saved.
+fn state_text(buffer: &Buffer) -> String {
+    let name = buffer
+        .path
+        .as_ref()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "decompiled, not saved".into());
+    if buffer.is_dirty() && buffer.path.is_some() { format!("{name} · edited") } else { name }
+}
+
+/// The state's width on the header's row: its words (and the spinner
+/// while an edit waits to be applied), at most [`STATE_MOST`].
+fn state_width(ui: &Ui, text: &str, pending: bool) -> f32 {
+    let font = FontId::proportional(mg_uikit::metrics::BODY_SIZE);
+    let words = ui.painter().layout_no_wrap(text.to_owned(), font, Color32::WHITE).size().x;
+    let spinner = if pending { mg_uikit::metrics::ICON + 4.0 } else { 0.0 };
+    (words + spinner + 2.0).min(STATE_MOST).ceil()
+}
+
+/// The state, in weak words cut to `width`, the spinner before them while
+/// an edit waits; named "State" and whole in its tip.
+fn state_ui(ui: &mut Ui, text: &str, pending: bool, width: f32) {
+    if pending {
+        ui.add(egui::Spinner::new().size(mg_uikit::metrics::ICON));
+    }
+    let room = (width - if pending { mg_uikit::metrics::ICON + 4.0 } else { 0.0 }).max(0.0);
+    let label = egui::Label::new(egui::RichText::new(text).color(ui.tokens().text_2)).truncate();
+    ui.allocate_ui(egui::vec2(room, ui.available_height()), |ui| ui.add(label))
+        .inner
+        .on_hover_text(text);
+}
+
 fn editor_id() -> egui::Id {
     egui::Id::new("mgv-ascii-editor")
 }
@@ -287,39 +344,30 @@ pub fn ui(app: &mut Viewer, ui: &mut Ui) {
         return;
     };
 
-    // Toolbar.
-    ui.horizontal(|ui| {
-        let name = buffer
-            .path
-            .as_ref()
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|| "decompiled, not saved".into());
-        ui.label(egui::RichText::new(name).strong());
-        if buffer.is_dirty() {
-            ui.weak("edited");
-        }
-        if buffer.pending() {
-            ui.spinner();
-        }
-        ui.separator();
-        if ui.button("Save").on_hover_text("Ctrl+S").clicked() {
-            app.actions.push(Action::Save);
-        }
-        if ui.button("Compile").on_hover_text("Ctrl+B").clicked() {
-            app.actions.push(Action::Compile { view_result: false });
-        }
-        if ui.button("Compile and View").on_hover_text("Ctrl+Shift+B").clicked() {
-            app.actions.push(Action::Compile { view_result: true });
-        }
-        let (e, w) = buffer.diagnostics.iter().fold((0, 0), |(e, w), d| match d.severity {
-            Severity::Error => (e + 1, w),
-            Severity::Warning => (e, w + 1),
-            Severity::Info => (e, w),
-        });
-        ui.separator();
-        ui.colored_label(severity_color(Severity::Error, &tokens), format!("{e} errors"));
-        ui.colored_label(severity_color(Severity::Warning, &tokens), format!("{w} warnings"));
-    });
+    // The editor's header: Save, Compile and Compile and View, and the
+    // buffer's state at the right (proposal section 9.17).
+    let state = state_text(buffer);
+    let pending = buffer.pending();
+    let state_width = state_width(ui, &state, pending);
+    let show_state = move |ui: &mut Ui| state_ui(ui, &state, pending, state_width);
+    let out = EditorHeader::new(HEADER)
+        .left(Item::button(Icon::Save, "Save").primary().tip("Save the ASCII model (Ctrl+S)"))
+        .left(Item::button(Icon::Compile, "Compile").primary().tip("Compile it (Ctrl+B)"))
+        .left(
+            Item::button(Icon::CompileView, "Compile and View")
+                .tip("Compile it and show the compiled model (Ctrl+Shift+B)"),
+        )
+        .right(Item::custom("State", state_width, show_state.clone()).more(state_width, show_state))
+        .show(ui);
+    if out.clicked("Save") {
+        app.actions.push(Action::Save);
+    }
+    if out.clicked("Compile") {
+        app.actions.push(Action::Compile { view_result: false });
+    }
+    if out.clicked("Compile and View") {
+        app.actions.push(Action::Compile { view_result: true });
+    }
     if buffer.disk_changed {
         ui.horizontal(|ui| {
             ui.colored_label(
@@ -339,27 +387,45 @@ pub fn ui(app: &mut Viewer, ui: &mut Ui) {
         });
     }
 
-    // Diagnostics below the text.
+    // The diagnostics, a strip under the text: its title row with the
+    // error and warning counts, the lines (a click goes to the line).
     let mut jump: Option<usize> = app.jump_to_line.take();
-    egui::Panel::bottom("diagnostics").resizable(true).default_size(90.0).show(ui, |ui| {
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            if buffer.diagnostics.is_empty() {
-                ui.weak("No problems found.");
-            }
-            for d in &buffer.diagnostics {
-                let text = format!("{}: {}", d.line + 1, d.message);
-                let r = ui.add(
-                    egui::Label::new(
-                        egui::RichText::new(text).color(severity_color(d.severity, &tokens)),
-                    )
-                    .sense(egui::Sense::click()),
+    let (errors, warnings) = counts(&buffer.diagnostics);
+    egui::Panel::bottom("diagnostics")
+        .resizable(true)
+        .default_size(110.0)
+        .size_range(mg_uikit::metrics::DOCK_TABS + 1.0..=f32::INFINITY)
+        .frame(egui::Frame::new().fill(tokens.panel))
+        .show(ui, |ui| {
+            PanelHeader::new(DIAGNOSTICS).show(ui, |ui| {
+                let kind = |n: usize, k: BadgeKind| if n > 0 { k } else { BadgeKind::Plain };
+                ui.add(Badge::new(plural(errors, "error")).kind(kind(errors, BadgeKind::Error)));
+                ui.add_space(4.0);
+                ui.add(
+                    Badge::new(plural(warnings, "warning")).kind(kind(warnings, BadgeKind::Warn)),
                 );
-                if r.clicked() {
-                    jump = Some(d.line);
-                }
-            }
+            });
+            egui::Frame::new().inner_margin(egui::Margin::symmetric(6, 2)).show(ui, |ui| {
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                    if buffer.diagnostics.is_empty() {
+                        ui.weak("No problems found.");
+                    }
+                    for d in &buffer.diagnostics {
+                        let text = format!("{}: {}", d.line + 1, d.message);
+                        let r = ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(text)
+                                    .color(severity_color(d.severity, &tokens)),
+                            )
+                            .sense(egui::Sense::click()),
+                        );
+                        if r.clicked() {
+                            jump = Some(d.line);
+                        }
+                    }
+                });
+            });
         });
-    });
 
     // The text.
     if let Some(line) = jump {
@@ -426,6 +492,20 @@ mod tests {
         assert_eq!(b.node_line(3, "dup"), Some(11));
         assert_eq!(b.node_line(3, "other"), None, "a model read from other text");
         assert_eq!(b.node_at(0), None);
+    }
+
+    /// The diagnostics strip's counts: errors and warnings apart, said in
+    /// words.
+    #[test]
+    fn the_strip_counts_errors_and_warnings() {
+        let text = "newmodel m\nbeginmodelgeom m\nnode dummy m\n  parent NULL\nendnode\n\
+                    node\nendnode\nendnode\nendmodelgeom m\ndonemodel m\n";
+        let d = mg_mdl::lint::check(text);
+        let (e, w) = counts(&d);
+        assert!(e >= 1 && w >= 1, "{d:?}");
+        assert_eq!(counts(&[]), (0, 0));
+        assert_eq!(plural(1, "error"), "1 error");
+        assert_eq!(plural(0, "warning"), "0 warnings");
     }
 
     #[test]
