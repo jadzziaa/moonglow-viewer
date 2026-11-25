@@ -102,3 +102,5 @@ them without it (`mgv-ui/src/manual.rs`, whose test requires it).
 - Match the engine's behaviour, not other tools'. Where nwnmdlcomp or
   Neverblender disagree with the game, the game decides; record the
   divergence where the comparison skips it.
+
+Sessions working by a charter follow `~/Projects/moonglow-toolset/.claude/pipelines/` (untracked, private).
