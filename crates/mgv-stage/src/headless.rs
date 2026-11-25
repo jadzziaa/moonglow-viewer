@@ -154,22 +154,24 @@ pub fn thumbnail_shot(side: u32) -> Shot {
 }
 
 /// [`still`] for a window that keeps going: the game's programs are made
-/// while the frames go on, not waited for. The picture, and whether it is
-/// whole: `false` while a program it needs is still being made (its
-/// meshes drawn with Moonglow's own shader) or a texture read; asked for
-/// again later it is [`still`]'s picture.
+/// while the frames go on, not waited for. `None` (nothing read back)
+/// while a program the picture needs is still being made (its meshes drawn
+/// with Moonglow's own shader) or a texture read, unless `as_drawn`: then
+/// the picture as it is. Once nothing waits it is [`still`]'s picture.
 pub fn still_unwaited(
     stage: &mut Stage,
     viewport: &mut Viewport,
     lib: &Library,
     shot: &Shot,
-) -> (Rgba, bool) {
+    as_drawn: bool,
+) -> Option<Rgba> {
     stage.casters = shot.casters;
     stage.settle(lib, shot.time, shot.fps);
     let cam = shot.camera(stage);
-    let image = drawn(stage, viewport, lib, shot, &cam, false);
+    draw(stage, viewport, lib, shot, &cam, false);
     let d = viewport.drawn();
-    (image, d.game_pending == 0 && d.textures_pending == 0)
+    let whole = d.game_pending == 0 && d.textures_pending == 0;
+    (whole || as_drawn).then(|| read_back(stage, viewport))
 }
 
 /// Renders the stage as it is, from a camera.
@@ -180,19 +182,27 @@ pub fn picture(
     shot: &Shot,
     cam: &OrbitCamera,
 ) -> Rgba {
-    drawn(stage, viewport, lib, shot, cam, true)
+    draw(stage, viewport, lib, shot, cam, true);
+    read_back(stage, viewport)
 }
 
-/// [`picture`]; `wait`: the frame waits for the game's programs (else
-/// they are made in the background, Moonglow's shader drawing meanwhile).
-fn drawn(
+/// The viewport's last frame, read back (rows top first).
+fn read_back(stage: &Stage, viewport: &Viewport) -> Rgba {
+    let targets = viewport.current().expect("drawn before it is read");
+    stage.gpu().read_rgba(&targets.color)
+}
+
+/// Draws [`picture`]'s frame into the viewport's targets; `wait`: the
+/// frame waits for the game's programs (else they are made in the
+/// background, Moonglow's shader drawing meanwhile).
+fn draw(
     stage: &Stage,
     viewport: &mut Viewport,
     lib: &Library,
     shot: &Shot,
     cam: &OrbitCamera,
     wait: bool,
-) -> Rgba {
+) {
     let camera = cam.camera();
     let mut scene = stage.scene(camera.view());
     if let Some(bg) = shot.background {
@@ -209,7 +219,7 @@ fn drawn(
     let renderer = viewport.renderer();
     renderer.game_shaders = shot.game_shaders;
     renderer.game_background = !wait;
-    viewport.image(stage.gpu(), lib.resman(), &scene, &camera, shot.size)
+    viewport.draw(stage.gpu(), lib.resman(), &scene, &camera, shot.size);
 }
 
 /// `frames` pictures turning once around the stage, the animation running

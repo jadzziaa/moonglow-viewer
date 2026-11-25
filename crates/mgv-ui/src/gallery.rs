@@ -85,9 +85,10 @@ pub const TIME: Duration = Duration::from_millis(4);
 /// The pictures kept at most of those not shown in this frame or the
 /// last: past it, those longest unseen are let go (never one shown).
 pub const KEPT: usize = 512;
-/// How many times a picture waiting for the game's programs is drawn
-/// before it is taken as it is (Moonglow's shader for what still waits).
-pub const TRIES: u32 = 40;
+/// How long a picture waits for the game's programs (a cold shader cache
+/// compiles many) before it is taken as it is drawn (Moonglow's shader for
+/// what still waits).
+pub const WAIT_AT_MOST: Duration = Duration::from_secs(20);
 
 /// A picture made: `Ok(None)` not yet (a program of the game's it needs is
 /// being made: asked again later), `Err` none ("No picture", and why).
@@ -96,9 +97,9 @@ pub type Painted = Result<Option<ColorImage>, String>;
 /// What makes the pictures: the window's GPU in the app
 /// ([`ViewerPainter`]), anything at all in a test.
 pub trait Painter {
-    /// `what`'s picture, [`SIZE`] pixels at most a side. `last_try`: take
+    /// `what`'s picture, [`SIZE`] pixels at most a side. `as_drawn`: take
     /// it as it is drawn, whatever still waits.
-    fn paint(&mut self, lib: &Library, what: Pictured, last_try: bool) -> Painted;
+    fn paint(&mut self, lib: &Library, what: Pictured, as_drawn: bool) -> Painted;
     /// The game's data was read again: let go of what was kept of it.
     fn forget(&mut self) {}
 }
@@ -121,8 +122,9 @@ pub struct Pictures {
     wanted: Vec<Pictured>,
     /// Asked for in this frame, made or not.
     asked: HashSet<Pictured>,
-    /// The pictures drawn while the game's programs were being made.
-    tries: HashMap<Pictured, u32>,
+    /// The pictures drawn while the game's programs were being made, and
+    /// when they first were.
+    tries: HashMap<Pictured, Instant>,
     frame: u64,
     /// The library's layers when the pictures were made.
     layers: u64,
@@ -242,19 +244,23 @@ impl Pictures {
         gpu: Option<&mg_render::Gpu>,
     ) {
         self.painted = 0;
+        // (Waiting no more where no longer asked for.)
+        let asked = &self.asked;
+        self.tries.retain(|k, _| asked.contains(k));
         let wanted = std::mem::take(&mut self.wanted);
         if !wanted.is_empty() {
             let painter =
                 self.painter.get_or_insert_with(|| Box::new(ViewerPainter::new(gpu, ctx)));
             let started = Instant::now();
-            let mut left = 0;
+            let (mut left, mut waited) = (0, false);
             for (i, what) in wanted.iter().copied().enumerate() {
                 if self.painted >= PER_FRAME || self.painted > 0 && started.elapsed() >= TIME {
                     left = wanted.len() - i;
                     break;
                 }
-                let tries = self.tries.get(&what).copied().unwrap_or(0);
-                let painted = painter.paint(lib, what, tries + 1 >= TRIES);
+                let first = self.tries.get(&what).copied();
+                let as_drawn = first.is_some_and(|t| t.elapsed() >= WAIT_AT_MOST);
+                let painted = painter.paint(lib, what, as_drawn);
                 self.painted += 1;
                 let (texture, error) = match painted {
                     Ok(Some(image)) => {
@@ -265,9 +271,9 @@ impl Pictures {
                     // likely want too: they all wait. The painter's waker
                     // asks for a frame when one is made.)
                     Ok(None) => {
-                        self.tries.insert(what, tries + 1);
+                        self.tries.entry(what).or_insert_with(Instant::now);
                         left = wanted.len() - i;
-                        ctx.request_repaint_after(Duration::from_millis(50));
+                        waited = true;
                         break;
                     }
                     Err(e) => (None, Some(e)),
@@ -277,8 +283,9 @@ impl Pictures {
             }
             if left > 0 {
                 self.wanted = wanted[wanted.len() - left..].to_vec();
-                if self.tries.is_empty() {
-                    ctx.request_repaint();
+                match waited {
+                    true => ctx.request_repaint_after(Duration::from_millis(50)),
+                    false => ctx.request_repaint(),
                 }
             }
         }
@@ -341,7 +348,7 @@ impl ViewerPainter {
         ViewerPainter { gpu, palettes: None, drawn: 0 }
     }
 
-    fn model(&mut self, lib: &Library, what: Pictured, last_try: bool) -> Painted {
+    fn model(&mut self, lib: &Library, what: Pictured, as_drawn: bool) -> Painted {
         let Some((stage, viewport)) = &mut self.gpu else {
             return Err("No GPU".into());
         };
@@ -360,11 +367,10 @@ impl ViewerPainter {
             viewport.clear_textures();
         }
         let shot = headless::thumbnail_shot(SIZE);
-        let (image, whole) = headless::still_unwaited(stage, viewport, lib, &shot);
-        if !whole && !last_try {
-            return Ok(None);
+        match headless::still_unwaited(stage, viewport, lib, &shot, as_drawn) {
+            Some(image) => color_image(&image).map(Some),
+            None => Ok(None),
         }
-        color_image(&image).map(Some)
     }
 
     fn texture(&mut self, lib: &Library, key: ResKey) -> Result<ColorImage, String> {
@@ -383,12 +389,12 @@ impl ViewerPainter {
 }
 
 impl Painter for ViewerPainter {
-    fn paint(&mut self, lib: &Library, what: Pictured, last_try: bool) -> Painted {
+    fn paint(&mut self, lib: &Library, what: Pictured, as_drawn: bool) -> Painted {
         match what {
             Pictured::Resource(k) if matches!(Kind::of(k.restype), Kind::Texture | Kind::Plt) => {
                 self.texture(lib, k).map(Some)
             }
-            _ => self.model(lib, what, last_try),
+            _ => self.model(lib, what, as_drawn),
         }
     }
 
@@ -743,14 +749,14 @@ mod tests {
     }
 
     impl Painter for Fake {
-        fn paint(&mut self, _: &Library, what: Pictured, last_try: bool) -> Painted {
+        fn paint(&mut self, _: &Library, what: Pictured, as_drawn: bool) -> Painted {
             self.log.lock().unwrap().painted.push(what);
             if let Pictured::Resource(k) = what
                 && self.fail.iter().any(|f| k.to_string().starts_with(f))
             {
                 return Err("unreadable".into());
             }
-            if self.wait > 0 && !last_try {
+            if self.wait > 0 && !as_drawn {
                 self.wait -= 1;
                 return Ok(None);
             }
@@ -943,7 +949,7 @@ mod tests {
 
     /// A picture that fails shows "No picture" (and why, in its tip), and
     /// is not tried again; one that waits for the game's programs is tried
-    /// again, and taken as it is after `TRIES`.
+    /// again in a later frame.
     #[test]
     fn a_failure_is_no_picture_and_waiting_is_tried_again() {
         let (mut v, dir) = viewer(3, "fail");

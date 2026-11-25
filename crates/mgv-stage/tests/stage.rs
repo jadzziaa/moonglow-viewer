@@ -690,6 +690,38 @@ fn the_game_s_programs_draw_its_models() {
     }
 }
 
+/// The gallery's picture: drawn while the game's programs are made in the
+/// background, nothing comes back until none waits, and then it is the
+/// picture `still` waits for (on a viewport of its own).
+#[test]
+fn a_picture_unwaited_is_the_still_once_whole() {
+    let root = mg_testkit::corpus!();
+    let Some(gpu) = gpu() else { return };
+    let mut lib = Library::open(Some(GameInstall::new(root, None, "en"))).unwrap();
+    for name in ["plc_a01", "nw_guard.utc"] {
+        let opened = lib.open_input(name).unwrap();
+        let shot = mgv_stage::headless::thumbnail_shot(128);
+        let mut stage = Stage::new(gpu.clone());
+        let mut viewport = Viewport::new(&gpu);
+        mgv_stage::subject::show(&mut stage, &lib, &opened).unwrap();
+        let started = std::time::Instant::now();
+        let unwaited = loop {
+            let at =
+                mgv_stage::headless::still_unwaited(&mut stage, &mut viewport, &lib, &shot, false);
+            if let Some(image) = at {
+                break image;
+            }
+            assert!(started.elapsed().as_secs() < 120, "{name}: never whole");
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        };
+        let mut stage = Stage::new(gpu.clone());
+        let mut viewport = Viewport::new(&gpu);
+        mgv_stage::subject::show(&mut stage, &lib, &opened).unwrap();
+        let waited = mgv_stage::headless::still(&mut stage, &mut viewport, &lib, &shot);
+        assert_eq!(unwaited.data, waited.data, "{name}");
+    }
+}
+
 /// With the Shadow switch on, the model casts the light's shadow on a
 /// ground nobody sees: the picture only darkens, somewhere beside the
 /// model, and nothing else changes (the ground is the background's own

@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:21:55Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:28:23Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1105,10 +1105,13 @@ boards "Resources as a Gallery" and "Gallery Tab at 3440×1440"), in
   with `headless::thumbnail_shot` (the command line's default shot: the
   same framing and light as `mgv gallery`) and the new
   `headless::still_unwaited`, which draws with the game's programs made
-  in the background (`game_background`) and says whether the picture is
-  whole: one still waiting for a program is drawn again in a later
-  frame (the painter's game waker asks for it), and after 40 tries taken
-  as drawn. `still` and `picture` wait as before. Textures (TGA, DDS,
+  in the background (`game_background`) and reads the picture back only
+  once it is whole: one still waiting for a program is drawn again in a
+  later frame (the painter's game waker asks for it, and the grid asks
+  every 50 ms), and after 20 s of waiting taken as drawn; a picture
+  scrolled out of sight stops waiting. `still` and `picture` wait as
+  before (`a_picture_unwaited_is_the_still_once_whole` in the stage
+  tests holds the two to the same bytes). Textures (TGA, DDS,
   PLT at palette row 0) are the texture itself: the smallest mip level
   still 224 a side, decoded and shrunk on the CPU, never uploaded whole.
   Walkmeshes, TXI and the rest show their kind's icon and are never asked

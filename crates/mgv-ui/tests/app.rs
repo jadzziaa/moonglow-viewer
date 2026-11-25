@@ -612,8 +612,8 @@ fn the_resources_gallery() {
     h.get_by_label("other.mdl").click();
     h.run_steps(2);
     assert_eq!(h.state().doc.as_ref().unwrap().name(), "tri", "a click chooses");
-    h.get_by_label("other.mdl").click();
-    h.run_steps(3);
+    let at = h.get_by_label("other.mdl").rect().center();
+    double_click(&mut h, at);
     assert_eq!(h.state().doc.as_ref().unwrap().name(), "other", "a double click opens");
     // Open as Tab: the gallery in the editor area, the panel a list.
     h.get_by_label(mgv_ui::gallery::OPEN_AS_TAB).click();
@@ -624,20 +624,23 @@ fn the_resources_gallery() {
     let at = d.layout.unwrap().rect(d.rect.unwrap().min, 1).center();
     let (gallery, view) = (h.state().dock.find_tab(&mgv_ui::Tab::Gallery), d.rect.unwrap());
     assert!(gallery.is_some() && view.width() > 100.0, "{view:?}");
-    for _ in 0..2 {
-        h.hover_at(at);
-        for pressed in [true, false] {
-            h.event(egui::Event::PointerButton {
-                pos: at,
-                button: egui::PointerButton::Primary,
-                pressed,
-                modifiers: egui::Modifiers::NONE,
-            });
-        }
-        h.run_steps(1);
-    }
-    h.run_steps(3);
+    double_click(&mut h, at);
     assert_eq!(h.state().doc.as_ref().unwrap().name(), "tri", "opened from the tab");
     assert!(h.state().dock.find_tab(&mgv_ui::Tab::Gallery).is_some(), "the tab stays");
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// Both clicks of a double click before one step (a step is a quarter of
+/// a second, longer than a double click may take).
+fn double_click(h: &mut Harness<'_, Viewer>, at: egui::Pos2) {
+    h.hover_at(at);
+    for pressed in [true, false, true, false] {
+        h.event(egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+    h.run_steps(3);
 }
