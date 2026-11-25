@@ -803,12 +803,29 @@ fn fmt3(v: [f32; 3]) -> String {
     format!("{:.4} {:.4} {:.4}", v[0], v[1], v[2])
 }
 
-/// Playing the base model's animations.
 /// Animations shorter than this (a frame or two at 30 fps, as placeables'
 /// `default` and `dead`) are shown as a pose, not on a slider.
 const SINGLE_POSE: f32 = 0.1;
+/// The animation combo's width (the board's `.anim-combo`).
+const ANIM_COMBO: f32 = 150.0;
+/// The speed slider's width (`.speed`).
+const SPEED_SLIDER: f32 = 180.0;
+/// A number field's width beside a slider (`.speed-num`).
+const NUMBER_FIELD: f32 = 56.0;
+/// The ruler's height under the scrub bar (its ticks and their seconds).
+const RULER: f32 = 16.0;
+/// The least room between two of the ruler's ticks (the board's 0.5 s
+/// steps on a bar some 880 wide through 2.67 s).
+const RULER_LEAST: f32 = 120.0;
 
+/// The Timeline (the board's Bottom Dock, `.transport` over `.scrub`):
+/// one transport row (the animation, Pause or Play joined to Restart,
+/// Loop or Once, and at its right end the speed's slider and number),
+/// then the scrub bar the width of the dock with the time's number and
+/// the length after it, and the seconds ruler under it. An animation of a
+/// frame or two is a pose, said so in place of the bar.
 pub(crate) fn timeline(app: &mut Viewer, ui: &mut Ui) {
+    use mg_uikit::{Icon, IconButton, Join};
     let Some(g) = &mut app.gfx else { return };
     let Some(base) = app.doc.as_ref().and_then(|d| d.shown.as_ref()).map(|s| s.base) else {
         ui.weak("Nothing shown.");
@@ -817,15 +834,13 @@ pub(crate) fn timeline(app: &mut Viewer, ui: &mut Ui) {
     let Some(a) = g.stage.actor_mut(base) else { return };
     let names: Vec<String> = a.animations.names().map(str::to_string).collect();
     let current = a.player.animation.clone();
-    let length = current.as_deref().and_then(|n| a.animations.find(n)).map_or(0.0, |x| x.length);
-    let events: Vec<(f32, String)> = current
-        .as_deref()
-        .and_then(|n| a.animations.find(n))
-        .map(|x| x.events.clone())
-        .unwrap_or_default();
+    let found = current.as_deref().and_then(|n| a.animations.find(n));
+    let length = found.map_or(0.0, |x| x.length);
+    let events: Vec<(f32, String)> = found.map(|x| x.events.clone()).unwrap_or_default();
     ui.horizontal(|ui| {
-        egui::ComboBox::from_id_salt("anim")
+        let combo = egui::ComboBox::from_id_salt("anim")
             .selected_text(current.clone().unwrap_or_else(|| "(rest pose)".into()))
+            .width(ANIM_COMBO)
             .height(400.0)
             .show_ui(ui, |ui| {
                 if ui.selectable_label(current.is_none(), "(rest pose)").clicked() {
@@ -838,48 +853,165 @@ pub(crate) fn timeline(app: &mut Viewer, ui: &mut Ui) {
                     }
                 }
             });
-        if ui.button(if a.player.playing { "Pause" } else { "Play" }).clicked() {
-            a.player.playing = !a.player.playing;
-        }
-        if ui.button("Restart").on_hover_text("From the start, emitters too").clicked() {
-            a.player.time = 0.0;
-            a.restart_particles();
-        }
-        ui.selectable_value(&mut a.player.mode, PlayMode::Loop, "Loop");
-        ui.selectable_value(&mut a.player.mode, PlayMode::Once, "Once");
-        ui.add(egui::Slider::new(&mut a.player.speed, 0.05..=4.0).logarithmic(true).text("speed"));
+        combo.response.widget_info(|| {
+            egui::WidgetInfo::labeled(egui::WidgetType::ComboBox, true, "Animation")
+        });
+        ui.scope(|ui| {
+            ui.spacing_mut().item_spacing.x = mg_uikit::joined_spacing(ui);
+            let (icon, words) = match a.player.playing {
+                true => (Icon::Pause, "Pause"),
+                false => (Icon::Play, "Play"),
+            };
+            if ui.add(IconButton::new(icon, words).joined(Join::Next)).clicked() {
+                a.player.playing = !a.player.playing;
+            }
+            let restart = IconButton::new(Icon::Restart, "Restart").joined(Join::Previous);
+            if ui.add(restart).on_hover_text("From the start, emitters too").clicked() {
+                a.player.time = 0.0;
+                a.restart_particles();
+            }
+        });
+        let modes = [(PlayMode::Loop, "Loop", ""), (PlayMode::Once, "Once", "")];
+        mg_uikit::segmented(ui, "Play mode", &mut a.player.mode, &modes);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let number = egui::DragValue::new(&mut a.player.speed)
+                .range(0.05..=4.0)
+                .speed(0.01)
+                .fixed_decimals(2);
+            ui.add_sized([NUMBER_FIELD, ui.spacing().interact_size.y], number)
+                .on_hover_text("How fast it plays: 1 is the game's speed");
+            // (Room for the slider where the row has it; else the number
+            // alone.)
+            if ui.available_width() > SPEED_SLIDER + 80.0 {
+                ui.spacing_mut().slider_width = SPEED_SLIDER;
+                let slider = egui::Slider::new(&mut a.player.speed, 0.05..=4.0)
+                    .logarithmic(true)
+                    .show_value(false);
+                mg_uikit::slider(ui, slider).widget_info(|| {
+                    egui::WidgetInfo::labeled(egui::WidgetType::Slider, true, "Speed")
+                });
+            }
+            ui.label("Speed");
+        });
     });
     if length > 0.0 && length < SINGLE_POSE {
         // A loop of a frame or two would throw the slider from end to end
         // every frame.
         ui.weak(format!("A single pose ({length:.2} s)"));
     } else if length > 0.0 {
-        let mut t = if a.player.mode == PlayMode::Loop {
-            a.player.time.rem_euclid(length)
-        } else {
-            a.player.time.min(length)
+        let t = match a.player.mode {
+            PlayMode::Loop => a.player.time.rem_euclid(length),
+            PlayMode::Once => a.player.time.min(length),
         };
-        let r = ui.add(egui::Slider::new(&mut t, 0.0..=length).text("s").fixed_decimals(2));
-        if r.changed() {
+        if let Some(t) = scrub(ui, t, length, &events) {
             a.player.time = t;
-        }
-        // Events under the slider.
-        let rect = r.rect;
-        let width = ui.spacing().slider_width;
-        let painter = ui.painter();
-        for (et, name) in &events {
-            let x = rect.left() + width * (et / length).clamp(0.0, 1.0);
-            painter.line_segment(
-                [egui::pos2(x, rect.bottom()), egui::pos2(x, rect.bottom() + 6.0)],
-                egui::Stroke::new(2.0, ui.tokens().warn),
-            );
-            let _ = name;
         }
         if !events.is_empty() {
             let list: Vec<String> = events.iter().map(|(t, n)| format!("{n} {t:.2}s")).collect();
             ui.weak(format!("Events: {}", list.join(", ")));
         }
     }
+}
+
+/// The scrub bar (the board's `.scrub`): a slider through the animation
+/// `length` seconds long the width of the room, at `time`, its events
+/// marked on it in `warn`; after it the time as a number and "of 2.67 s";
+/// under it the seconds ruler, a tick at each step of the length (a
+/// step that leaves room for its words: 0.5 s for an animation of a few
+/// seconds). The time chosen, where the bar or the number was moved.
+/// (The bar's events: the moves' "Not Drawn" leaves a list of animations
+/// beside the transport out, the combo is the Timeline's only one.)
+pub(crate) fn scrub(ui: &mut Ui, time: f32, length: f32, events: &[(f32, String)]) -> Option<f32> {
+    let t = ui.tokens();
+    let mut time = time;
+    let mut changed = false;
+    let of = format!("of {length:.2} s");
+    let font = egui::FontId::proportional(mg_uikit::metrics::BODY_SIZE);
+    let of_width = ui.painter().layout_no_wrap(of.clone(), font, t.text_3).size().x;
+    let gap = ui.spacing().item_spacing.x;
+    let after = NUMBER_FIELD + of_width + 3.0 * gap;
+    let rail = ui
+        .horizontal(|ui| {
+            ui.spacing_mut().slider_width = (ui.available_width() - after).max(40.0);
+            let slider = egui::Slider::new(&mut time, 0.0..=length).show_value(false);
+            let r = mg_uikit::slider(ui, slider);
+            r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Slider, true, "Time"));
+            changed |= r.changed();
+            let number =
+                egui::DragValue::new(&mut time).range(0.0..=length).speed(0.01).fixed_decimals(2);
+            let n = ui.add_sized([NUMBER_FIELD, ui.spacing().interact_size.y], number);
+            changed |= n.changed();
+            ui.label(egui::RichText::new(&of).color(t.text_3));
+            // (Where the slider's values lie along it: inside its thumb's
+            // half at each end, as egui places them.)
+            let rect = r.rect;
+            let radius = rect.height() / 2.5;
+            let radius = match ui.visuals().handle_shape {
+                egui::style::HandleShape::Circle => radius,
+                egui::style::HandleShape::Rect { aspect_ratio } => radius * aspect_ratio,
+            };
+            (rect, rect.x_range().shrink(radius))
+        })
+        .inner;
+    let (bar, along) = rail;
+    let x = |s: f32| along.min + along.span() * (s / length).clamp(0.0, 1.0);
+    let painter = ui.painter();
+    for (at, _) in events {
+        let x = x(*at);
+        let stroke = egui::Stroke::new(2.0, t.warn);
+        painter.vline(x, egui::Rangef::new(bar.bottom() - 4.0, bar.bottom() + 2.0), stroke);
+    }
+    // The ruler.
+    let (ruler, _) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), RULER), egui::Sense::hover());
+    let step = ruler_step(length, along.span());
+    let small = egui::FontId::proportional(11.0);
+    let line = egui::Stroke::new(1.0, t.line_soft);
+    let painter = ui.painter_at(ruler);
+    let mut i = 0;
+    loop {
+        let s = step * i as f32;
+        if s > length + step * 1e-3 {
+            break;
+        }
+        let x = x(s).round() + 0.5;
+        painter.vline(x, egui::Rangef::new(ruler.top() + 2.0, ruler.bottom()), line);
+        let words = ruler_words(s, step);
+        painter.text(
+            egui::pos2(x + 3.0, ruler.top() + 3.0),
+            egui::Align2::LEFT_TOP,
+            words,
+            small.clone(),
+            t.text_3,
+        );
+        i += 1;
+    }
+    changed.then_some(time.clamp(0.0, length))
+}
+
+/// The ruler's step for an animation `length` seconds long on a bar
+/// `width` points long: the least of the usual steps whose ticks stand
+/// [`RULER_LEAST`] apart.
+pub(crate) fn ruler_step(length: f32, width: f32) -> f32 {
+    const STEPS: [f32; 12] = [0.05, 0.1, 0.2, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0];
+    let per_second = width / length.max(1e-3);
+    STEPS.into_iter().find(|s| s * per_second >= RULER_LEAST).unwrap_or(60.0)
+}
+
+/// A tick's words: its seconds, with as many decimals as the step has
+/// ("0", "0.5", "1.0", "1.25").
+fn ruler_words(s: f32, step: f32) -> String {
+    if s == 0.0 {
+        return "0".into();
+    }
+    let decimals = if step >= 1.0 {
+        0
+    } else if (step * 10.0).fract().abs() < 1e-4 {
+        1
+    } else {
+        2
+    };
+    format!("{s:.decimals$}")
 }
 
 pub(crate) fn log(app: &mut Viewer, ui: &mut Ui) {
@@ -893,4 +1025,91 @@ pub(crate) fn log(app: &mut Viewer, ui: &mut Ui) {
             ui.colored_label(color, &l.text);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The rectangle of the widget named `label` in a frame's accesskit
+    /// output.
+    pub(crate) fn named_rect(out: &egui::FullOutput, label: &str) -> Option<egui::Rect> {
+        let update = out.platform_output.accesskit_update.as_ref()?;
+        update.nodes.iter().find(|(_, n)| n.label() == Some(label)).and_then(|(_, n)| {
+            let b = n.bounds()?;
+            Some(egui::Rect::from_min_max(
+                egui::pos2(b.x0 as f32, b.y0 as f32),
+                egui::pos2(b.x1 as f32, b.y1 as f32),
+            ))
+        })
+    }
+
+    /// A frame of `add` in a window 800 by 200 given `events`.
+    fn frame(
+        ctx: &egui::Context,
+        events: Vec<egui::Event>,
+        add: &mut dyn FnMut(&mut Ui),
+    ) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(800.0, 200.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            mg_uikit::apply(ui.ctx(), mg_uikit::Theme::Dark);
+            egui::CentralPanel::default().show(ui, |ui| add(ui));
+        });
+        out.textures_delta.clear();
+        out
+    }
+
+    /// A click on the scrub bar seeks to the time under it, the bar the
+    /// width of the room; the number after it says it, and moves it too.
+    #[test]
+    fn the_scrub_bar_seeks() {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let length = 2.0;
+        let mut time = 0.5;
+        let mut draw = |ui: &mut Ui| {
+            if let Some(t) = scrub(ui, time, length, &[(1.0, "hit".into())]) {
+                time = t;
+            }
+        };
+        frame(&ctx, Vec::new(), &mut draw);
+        let out = frame(&ctx, Vec::new(), &mut draw);
+        let bar = named_rect(&out, "Time").expect("the scrub bar");
+        assert!(bar.width() > 600.0, "the width of the room: {bar:?}");
+        let at = egui::pos2(bar.left() + bar.width() * 0.75, bar.center().y);
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(&ctx, vec![egui::Event::PointerMoved(at)], &mut draw);
+        frame(&ctx, vec![button(true)], &mut draw);
+        frame(&ctx, vec![button(false)], &mut draw);
+        drop(draw);
+        // (Within the thumb's half at the ends, as egui places values.)
+        assert!((time - 1.5).abs() < 0.05, "seeked to {time}");
+    }
+
+    /// The ruler's ticks stand at steps that leave room for their words:
+    /// the board's 0.5 s on a bar some 880 wide through 2.67 s, finer on a
+    /// longer bar, coarser for a long animation; their words as the step.
+    #[test]
+    fn the_ruler_steps_as_the_board_s() {
+        assert_eq!(ruler_step(2.67, 880.0), 0.5);
+        assert_eq!(ruler_step(2.67, 3000.0), 0.2);
+        assert_eq!(ruler_step(30.0, 880.0), 5.0);
+        assert_eq!(ruler_step(0.3, 400.0), 0.1);
+        assert_eq!(ruler_words(0.0, 0.5), "0");
+        assert_eq!(ruler_words(1.0, 0.5), "1.0");
+        assert_eq!(ruler_words(1.25, 0.25), "1.25");
+        assert_eq!(ruler_words(10.0, 5.0), "10");
+    }
 }

@@ -288,6 +288,28 @@ fn a_click_opens_and_one_frame_loops_are_a_pose() {
     set(&mut h, "spin");
     h.run_steps(2);
     assert!(h.query_by_label_contains("A single pose").is_none(), "a second's loop slides");
+    // The Timeline's transport over its scrub bar, which seeks.
+    for name in ["Animation", "Restart", "Loop", "Once", "Time"] {
+        assert!(h.query_by_label(name).is_some(), "the Timeline's {name}");
+    }
+    let bar = h.get_by_label("Time").rect();
+    // (Paused, so that the time stays where the click put it.)
+    h.state_mut().gfx.as_mut().unwrap().stage.actor_mut(base).unwrap().player.playing = false;
+    h.run_steps(1);
+    assert!(h.query_by_label("Play").is_some(), "Pause becomes Play");
+    let at = egui::pos2(bar.left() + bar.width() * 0.75, bar.center().y);
+    h.hover_at(at);
+    for pressed in [true, false] {
+        h.input_mut().events.push(egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.step();
+    }
+    let time = h.state().gfx.as_ref().unwrap().stage.actor(base).unwrap().player.time;
+    assert!((time - 0.75).abs() < 0.05, "seeked to {time}");
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
