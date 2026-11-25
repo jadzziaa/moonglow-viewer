@@ -3,7 +3,7 @@ type: Manual Page
 title: The window
 description: The window's shell (Top Bar, Left, Right and Bottom Docks, editor area, Status Bar), how it gives way in small and wide windows, its panels and the keys.
 tags: [manual, panels, keys]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T14:27:06Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:21:24Z }
 ---
 
 # The window
@@ -26,12 +26,16 @@ The window is Moonglow's shell, as Moonglow Toolset's is:
   **ASCII** as tabs of a second beside it. Drag a tab to put it
   elsewhere in the area; close Texture or ASCII with the × on its tab
   (the View menu brings it back beside the other). The ASCII tab shows a
-  dot while it has edits not saved.
+  dot while it has edits not saved. The **Gallery** tab (Resources'
+  **Open as Tab**, or **View › Gallery**) stands in a group of its own
+  left of the 3D View.
 - The **Status Bar**: at the left, a switch for each Bottom Dock panel
   (click the one in front to close the dock, another to bring it to the
   front) and, while the Log is out of sight, its last line (click it to
   show the Log); in the middle, what the mouse and the keys do in the
-  panel under the pointer, as key caps; at the right, the document, where
+  panel under the pointer, as key caps (over a gallery: Click Select,
+  Double-click Open, Up Down Row of pictures, Left Right One picture,
+  Enter Open); at the right, the document, where
   it was read from and the game folder.
 
 The window opens 1440 by 900 points the first time, then at the size you
@@ -95,7 +99,27 @@ The panels:
   Click a part of the model to select its node.
 - **ASCII**: the model's text (see [Editing models](03-editing-models.md)).
 - **Texture**: textures you open (Ctrl and the wheel zoom it).
-- **Resources**: the game's resources (see [Getting started](01-getting-started.md)).
+- **Resources**: the game's resources (see [Getting started](01-getting-started.md)),
+  as a **List** or a **Gallery** of pictures: the two buttons beside
+  the count switch between them, and the choice is kept for the next
+  run. In the gallery each model, blueprint, material (a sphere wearing
+  it) and creature is pictured as `mgv gallery` pictures it (the same
+  angle, framing and light, the game's shaders), a texture by the texture
+  itself; walkmeshes and TXI show their kind's icon. The type is written
+  under each name where the filter lists more than one, a creature's
+  `appearance.2da` row under its label. The slider beside the buttons
+  sets the pictures' size (the Gallery tab's slider is the same one). A
+  click chooses a picture, a double-click or Enter opens it, and the
+  arrow keys move the choice (↑ ↓ a row, ← → one picture; Home, End, Page
+  Up and Page Down too). Pictures are made a few at a time, those in
+  sight first, the kind's icon standing in until each is ready; one that
+  cannot be made says **No picture** (hover it to see why). They are made
+  again after **File › Refresh** (F5) or when a folder or hak changes. In
+  Gallery mode the Left Dock opens wider (three pictures a row).
+  **Open as Tab** (the icon at the right of the Resources header) puts the
+  gallery in the editor area as the **Gallery** tab, with the filter,
+  the search, the size slider and the count in its header, and Resources
+  goes back to its list.
 - **Outliner**: the model's node tree; click to select. Parts of a creature
   (head, limbs, equipment, wings) are listed under it.
 - **Inspector**: what is open and the selected node: its type, position,
@@ -125,4 +149,6 @@ The panels:
 | F | Frame (in the 3D view) |
 | W A S D, Q E | Move the camera along the ground where it looks, to the sides, down and up (in the 3D view; Shift: faster) |
 | ↑ ↓, Page Up/Down, Home, End | Step through Resources, opening each (after a click in it) |
+| ↑ ↓ ← →, Page Up/Down, Home, End | Move the choice in a gallery (after a click in it) |
+| Enter | Open the picture chosen in a gallery |
 | Ctrl+Q | Quit |

@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T14:55:46Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:21:55Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1060,3 +1060,94 @@ app opens at 1440 by 900, under the 1500 at which the Left Dock folds,
 as the toolset opens at 1280 by 800 with its Left Dock folded: the
 owner ruled to keep it ("Viewer width: keep", 2026-11-25). A size the
 user gives the window is kept between runs.
+
+### 10.8 Gallery mode (M6 part C, 2026-11-25)
+
+The Resources panel's list as pictures (proposal section 9.17; the
+boards "Resources as a Gallery" and "Gallery Tab at 3440×1440"), in
+`mgv-ui/src/gallery.rs`, from `mg-uikit`'s gallery parts:
+
+- **The switch**: List and Gallery icon buttons (`IconButton`,
+  `Icon::List`, `Icon::Gallery`, as the toolset's palette has them)
+  beside the count, the kit's `size_slider` (64 to 220) after them in
+  Gallery mode, on a row of its own where fewer than 64 points are left.
+  Both are kept in `Settings` (`resources_view`, `gallery_side`). The
+  Left Dock opens 440 wide in Gallery mode (three pictures a row, the
+  board's).
+- **The grid**: the kit's `GalleryGrid` (cells that grow, only the rows
+  in sight laid out and painted, one Tab stop, the keys by `step`) in a
+  vertical scroll, `GalleryCell` for each: the name in Hack 11 on one
+  line, the type as the detail line where the filter lists more than one
+  (a creature's `row N`), the kind's icon (`Icon::Model`, `Creature`,
+  `Placeable`, `Door`, `Item`, `Texture`, `Walkmesh`, `Shaders`,
+  `File`), said by its file name. The Creatures filter has its gallery
+  too (bare creatures by `appearance.2da` row, as `mgv gallery`'s
+  `2da:appearance` pictures them). A click chooses, a double-click or
+  Enter (the grid's `activated`) opens as the list's open does, the
+  arrows move the choice; the Status Bar's hints over a gallery are Click
+  Select, Double-click Open, Up Down Row of pictures, Left Right One
+  picture, Enter Open. (The board's "Click Show" opens on a click, as the
+  list does; part C followed its brief, a click choosing.)
+- **Open as Tab**: `Icon::OpenInTab` in the Resources header opens the
+  **Gallery** document tab (`Tab::Gallery`, closeable, also View ›
+  Gallery) in a group of its own left of the 3D View's (the wide board),
+  its header the filter, the search, the slider and the count; Resources
+  goes back to its list. Opening from it focuses the 3D View in its own
+  group, so the gallery stays in sight.
+- **Pictures** (`gallery::Pictures`, after the toolset's `Thumbnails`):
+  each frame the grids ask for the cells in sight and the row under them
+  (`GridOutput::drawn`, `ahead`); after the frame those not made are
+  made in order, at most 8 and for 4 ms (one in every frame), on the UI
+  thread, by a `Painter` (a trait, so the lib tests use a GPU-free fake).
+  The app's `ViewerPainter` draws models, blueprints, materials and
+  creatures on a `Stage` and `Viewport` of its own on the **window's
+  device** (`Gfx`'s `Gpu`, never a second one), 224 pixels square,
+  with `headless::thumbnail_shot` (the command line's default shot: the
+  same framing and light as `mgv gallery`) and the new
+  `headless::still_unwaited`, which draws with the game's programs made
+  in the background (`game_background`) and says whether the picture is
+  whole: one still waiting for a program is drawn again in a later
+  frame (the painter's game waker asks for it), and after 40 tries taken
+  as drawn. `still` and `picture` wait as before. Textures (TGA, DDS,
+  PLT at palette row 0) are the texture itself: the smallest mip level
+  still 224 a side, decoded and shrunk on the CPU, never uploaded whole.
+  Walkmeshes, TXI and the rest show their kind's icon and are never asked
+  for. A failure is kept as "No picture" with its reason in the cell's
+  tip, and not tried again. Pictures are kept by what they are of
+  (`Pictured::Resource`, `Pictured::Creature`); those unseen for two
+  frames go past 512 kept (never one asked for in the frame); all go on
+  Refresh, a folder or hak added, the game folder changed, a watched file
+  changed or the library's layers changed (`Viewer::data_changed`,
+  `Pictures::begin_frame`), one when its model's ASCII is hot-reloaded.
+  The painter's viewport lets go of its textures every 64 pictures.
+- **Tests**: lib tests (`gallery::tests`) drive `Viewer::ui` without a
+  GPU: 32,832 listed resources, in the Left Dock at 1600 by 900 and as a
+  tab at 3440 by 1440, scrolled to the end and back, ask in every frame
+  only for the cells in sight and a row (and make at most 8); the switch,
+  a click, the arrows, Enter and a double click; Open as Tab and opening
+  from it; a failure and a picture waiting for the game's programs;
+  Refresh letting go and opening keeping them; drawing at every size in
+  both themes; shrinking textures. `tests/app.rs`'s
+  `the_resources_gallery` and `tests/screens.rs`'s `gallery_panel` and
+  `gallery_tab` (`m6-gallery-*`) run on the GPU.
+
+Upstream needs (the viewer's workarounds in place):
+
+- The kit has no List | Gallery control of its own: the viewer pairs two
+  `IconButton`s, as the toolset's palette does.
+- `GalleryGrid` makes no picture: what the toolset's `Thumbnails` does
+  (asking, a budget, keeping, letting go) is `mg-ui` code, rewritten
+  here at a smaller scale. A kit picture cache over a painter trait
+  would serve both.
+- `GridOutput` says what the keys moved to and activated but not a
+  double click: the viewer reads each cell's response itself.
+
+Left: the hover enlargement beside the dock (`show_beside`, the board's
+"NWN, Haedraline / Model c_haedraline" card): the cell's tip says what
+and where from instead. Pictures are made on the UI thread within the
+budget, not read apart on threads as the toolset's are (a second
+`Library` would be needed); a large model can make one frame slow while
+it is drawn. Walkmeshes have no picture (the stage draws them as an
+overlay). Pictures follow neither the window's Game shaders switch nor
+its Shadow (the command line's shot, as the toolset's thumbnails).
+

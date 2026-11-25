@@ -3,7 +3,7 @@ type: Manual Page
 title: Getting started
 description: What Moonglow Viewer needs, the ways to open models and game resources, and how each file type is shown.
 tags: [manual, opening, resources]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-02T19:48:39Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:21:24Z }
 ---
 
 # Getting started
@@ -32,6 +32,9 @@ OpenGL 3.3.
 - **Creatures** in Resources lists `appearance.2da`: click a row to
   see that creature bare; the Inspector then changes its gender,
   phenotype, head, body parts, colors, wings and tail.
+- **Gallery** (the button beside the count in Resources): the same list
+  as pictures, to choose by eye; double-click one to open it. See
+  [The window](02-the-window.md).
 
 A file opened from disk brings its folder along: textures, materials and
 supermodels beside it win over the game's, as an override folder would.
