@@ -329,7 +329,6 @@ fn bare_plt_models_take_colors() {
     h.run_steps(2);
     assert_eq!(look(&h), Some(colors));
     // The chooser: its swatches by name, from the game's palette.
-    // (The Inspector shares its column with Lighting: scrolled to them.)
     // (The Inspector shares its column with Lighting, and the PLT colors
     // may be scrolled out of its sight: chosen through accesskit, which
     // reaches a control out of sight, as a user's scroll would.)
@@ -490,7 +489,7 @@ fn the_ascii_tab_s_dot_and_the_diagnostics_counts() {
     let Some(mut h) = harness(false, Box::new(Answer(None))) else { return };
     h.state_mut().actions.push(Action::Open(file.clone()));
     h.run_steps(3);
-    // (The tab's button, named by its title: the Inspector says "ASCII" too.)
+    // (The tab's button, named by its title: a label reads "ASCII" too.)
     let tab = |h: &Harness<'_, Viewer>| {
         h.query_by_role_and_label(egui::accesskit::Role::Button, "ASCII").is_some()
     };
