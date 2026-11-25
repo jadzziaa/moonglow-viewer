@@ -240,3 +240,58 @@ fn shell_narrow() {
 fn shell_least() {
     decompiled_at("m6-least-800", egui::vec2(800.0, 600.0));
 }
+
+/// Steps until the galleries' pictures asked for are all made (a few a
+/// frame; the game's programs compiled meanwhile), two minutes at most.
+fn pictures_made(h: &mut Harness<'_, Viewer>) {
+    let started = std::time::Instant::now();
+    h.run_steps(2);
+    while h.state().pictures.waiting() > 0 && started.elapsed().as_secs() < 120 {
+        h.step();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    h.run_steps(2);
+}
+
+/// The board "Resources as a Gallery" (M6 part C): the Creatures filter
+/// in Gallery mode in the Left Dock, a creature shown, at 1600 by 900.
+#[test]
+#[ignore]
+fn gallery_panel() {
+    mg_testkit::gpu::hold();
+    let (mut v, rs) = viewer(mg_testkit::corpus!());
+    v.settings.resources_view = mgv_ui::settings::ResourcesView::Gallery;
+    v.browser.filter = mgv_ui::panels::Filter::Creatures;
+    v.browser.chosen_row = Some(190);
+    v.actions.push(Action::OpenCreature(mgv_stage::subject::CreatureLook::new(190)));
+    let mut h = sized(v, rs, egui::vec2(1600.0, 900.0));
+    pictures_made(&mut h);
+    shoot(&mut h, "m6-gallery-panel");
+    // The models, and their pictures.
+    h.state_mut().browser.filter = mgv_ui::panels::Filter::Models;
+    pictures_made(&mut h);
+    shoot(&mut h, "m6-gallery-panel-models");
+}
+
+/// The Gallery tab (Open as Tab) at `size`: `filter`'s pictures beside
+/// the 3D View, shot as `name`.
+fn gallery_tab_at(name: &str, size: egui::Vec2, filter: mgv_ui::panels::Filter) {
+    mg_testkit::gpu::hold();
+    let (mut v, rs) = viewer(mg_testkit::corpus!());
+    v.browser.filter = filter;
+    v.open_gallery_tab();
+    v.actions.push(Action::OpenCreature(mgv_stage::subject::CreatureLook::new(49)));
+    let mut h = sized(v, rs, size);
+    pictures_made(&mut h);
+    shoot(&mut h, name);
+}
+
+/// The board "Gallery Tab at 3440×1440": the creatures as a tab beside
+/// the 3D View; and the models' at 1600 by 900.
+#[test]
+#[ignore]
+fn gallery_tab() {
+    use mgv_ui::panels::Filter;
+    gallery_tab_at("m6-gallery-tab", egui::vec2(1600.0, 900.0), Filter::Models);
+    gallery_tab_at("m6-gallery-tab-3440", egui::vec2(3440.0, 1440.0), Filter::Creatures);
+}

@@ -576,3 +576,68 @@ fn a_narrow_window_folds_the_left_dock() {
     assert!(h.state().shell.left_folded());
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+/// Gallery mode (M6 part C): the Resources panel's Gallery button, the
+/// pictures made on the window's GPU, a click choosing one and a double
+/// click opening it; Open as Tab puts the gallery beside the 3D View, and
+/// a double click there opens too.
+#[test]
+fn the_resources_gallery() {
+    use mgv_ui::gallery::{Pictured, Place};
+    use mgv_ui::settings::ResourcesView;
+    let Some(mut h) = harness(false, Box::new(Answer(None))) else { return };
+    let dir = scratch("gallery");
+    std::fs::write(dir.join("tri.mdl"), MODEL).unwrap();
+    std::fs::write(dir.join("other.mdl"), MODEL.replace(" tri", " other")).unwrap();
+    h.state_mut().actions.push(Action::Open(dir.join("tri.mdl")));
+    h.run_steps(3);
+    h.get_by_label("Gallery").click();
+    h.run_steps(3);
+    assert_eq!(h.state().settings.resources_view, ResourcesView::Gallery);
+    // The pictures, a few frames on (the game's programs not waited for).
+    let other = Pictured::Resource(ResKey::parse("other", ResType::MDL).unwrap());
+    let tri = Pictured::Resource(ResKey::parse("tri", ResType::MDL).unwrap());
+    let started = std::time::Instant::now();
+    while !(h.state().pictures.is_made(other) && h.state().pictures.is_made(tri))
+        && started.elapsed().as_secs() < 60
+    {
+        h.step();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    for what in [other, tri] {
+        let picture = h.state_mut().pictures.picture(what);
+        assert!(matches!(picture, mg_uikit::gallery::Picture::Ready(_)), "{what:?}: {picture:?}");
+    }
+    // A click chooses; a double click opens.
+    h.get_by_label("other.mdl").click();
+    h.run_steps(2);
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "tri", "a click chooses");
+    h.get_by_label("other.mdl").click();
+    h.run_steps(3);
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "other", "a double click opens");
+    // Open as Tab: the gallery in the editor area, the panel a list.
+    h.get_by_label(mgv_ui::gallery::OPEN_AS_TAB).click();
+    h.run_steps(3);
+    assert_eq!(h.state().settings.resources_view, ResourcesView::List);
+    assert!(h.state().dock.find_tab(&mgv_ui::Tab::Gallery).is_some());
+    let d = h.state().browser.drawn[&Place::Tab].clone();
+    let at = d.layout.unwrap().rect(d.rect.unwrap().min, 1).center();
+    let (gallery, view) = (h.state().dock.find_tab(&mgv_ui::Tab::Gallery), d.rect.unwrap());
+    assert!(gallery.is_some() && view.width() > 100.0, "{view:?}");
+    for _ in 0..2 {
+        h.hover_at(at);
+        for pressed in [true, false] {
+            h.event(egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            });
+        }
+        h.run_steps(1);
+    }
+    h.run_steps(3);
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "tri", "opened from the tab");
+    assert!(h.state().dock.find_tab(&mgv_ui::Tab::Gallery).is_some(), "the tab stays");
+    std::fs::remove_dir_all(&dir).unwrap();
+}

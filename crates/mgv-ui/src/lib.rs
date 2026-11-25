@@ -9,11 +9,12 @@
 pub mod code;
 pub mod editor;
 mod effects;
+pub mod gallery;
 mod jobs;
 mod lighting;
 pub mod manual;
 pub mod palette;
-mod panels;
+pub mod panels;
 pub mod settings;
 pub mod shell;
 mod texture;
@@ -107,6 +108,8 @@ pub enum Tab {
     Effects,
     Lighting,
     Log,
+    /// The Resources panel's list as pictures, as a document tab.
+    Gallery,
 }
 
 impl Tab {
@@ -122,6 +125,7 @@ impl Tab {
             Tab::Effects => "Effects",
             Tab::Lighting => "Lighting",
             Tab::Log => "Log",
+            Tab::Gallery => "Gallery",
         }
     }
 
@@ -140,12 +144,13 @@ impl Tab {
             Tab::Effects => Icon::Sparkles,
             Tab::Lighting => Icon::Sun,
             Tab::Log => Icon::Log,
+            Tab::Gallery => Icon::Gallery,
         }
     }
 
     /// A document tab the user closes (the 3D View stays).
     pub(crate) fn closeable(self) -> bool {
-        matches!(self, Tab::Editor | Tab::Texture)
+        matches!(self, Tab::Editor | Tab::Texture | Tab::Gallery)
     }
 }
 
@@ -211,6 +216,8 @@ pub struct Viewer {
     pub buffer: Option<Buffer>,
     pub texture: Option<texture::TextureView>,
     pub browser: panels::Browser,
+    /// The galleries' pictures.
+    pub pictures: gallery::Pictures,
     pub effects: effects::Effects,
     /// The game's palettes, for the colour choosers.
     pub palettes: palette::Palettes,
@@ -290,6 +297,7 @@ impl Viewer {
             buffer: None,
             texture: None,
             browser: panels::Browser::default(),
+            pictures: gallery::Pictures::default(),
             effects: effects::Effects::default(),
             palettes: palette::Palettes::default(),
             rig: lighting::Rig::default(),
@@ -313,6 +321,23 @@ impl Viewer {
     /// Gives the viewer the window's GPU (eframe's wgpu state).
     pub fn set_render_state(&mut self, rs: egui_wgpu::RenderState) {
         self.gfx = Some(view3d::Gfx::new(rs));
+        // (The galleries' pictures are drawn on its device from now on.)
+        self.pictures.painter = None;
+    }
+
+    /// Opens the gallery as a document tab (the Resources header's Open
+    /// as Tab), in a group of its own left of the 3D View's; the
+    /// Resources panel goes back to its list.
+    pub fn open_gallery_tab(&mut self) {
+        self.settings.resources_view = settings::ResourcesView::List;
+        self.focus(Tab::Gallery);
+    }
+
+    /// The game's data or the layers over it were read again: the lists
+    /// are made again, and the pictures.
+    fn data_changed(&mut self) {
+        self.browser.invalidate();
+        self.pictures.forget();
     }
 
     pub fn info(&mut self, text: impl Into<String>) {
@@ -553,6 +578,16 @@ impl Viewer {
             let _ = self.dock.set_active_tab(at);
             return;
         }
+        // (The gallery left of the 3D View, as the wide board has it.)
+        if tab == Tab::Gallery {
+            match self.dock.find_tab(&Tab::View) {
+                Some(view) if view.surface.is_main() => {
+                    self.dock.main_surface_mut().split_left(view.node, 0.62, vec![tab]);
+                }
+                _ => self.dock.push_to_first_leaf(tab),
+            }
+            return;
+        }
         let partner = match tab {
             Tab::Editor => self.dock.find_tab(&Tab::Texture),
             Tab::Texture => self.dock.find_tab(&Tab::Editor),
@@ -687,7 +722,7 @@ impl Viewer {
                     if !self.settings.folders.contains(&f) {
                         self.settings.folders.push(f);
                     }
-                    self.browser.invalidate();
+                    self.data_changed();
                 }
             }
             Action::AddArchiveDialog => {
@@ -699,7 +734,7 @@ impl Viewer {
                             if !self.settings.haks.contains(&f) {
                                 self.settings.haks.push(f);
                             }
-                            self.browser.invalidate();
+                            self.data_changed();
                         }
                         Err(e) => self.error(format!("{e}")),
                     }
@@ -717,7 +752,7 @@ impl Viewer {
                     self.settings.game_root = Some(f);
                     self.lib = open_library(&self.settings, &mut self.log);
                     self.add_settings_layers();
-                    self.browser.invalidate();
+                    self.data_changed();
                 }
             }
             Action::Refresh => self.refresh(),
@@ -736,7 +771,7 @@ impl Viewer {
     /// Re-reads folders and models from disk.
     fn refresh(&mut self) {
         self.lib.rescan();
-        self.browser.invalidate();
+        self.data_changed();
         self.palettes.clear();
         if let Some(g) = &mut self.gfx {
             g.viewport.clear_textures();
@@ -772,6 +807,7 @@ impl Viewer {
         self.watch_files(ui.input(|i| i.time));
         self.jobs_done();
         self.tick(ui);
+        self.pictures.begin_frame(&self.lib);
 
         // The bars, the side docks the whole height between them, the
         // Bottom Dock under the editor area (proposal section 5).
@@ -784,6 +820,9 @@ impl Viewer {
         self.shell.end_frame();
         manual::windows(self, ui.ctx());
         self.run_actions();
+        // The pictures the galleries asked for, a few, after the frame.
+        let gpu = self.gfx.as_ref().map(|g| g.stage.gpu().clone());
+        self.pictures.make(ui.ctx(), &self.lib, gpu.as_ref());
         self.tell_shader_failures();
         if self.jobs.busy() || self.watcher.busy() {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
@@ -883,6 +922,7 @@ impl Viewer {
         match buffer.key {
             Some(key) => {
                 self.lib.set_buffer(key, Some(text.into_bytes().into()));
+                self.pictures.forget_one(gallery::Pictured::Resource(key));
                 if let Some(g) = &mut self.gfx {
                     g.stage.reload(&self.lib);
                 }
@@ -946,7 +986,7 @@ impl Viewer {
         }
         if library_changed {
             self.lib.rescan();
-            self.browser.invalidate();
+            self.data_changed();
             if let Some(g) = &mut self.gfx {
                 g.viewport.clear_textures();
                 g.stage.reload(&self.lib);
@@ -1273,6 +1313,7 @@ impl Viewer {
                     Tab::Effects,
                     Tab::Lighting,
                     Tab::Log,
+                    Tab::Gallery,
                 ] {
                     if ui.button(tab.title()).clicked() {
                         self.focus(tab);
@@ -1356,6 +1397,7 @@ pub(crate) fn draw_tab(app: &mut Viewer, ui: &mut Ui, tab: Tab) {
         Tab::Effects => effects::ui(app, ui),
         Tab::Lighting => lighting::ui(app, ui),
         Tab::Log => panels::log(app, ui),
+        Tab::Gallery => gallery::tab(app, ui),
     }
 }
 

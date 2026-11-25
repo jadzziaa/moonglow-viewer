@@ -42,6 +42,9 @@ pub const OPEN: &str = "Open";
 
 /// The least a side dock is dragged to.
 const SIDE_LEAST: f32 = 200.0;
+/// The Left Dock's width at first in Gallery mode (the board "Resources
+/// as a Gallery": three pictures of 128 a row).
+const GALLERY_DOCK: f32 = 440.0;
 /// The least a stacked panel keeps (its header and a few rows).
 const PANEL_LEAST: f32 = 90.0;
 /// The upper of two stacked panels' share of their column at first.
@@ -81,7 +84,7 @@ const PANELS: [Tab; 7] = [
 /// Timeline alone in the Bottom Dock).
 pub fn place(tab: Tab, wide: bool) -> Place {
     match tab {
-        Tab::View | Tab::Editor | Tab::Texture => Place::Editor,
+        Tab::View | Tab::Editor | Tab::Texture | Tab::Gallery => Place::Editor,
         Tab::Browser | Tab::Outliner => Place::Left,
         Tab::Inspector => Place::Right(0),
         Tab::Lighting => Place::Right(usize::from(wide)),
@@ -323,9 +326,12 @@ fn top_bar_row(app: &mut Viewer, ui: &mut Ui) {
 
 /// The hints of the panel under the pointer (proposal section 8.2): the
 /// 3D view's mouse and keys (`view3d`), the Effects' double-click, the
-/// Texture's zoom.
-pub fn hints(over: Option<Tab>) -> Vec<Hint> {
+/// Texture's zoom, a gallery's click, double-click and keys (the Gallery
+/// tab's, and the Resources panel's in Gallery mode: `gallery`).
+pub fn hints(over: Option<Tab>, gallery: bool) -> Vec<Hint> {
     match over {
+        Some(Tab::Gallery) => gallery_hints(),
+        Some(Tab::Browser) if gallery => gallery_hints(),
         Some(Tab::Effects) => vec![Hint::keys(["Double-click"], "Apply effect")],
         Some(Tab::Texture) => vec![Hint::keys(["Ctrl", "Wheel"], "Zoom texture")],
         _ => vec![
@@ -339,6 +345,17 @@ pub fn hints(over: Option<Tab>) -> Vec<Hint> {
             Hint::keys(["Shift"], "Walk faster"),
         ],
     }
+}
+
+/// A gallery's hints (the board "Resources as a Gallery"'s arrows).
+fn gallery_hints() -> Vec<Hint> {
+    vec![
+        Hint::keys(["Click"], "Select"),
+        Hint::keys(["Double-click"], "Open"),
+        Hint::either(["Up", "Down"], "Row of pictures"),
+        Hint::either(["Left", "Right"], "One picture"),
+        Hint::keys(["Enter"], "Open"),
+    ]
 }
 
 /// The Status Bar's right-hand parts.
@@ -458,7 +475,8 @@ fn status_row(app: &mut Viewer, ui: &mut Ui) {
         };
         (l.text.clone(), color)
     });
-    let hints = hints(shell.hovered);
+    let gallery = app.settings.resources_view == crate::settings::ResourcesView::Gallery;
+    let hints = hints(shell.hovered, gallery);
     let parts = right_parts(app);
     let right_width = parts.iter().map(|p| p.width(ui)).sum::<f32>()
         + status::GAP * parts.len().saturating_sub(1) as f32;
@@ -549,10 +567,23 @@ fn body(app: &mut Viewer, ui: &mut Ui, tab: Tab) {
 fn headed(app: &mut Viewer, ui: &mut Ui, tab: Tab, fold: Option<(Side, &str)>) -> bool {
     let name = format!("{} panel", tab.title());
     let header = PanelHeader::new(tab.title()).name(name);
-    let folded = header
-        .show(ui, |ui| fold.is_some_and(|(side, dock)| kit::fold_button(ui, side, dock).clicked()))
+    let (folded, tabbed) = header
+        .show(ui, |ui| {
+            let folded =
+                fold.is_some_and(|(side, dock)| kit::fold_button(ui, side, dock).clicked());
+            // (Resources: its gallery as a tab, the board's icon.)
+            let tabbed = tab == Tab::Browser && {
+                let button = IconButton::new(Icon::OpenInTab, crate::gallery::OPEN_AS_TAB);
+                let tip = "Open the gallery as a tab in the editor area";
+                ui.add(button.icon_only(true)).on_hover_text(tip).clicked()
+            };
+            (folded, tabbed)
+        })
         .inner;
     body(app, ui, tab);
+    if tabbed {
+        app.open_gallery_tab();
+    }
     folded
 }
 
@@ -626,13 +657,18 @@ pub(crate) fn left_dock(app: &mut Viewer, ui: &mut Ui) {
         return;
     }
     let t = mg_uikit::tokens(ui.ctx());
-    let width = app.shell.yields.left_dock_width;
+    // (Wider in Gallery mode, three pictures a row: the board's 440.)
+    let gallery = app.settings.resources_view == crate::settings::ResourcesView::Gallery;
+    let width = match gallery {
+        true => app.shell.yields.left_dock_width.max(GALLERY_DOCK),
+        false => app.shell.yields.left_dock_width,
+    };
     let most = side_most(ui, SIDE_LEAST);
     let wide = app.shell.yields.wide;
     let mut folded = false;
-    egui::Panel::left(app.shell.id(("left-dock", wide)))
+    egui::Panel::left(app.shell.id(("left-dock", wide, gallery)))
         .resizable(true)
-        .default_size(width)
+        .default_size(width.min(most))
         .size_range(SIDE_LEAST..=most)
         .frame(egui::Frame::new().fill(t.panel))
         .show(ui, |ui| {
@@ -909,12 +945,22 @@ mod tests {
     /// Effects and Texture.
     #[test]
     fn the_hints_follow_the_panel_under_the_pointer() {
-        let words = |over| hints(over).iter().map(|h| h.word().to_string()).collect::<Vec<_>>();
+        let words =
+            |over| hints(over, false).iter().map(|h| h.word().to_string()).collect::<Vec<_>>();
         assert_eq!(words(Some(Tab::Effects)), ["Apply effect"]);
         assert_eq!(words(Some(Tab::Texture)), ["Zoom texture"]);
         let view = words(Some(Tab::View));
         assert_eq!(view[..3], ["Orbit", "Pan", "Zoom"]);
         assert_eq!(words(None), view);
+        // Over a gallery: its click, double-click and arrows; the Resources
+        // panel's only in Gallery mode.
+        let gallery = ["Select", "Open", "Row of pictures", "One picture", "Open"];
+        let over = |tab, mode| -> Vec<String> {
+            hints(Some(tab), mode).iter().map(|h| h.word().to_string()).collect()
+        };
+        assert_eq!(over(Tab::Gallery, false), gallery);
+        assert_eq!(over(Tab::Browser, true), gallery);
+        assert_eq!(over(Tab::Browser, false), view);
     }
 
     /// The toolset's order: the Log's last line takes its room up to its
@@ -928,7 +974,7 @@ mod tests {
         assert_eq!(log_line_room(900.0, 400.0, LOG_LINE_CAP), Some(160.0));
         // The 3D View's hints (some 700 wide) beside it in a middle of 400:
         // the line keeps its cap, the hints drop to what the rest holds.
-        let hints = hints(Some(Tab::View));
+        let hints = hints(Some(Tab::View), false);
         let widths = [70.0, 110.0, 80.0, 70.0, 120.0, 100.0, 90.0, 90.0];
         assert_eq!(hints.len(), widths.len());
         let line = log_line_room(400.0, 400.0, LOG_LINE_CAP_VIEW).unwrap();

@@ -1,6 +1,9 @@
 //! The side panels: the resource browser, the node outliner, the
 //! inspector, the animation timeline and the log.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use egui::Ui;
 use mg_core::ResType;
 use mg_mdl::{MeshExtra, NodeKind};
@@ -8,6 +11,7 @@ use mg_resman::ResKey;
 use mgv_library::Kind;
 use mgv_stage::{ActorId, PlayMode};
 
+use crate::gallery::Cells;
 use crate::{Action, Level, Selection, Viewer};
 use mg_uikit::{TokensExt, field_label, section_heading};
 
@@ -73,6 +77,10 @@ impl Filter {
 /// filter.
 type Listed = (u64, String, Filter);
 
+/// The resources listed and the layers they are from, shared with the
+/// galleries.
+pub(crate) type Items = Arc<Vec<(ResKey, String)>>;
+
 /// Keys in a list that a click gave the keyboard (its `id`, registered by
 /// [`list_widget`]): Up and Down step, Page Up and Down move a page, Home
 /// and End go to the ends. The row to go to, if it moved.
@@ -137,12 +145,17 @@ pub struct Browser {
     pub query: String,
     pub filter: Filter,
     /// The listing and what it was made for (generation, query, filter).
-    listing: Option<(Listed, Vec<(ResKey, String)>)>,
-    selected: Option<ResKey>,
+    listing: Option<(Listed, Items)>,
+    /// The resource chosen (the list's, the gallery's).
+    pub selected: Option<ResKey>,
+    /// The creature chosen in the gallery (an `appearance.2da` row).
+    pub chosen_row: Option<usize>,
     /// The list's scroll offset and height last frame.
     view: (f32, f32),
     /// A row was clicked: the list takes the keyboard.
     take_keys: bool,
+    /// Where each gallery's grid stood when last drawn.
+    pub drawn: HashMap<crate::gallery::Place, crate::gallery::Drawn>,
 }
 
 impl Browser {
@@ -150,22 +163,40 @@ impl Browser {
     pub fn invalidate(&mut self) {
         self.listing = None;
     }
+
+    /// Lists `items` as though the library had (a test's long list).
+    #[cfg(test)]
+    pub(crate) fn inject(&mut self, lib: &mgv_library::Library, items: Items) {
+        let want = (lib.generation(), self.query.to_ascii_lowercase(), self.filter);
+        self.listing = Some((want, items));
+    }
 }
 
-pub(crate) fn browser(app: &mut Viewer, ui: &mut Ui) {
-    // What is shown, so a click on it does not open it again.
-    let shown = app.doc.as_ref().and_then(|d| d.opened.key.filter(|_| d.creature.is_none()));
+/// The search field (Find in names).
+pub(crate) fn search_field(app: &mut Viewer, ui: &mut Ui, width: f32) {
+    let edit = egui::TextEdit::singleline(&mut app.browser.query).hint_text("Search names");
+    ui.add(edit.desired_width(width));
+}
+
+/// The type filter.
+pub(crate) fn filter_combo(app: &mut Viewer, ui: &mut Ui, salt: &str) {
     let b = &mut app.browser;
-    ui.horizontal(|ui| {
-        ui.add(
-            egui::TextEdit::singleline(&mut b.query).hint_text("Search names").desired_width(140.0),
-        );
-        egui::ComboBox::from_id_salt("filter").selected_text(b.filter.name()).show_ui(ui, |ui| {
-            for f in Filter::ALL {
-                ui.selectable_value(&mut b.filter, f, f.name());
-            }
-        });
+    egui::ComboBox::from_id_salt(salt).selected_text(b.filter.name()).show_ui(ui, |ui| {
+        for f in Filter::ALL {
+            ui.selectable_value(&mut b.filter, f, f.name());
+        }
     });
+}
+
+/// What the browser lists as its filter and query stand: the resources
+/// (listed again when the library, the query or the filter changed), or
+/// the creatures (`appearance.2da`'s rows with a race; none without the
+/// table).
+pub(crate) fn current(app: &mut Viewer) -> Cells {
+    let b = &mut app.browser;
+    if b.filter == Filter::Creatures {
+        return Cells::Creatures(Arc::new(creature_rows(app).unwrap_or_default()));
+    }
     let want = (app.lib.generation(), b.query.to_ascii_lowercase(), b.filter);
     if b.listing.as_ref().is_none_or(|(k, _)| *k != want) {
         let rm = app.lib.resman();
@@ -179,14 +210,81 @@ pub(crate) fn browser(app: &mut Viewer, ui: &mut Ui) {
             })
             .map(|(k, layer)| (k, layers[layer].label.clone()))
             .collect();
-        b.listing = Some((want, items));
+        b.listing = Some((want, Arc::new(items)));
     }
-    if b.filter == Filter::Creatures {
-        creatures(app, ui);
-        return;
+    let items = b.listing.as_ref().expect("made above").1.clone();
+    Cells::Resources { items, detail: b.filter != Filter::Models }
+}
+
+/// The least the size slider is given beside the count; a narrower room
+/// puts it on a row of its own.
+const SLIDER_LEAST: f32 = 64.0;
+
+/// The count, the List and Gallery buttons and (in Gallery mode) the
+/// pictures' size slider: the board "Resources as a Gallery"'s row.
+fn count_row(app: &mut Viewer, ui: &mut Ui, count: &str) {
+    use crate::settings::ResourcesView;
+    use mg_uikit::{Icon, IconButton};
+    let gallery = app.settings.resources_view == ResourcesView::Gallery;
+    let mut below = false;
+    ui.horizontal(|ui| {
+        ui.weak(count);
+        let list = IconButton::new(Icon::List, "List").icon_only(true).selected(!gallery);
+        if ui.add(list).on_hover_text("Show the resources by name").clicked() {
+            app.settings.resources_view = ResourcesView::List;
+        }
+        let pictures = IconButton::new(Icon::Gallery, "Gallery").icon_only(true).selected(gallery);
+        if ui.add(pictures).on_hover_text("Show the resources as pictures").clicked() {
+            app.settings.resources_view = ResourcesView::Gallery;
+        }
+        if gallery {
+            let room = ui.available_width() - ui.spacing().item_spacing.x;
+            match room >= SLIDER_LEAST {
+                true => crate::gallery::size_slider(app, ui, room),
+                false => below = true,
+            }
+        }
+    });
+    if below {
+        let room = ui.available_width();
+        crate::gallery::size_slider(app, ui, room);
     }
-    let items = &b.listing.as_ref().expect("made above").1;
-    ui.weak(format!("{} resources", items.len()));
+}
+
+pub(crate) fn browser(app: &mut Viewer, ui: &mut Ui) {
+    ui.horizontal(|ui| {
+        search_field(app, ui, 140.0);
+        filter_combo(app, ui, "filter");
+    });
+    let cells = current(app);
+    let gallery = app.settings.resources_view == crate::settings::ResourcesView::Gallery;
+    match &cells {
+        Cells::Creatures(rows) => {
+            if app.lib.game().table("appearance").is_err() {
+                ui.weak("No appearance.2da (no game folder?)");
+                return;
+            }
+            count_row(app, ui, &format!("{} creatures", rows.len()));
+            match gallery {
+                true => crate::gallery::grid(app, ui, &cells, crate::gallery::Place::Panel),
+                false => creatures(app, ui, rows),
+            }
+        }
+        Cells::Resources { items, .. } => {
+            count_row(app, ui, &format!("{} resources", items.len()));
+            match gallery {
+                true => crate::gallery::grid(app, ui, &cells, crate::gallery::Place::Panel),
+                false => resources(app, ui, items),
+            }
+        }
+    }
+}
+
+/// The resources as a list; a click opens one.
+fn resources(app: &mut Viewer, ui: &mut Ui, items: &[(ResKey, String)]) {
+    // What is shown, so a click on it does not open it again.
+    let shown = app.doc.as_ref().and_then(|d| d.opened.key.filter(|_| d.creature.is_none()));
+    let b = &mut app.browser;
     let row = ui.text_style_height(&egui::TextStyle::Body) + 2.0;
     let pitch = row + ui.spacing().item_spacing.y;
     let mut open = None;
@@ -231,22 +329,24 @@ pub(crate) fn browser(app: &mut Viewer, ui: &mut Ui) {
     }
 }
 
-/// `appearance.2da` rows; a click shows the creature.
-fn creatures(app: &mut Viewer, ui: &mut Ui) {
+/// `appearance.2da`'s rows with a label and a race, as the query finds
+/// them (by the row's number and label): each row and its label.
+fn creature_rows(app: &Viewer) -> Option<Vec<(usize, String)>> {
     let q = app.browser.query.to_ascii_lowercase();
-    let Ok(t) = app.lib.game().table("appearance") else {
-        ui.weak("No appearance.2da (no game folder?)");
-        return;
-    };
-    let rows: Vec<(usize, String)> = (0..t.len())
+    let t = app.lib.game().table("appearance").ok()?;
+    let rows = (0..t.len())
         .filter_map(|r| {
             let label = t.get(r, "LABEL").filter(|l| *l != "****")?;
             t.get(r, "RACE").filter(|v| *v != "****")?;
             let text = format!("{r} {label}");
-            (q.is_empty() || text.to_ascii_lowercase().contains(&q)).then_some((r, text))
+            (q.is_empty() || text.to_ascii_lowercase().contains(&q)).then(|| (r, label.to_string()))
         })
         .collect();
-    ui.weak(format!("{} creatures", rows.len()));
+    Some(rows)
+}
+
+/// `appearance.2da` rows; a click shows the creature.
+fn creatures(app: &mut Viewer, ui: &mut Ui, rows: &[(usize, String)]) {
     // The appearance shown, so a click on it does not show it again.
     let shown = app.doc.as_ref().and_then(|d| d.creature).map(|c| usize::from(c.appearance));
     let row = ui.text_style_height(&egui::TextStyle::Body) + 2.0;
@@ -269,10 +369,11 @@ fn creatures(app: &mut Viewer, ui: &mut Ui) {
         }
     }
     let out = area.show_rows(ui, row, rows.len(), |ui, range| {
-        for (r, text) in &rows[range] {
+        for (r, label) in &rows[range] {
             let selected = shown == Some(*r);
-            let click =
-                ui.selectable_label(selected, text).on_hover_text("click to show; then ↑ ↓ step");
+            let click = ui
+                .selectable_label(selected, format!("{r} {label}"))
+                .on_hover_text("click to show; then ↑ ↓ step");
             if click.clicked() {
                 take_keys = true;
                 if !selected {

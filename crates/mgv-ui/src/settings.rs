@@ -33,6 +33,16 @@ impl std::fmt::Display for CompileWith {
     }
 }
 
+/// How the Resources panel shows what it lists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ResourcesView {
+    /// Names, one a row.
+    #[default]
+    List,
+    /// Pictures in a grid of the kit's cells.
+    Gallery,
+}
+
 /// What the 3D view draws over the scene.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -83,6 +93,11 @@ pub struct Settings {
     pub model_shadows: Option<bool>,
     /// The look: dark (the default) or light (View › Theme).
     pub theme: mg_uikit::Theme,
+    /// The Resources panel's List or Gallery.
+    pub resources_view: ResourcesView,
+    /// The galleries' pictures' side, points (the kit's size slider: 64
+    /// to 220), shared by the Resources panel's and the Gallery tab's.
+    pub gallery_side: f32,
 }
 
 impl Default for Settings {
@@ -103,6 +118,8 @@ impl Default for Settings {
             game_shaders: None,
             model_shadows: None,
             theme: mg_uikit::Theme::Dark,
+            resources_view: ResourcesView::List,
+            gallery_side: mg_uikit::gallery::SIDE_DEFAULT,
         }
     }
 }
@@ -169,6 +186,23 @@ mod tests {
         let old = serde_json::from_str::<Settings>(r#"{"show_grid":false}"#).unwrap();
         assert_eq!(old.theme, Theme::Dark);
         assert!(!old.show_grid);
+    }
+
+    /// List or Gallery and the pictures' side are kept, a list of 128 until
+    /// chosen, and a settings file from before them still loads.
+    #[test]
+    fn the_resources_view_is_kept() {
+        let s = Settings {
+            resources_view: ResourcesView::Gallery,
+            gallery_side: 200.0,
+            ..Settings::default()
+        };
+        let text = serde_json::to_string(&s).unwrap();
+        let back = serde_json::from_str::<Settings>(&text).unwrap();
+        assert_eq!((back.resources_view, back.gallery_side), (ResourcesView::Gallery, 200.0));
+        let old = serde_json::from_str::<Settings>(r#"{"show_grid":false}"#).unwrap();
+        assert_eq!(old.resources_view, ResourcesView::List);
+        assert_eq!(old.gallery_side, mg_uikit::gallery::SIDE_DEFAULT);
     }
 
     #[test]
