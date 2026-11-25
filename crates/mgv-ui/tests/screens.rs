@@ -185,23 +185,17 @@ fn sized(v: Viewer, rs: egui_wgpu::RenderState, size: egui::Vec2) -> Harness<'st
         .build_ui_state(|ui, v: &mut Viewer| v.ui(ui), v)
 }
 
-/// The redesign's viewer boards in the 5.x shell (M6 part B): "Model with
-/// ASCII Editor", "Creature and Colors" (the Overlays popover drawn open),
-/// the 3440 by 1440 window (two-column Right Dock, three editor groups,
-/// the Overlays unfolded), a 1280 by 800 window (the Left Dock folded, the
-/// Right Dock tabbed) and the least window the shell lays out (800 by
-/// 600: under 796 the Right Dock folds too). Written as `m6-*.png`.
+/// The redesign's "Model with ASCII Editor" board in the 5.x shell (M6
+/// part B), then "Creature and Colors" with the Overlays popover drawn
+/// open, at 1600 by 900. Written as `m6-*.png`, as are the shots below.
 #[test]
 #[ignore]
-fn shell() {
+fn shell_board() {
     use egui_kittest::kittest::Queryable;
     mg_testkit::gpu::hold();
-    let root = mg_testkit::corpus!();
-    let board = egui::vec2(1600.0, 900.0);
-
-    let (mut v, rs) = viewer(root.clone());
+    let (mut v, rs) = viewer(mg_testkit::corpus!());
     v.actions.push(Action::OpenResource(ResKey::parse("plc_a01", ResType::MDL).unwrap()));
-    let mut h = sized(v, rs, board);
+    let mut h = sized(v, rs, egui::vec2(1600.0, 900.0));
     h.run_steps(4);
     h.state_mut().actions.push(Action::Decompile);
     h.run_steps(4);
@@ -211,24 +205,38 @@ fn shell() {
     h.run_steps(6);
     h.get_by_label(mgv_ui::view3d::HEADER).get_by_label("Overlays").click();
     shoot(&mut h, "m6-creature-colors");
-    drop(h);
+}
 
-    let (mut v, rs) = viewer(root.clone());
+/// A decompiled model in a window `size` big, shot as `name`.
+fn decompiled_at(name: &str, size: egui::Vec2) {
+    mg_testkit::gpu::hold();
+    let (mut v, rs) = viewer(mg_testkit::corpus!());
     v.actions.push(Action::OpenResource(ResKey::parse("c_golemerald", ResType::MDL).unwrap()));
     v.actions.push(Action::Decompile);
-    let mut h = sized(v, rs, egui::vec2(3440.0, 1440.0));
+    let mut h = sized(v, rs, size);
     h.run_steps(6);
-    shoot(&mut h, "m6-wide-3440");
-    drop(h);
+    shoot(&mut h, name);
+}
 
-    for (name, size) in
-        [("m6-narrow-1280", egui::vec2(1280.0, 800.0)), ("m6-least-800", egui::vec2(800.0, 600.0))]
-    {
-        let (mut v, rs) = viewer(root.clone());
-        v.actions.push(Action::OpenResource(ResKey::parse("plc_a01", ResType::MDL).unwrap()));
-        v.actions.push(Action::Decompile);
-        let mut h = sized(v, rs, size);
-        h.run_steps(6);
-        shoot(&mut h, name);
-    }
+/// The 3440 by 1440 window: the two-column Right Dock, three editor
+/// groups, the Overlays unfolded and the toggles' words.
+#[test]
+#[ignore]
+fn shell_wide() {
+    decompiled_at("m6-wide-3440", egui::vec2(3440.0, 1440.0));
+}
+
+/// A 1280 by 800 window: the Left Dock folded, the Right Dock tabbed.
+#[test]
+#[ignore]
+fn shell_narrow() {
+    decompiled_at("m6-narrow-1280", egui::vec2(1280.0, 800.0));
+}
+
+/// The least window the shell lays out with a Right Dock (800 by 600;
+/// under 796 it folds too).
+#[test]
+#[ignore]
+fn shell_least() {
+    decompiled_at("m6-least-800", egui::vec2(800.0, 600.0));
 }

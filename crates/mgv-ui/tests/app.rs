@@ -329,12 +329,17 @@ fn bare_plt_models_take_colors() {
     h.run_steps(2);
     assert_eq!(look(&h), Some(colors));
     // The chooser: its swatches by name, from the game's palette.
+    // (The Inspector shares its column with Lighting: scrolled to them.)
+    h.get_by_label("Metal 2 color").scroll_to_me();
+    h.run_steps(2);
     h.get_by_label("Metal 2 color").click();
     h.run_steps(2);
     h.get_by_label("Metal 2 17").click();
     h.run_steps(2);
     colors[3] = 17;
     assert_eq!(look(&h), Some(colors));
+    h.get_by_label("Reset colors").scroll_to_me();
+    h.run_steps(2);
     h.get_by_label("Reset colors").click();
     h.run_steps(2);
     assert_eq!(look(&h), None);
@@ -527,7 +532,8 @@ fn the_status_bar() {
     h.state_mut().actions.push(Action::Open(file.clone()));
     h.run_steps(3);
     assert!(bar(&h, "tri"));
-    assert!(bar(&h, &file.display().to_string()));
+    let origin = h.state().doc.as_ref().unwrap().opened.path.clone().unwrap();
+    assert!(bar(&h, &origin.display().to_string()));
     assert!(h.get_by_label("Status Bar").query_by_label_contains("Orbit").is_some());
     // The Log's switch brings the Log to the front; again, closes the dock.
     assert!(h.state().shell.bottom_open);

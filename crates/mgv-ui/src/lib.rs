@@ -753,13 +753,21 @@ impl Viewer {
         // the last frame); the editor area laid out for it at the first.
         let window = ui.max_rect().width();
         self.shell.frame_yields(window, self.shell.editor_width.unwrap_or(window));
-        if self.shell.laid_out.is_none() {
-            let wide = self.shell.yields.wide;
-            if wide {
-                self.dock = default_dock_for(true);
+        // (And again where the window crosses 2560 while the user has not
+        // moved a tab: a window opened at 1440 and maximized on a 3440
+        // screen takes the three groups.)
+        let wide = self.shell.yields.wide;
+        match self.shell.laid_out {
+            None if wide => self.dock = default_dock_for(true),
+            Some(was)
+                if was != wide
+                    && shell::groups(&self.dock) == shell::groups(&default_dock_for(was)) =>
+            {
+                self.dock = default_dock_for(wide);
             }
-            self.shell.laid_out = Some(wide);
+            _ => {}
         }
+        self.shell.laid_out = Some(wide);
         self.shortcuts(ui);
         self.watch_files(ui.input(|i| i.time));
         self.jobs_done();
@@ -1386,7 +1394,16 @@ impl TabViewer for Tabs<'_> {
         if ui.rect_contains_pointer(ui.max_rect()) {
             self.app.shell.hovering = Some(*tab);
         }
-        draw_tab(self.app, ui, *tab);
+        match tab {
+            // (The 3D View's and the ASCII's headers flush with the tab
+            // bar; the texture's rows with room round them.)
+            Tab::Texture => {
+                egui::Frame::new().inner_margin(egui::Margin::same(6)).show(ui, |ui| {
+                    draw_tab(self.app, ui, *tab);
+                });
+            }
+            _ => draw_tab(self.app, ui, *tab),
+        }
     }
 
     /// The tab's button: kept for its parts, and named by its title for a

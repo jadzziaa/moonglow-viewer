@@ -248,6 +248,11 @@ impl Shell {
     }
 }
 
+/// The editor area's groups (each one's tabs), its tabs in front aside.
+pub(crate) fn groups(dock: &egui_dock::DockState<Tab>) -> Vec<Vec<Tab>> {
+    dock.iter_leaves().map(|(_, l)| l.tabs.clone()).collect()
+}
+
 /// The 1 px line egui draws along a panel's edge (counted into a bar's
 /// height, as the toolset counts it).
 fn panel_line(ui: &Ui) -> f32 {
@@ -357,6 +362,9 @@ impl Part {
 /// the modified dot while the ASCII has unsaved edits), its origin, the
 /// game folder.
 fn right_parts(app: &Viewer) -> Vec<Part> {
+    // (Narrower in a narrow window, so that the hints keep room.)
+    let narrow = app.shell.yields.right_dock_narrow;
+    let (doc_most, origin_most) = if narrow { (160.0, 200.0) } else { (240.0, 320.0) };
     let mut parts = Vec::new();
     if app.jobs.busy() {
         parts.push(Part::Job(StatusJob::unknown("Compiling").max_width(160.0)));
@@ -365,7 +373,7 @@ fn right_parts(app: &Viewer) -> Vec<Part> {
     match &app.doc {
         Some(d) => {
             let dirty = app.buffer.as_ref().is_some_and(Buffer::is_dirty);
-            let item = StatusItem::new(d.name()).modified(dirty).max_width(240.0);
+            let item = StatusItem::new(d.name()).modified(dirty).max_width(doc_most);
             parts.push(Part::Item(item.tooltip("The document shown")));
             let origin = match (&d.opened.path, d.opened.key) {
                 (Some(p), _) => Some(p.display().to_string()),
@@ -374,13 +382,13 @@ fn right_parts(app: &Viewer) -> Vec<Part> {
             };
             if let Some(o) = origin {
                 parts.push(Part::Separator);
-                let item = StatusItem::new(o).weak().max_width(320.0);
+                let item = StatusItem::new(o).weak().max_width(origin_most);
                 parts.push(Part::Item(item.tooltip("Where it was read from")));
             }
         }
         None => {
             let item = StatusItem::new("Open a model (Ctrl+O) or pick one under Resources");
-            parts.push(Part::Item(item.weak().max_width(360.0)));
+            parts.push(Part::Item(item.weak().max_width(origin_most)));
         }
     }
     if app.shell.yields.game_folder {
@@ -395,6 +403,22 @@ fn right_parts(app: &Viewer) -> Vec<Part> {
         parts.push(Part::Item(item.max_width(320.0)));
     }
     parts
+}
+
+/// The widest the Log's last line is drawn.
+const LOG_LINE_MOST: f32 = 360.0;
+
+/// The room the Log's last line is given in a Status Bar `bar` wide whose
+/// switches take `switches`, right-hand group `right` and hints `hints`
+/// (all of them, [`Hints`]' own width): what they leave, at most
+/// [`LOG_LINE_MOST`]; none under [`status::NOTE_LEAST`] (the line goes
+/// before the hints do).
+pub fn log_line_room(bar: f32, switches: f32, right: f32, hints: f32) -> Option<f32> {
+    // (The bar's padding, the gaps round the middle and the separator
+    // before the line.)
+    let fixed = 2.0 * status::PADDING + 4.0 * status::GAP + status::SEPARATOR_WIDTH;
+    let room = (bar - fixed - switches - right - hints).min(LOG_LINE_MOST);
+    (room >= status::NOTE_LEAST).then_some(room.floor())
 }
 
 /// The Status Bar.
@@ -426,6 +450,13 @@ fn status_row(app: &mut Viewer, ui: &mut Ui) {
     let parts = right_parts(app);
     let right_width = parts.iter().map(|p| p.width(ui)).sum::<f32>()
         + status::GAP * parts.len().saturating_sub(1) as f32;
+    let switch_width: f32 = (switches.iter())
+        .map(|t| StatusSwitch::new(t.icon(), t.title(), false).icon_only(icons).width(ui))
+        .map(|w| w + status::GAP)
+        .sum();
+    let hints_width = Hints::new(&hints).width(ui);
+    let log_room = log_line_room(ui.available_width(), switch_width, right_width, hints_width);
+    let last = last.zip(log_room);
     let (clicked, _, ()) = status::bar_sized(
         ui,
         right_width,
@@ -442,10 +473,10 @@ fn status_row(app: &mut Viewer, ui: &mut Ui) {
                     clicked = Some(*tab);
                 }
             }
-            if let Some((text, color)) = last {
+            if let Some(((text, color), room)) = last {
                 status::separator(ui);
                 let tip = "The Log's last line: click to show the Log";
-                let line = StatusLog::new(text).color(color).max_width(360.0).tooltip(tip);
+                let line = StatusLog::new(text).color(color).max_width(room).tooltip(tip);
                 if ui.add(line).clicked() {
                     clicked = Some(Tab::Log);
                 }
@@ -714,8 +745,11 @@ pub(crate) fn editor_area(app: &mut Viewer, ui: &mut Ui) {
         let fronts =
             (dock.iter_leaves()).filter_map(|(_, l)| l.tabs.get(l.active.0).copied()).collect();
         let mut tabs = crate::Tabs { app, ctx: ui.ctx().clone(), buttons: Vec::new(), fronts };
+        // (The headers flush with the tab bar, as the boards draw them.)
+        let mut style = mg_uikit::dock::doc_tabs_style(ui);
+        style.tab.tab_body.inner_margin = egui::Margin::ZERO;
         egui_dock::DockArea::new(&mut dock)
-            .style(mg_uikit::dock::doc_tabs_style(ui))
+            .style(style)
             .show_close_buttons(false)
             .show_leaf_collapse_buttons(false)
             .show_leaf_close_all_buttons(false)
@@ -859,6 +893,17 @@ mod tests {
         assert_eq!(words(None), view);
     }
 
+    /// The Log's last line takes what the switches, the right-hand group
+    /// and the hints leave, at most 360, and goes before the hints do.
+    #[test]
+    fn the_log_line_yields_to_the_hints() {
+        assert_eq!(log_line_room(1600.0, 200.0, 500.0, 400.0), Some(360.0));
+        let room = log_line_room(1440.0, 200.0, 600.0, 400.0).unwrap();
+        assert!((status::NOTE_LEAST..360.0).contains(&room));
+        assert_eq!(log_line_room(800.0, 80.0, 380.0, 400.0), None);
+        assert_eq!(log_line_room(640.0, 80.0, 380.0, 0.0), Some(135.0));
+    }
+
     /// Asking for a dock's panel brings it into sight: its dock unfolded,
     /// its tab in front; the switch of the tab in front closes the dock.
     #[test]
@@ -924,6 +969,66 @@ mod tests {
             }
         }
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// What `tests/app.rs` takes for granted at the board's size (it runs
+    /// on a GPU, so not here): its model lints clean and its broken one
+    /// does not, no game folder is found at `/nonexistent`, and the
+    /// controls it clicks by name are on their headers' rows, not in More.
+    #[test]
+    fn what_the_window_tests_click_is_on_the_rows() {
+        use mg_uikit::header::{self, Place as At};
+        const APP_MODEL: &str = "newmodel tri\nsetsupermodel tri NULL\nclassification character\n\
+            beginmodelgeom tri\nnode dummy tri\n  parent NULL\nendnode\n\
+            node trimesh plane\n  parent tri\n  verts 3\n    0 0 0\n    1 0 0\n    0 1 0\n\
+            faces 1\n    0 1 2 1 0 0 0 0\nendnode\n\
+            node dummy hook\n  parent tri\n  position 0 0 2\nendnode\n\
+            endmodelgeom tri\ndonemodel tri\n";
+        let counts = |t: &str| crate::editor::counts(&mg_mdl::lint::check(t));
+        assert_eq!(counts(APP_MODEL), (0, 0));
+        let broken =
+            APP_MODEL.replace("endmodelgeom tri", "node\nendnode\nendnode\nendmodelgeom tri");
+        let (e, w) = counts(&broken);
+        assert!(e > 0 && w > 0);
+        let mut v = viewer();
+        assert!(v.lib.install().is_none());
+        let dir = std::env::temp_dir().join(format!("mgv-ui-rows-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("tri.mdl"), APP_MODEL).unwrap();
+        v.actions.push(Action::Open(dir.join("tri.mdl")));
+        let ctx = egui::Context::default();
+        header::record_headers(&ctx);
+        run(&ctx, &mut v, egui::vec2(1600.0, 900.0), 4);
+        let on_row = |name: &str, item: &str| {
+            let at = header::places(&ctx, name).into_iter().find(|(n, _)| n == item).map(|p| p.1);
+            assert!(matches!(at, Some(At::Row | At::Icon)), "{name}'s {item}: {at:?}");
+        };
+        for item in ["Frame", "Grid", "Axes", "Overlays", "Shaders", "Shadow"] {
+            on_row(crate::view3d::HEADER, item);
+        }
+        for item in ["Save", "Compile", "Compile and View"] {
+            on_row(crate::editor::HEADER, item);
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A window opened narrower than 2560 and widened past it takes the
+    /// three editor groups, unless the user moved a tab.
+    #[test]
+    fn a_window_widened_to_the_wide_layout_takes_three_groups() {
+        let ctx = egui::Context::default();
+        let mut v = viewer();
+        run(&ctx, &mut v, egui::vec2(1440.0, 900.0), 2);
+        assert_eq!(groups(&v.dock), groups(&crate::default_dock_for(false)));
+        run(&ctx, &mut v, egui::vec2(3440.0, 1440.0), 2);
+        assert_eq!(groups(&v.dock), groups(&crate::default_dock_for(true)));
+        run(&ctx, &mut v, egui::vec2(1600.0, 900.0), 2);
+        assert_eq!(groups(&v.dock), groups(&crate::default_dock_for(false)));
+        // A tab closed: the layout is the user's now, and stays.
+        v.close_tab(Tab::Texture);
+        run(&ctx, &mut v, egui::vec2(3440.0, 1440.0), 2);
+        assert!(v.dock.find_tab(&Tab::Texture).is_none());
+        assert_eq!(groups(&v.dock).len(), 2);
     }
 
     /// The wide layout's editor area: 3D View, Texture and ASCII in three

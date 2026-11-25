@@ -293,7 +293,8 @@ fn state_text(buffer: &Buffer) -> String {
     let name = buffer
         .path
         .as_ref()
-        .map(|p| p.display().to_string())
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "decompiled, not saved".into());
     if buffer.is_dirty() && buffer.path.is_some() { format!("{name} · edited") } else { name }
 }
@@ -308,8 +309,8 @@ fn state_width(ui: &Ui, text: &str, pending: bool) -> f32 {
 }
 
 /// The state, in weak words cut to `width`, the spinner before them while
-/// an edit waits; named "State" and whole in its tip.
-fn state_ui(ui: &mut Ui, text: &str, pending: bool, width: f32) {
+/// an edit waits; the file's whole path in its tip.
+fn state_ui(ui: &mut Ui, text: &str, tip: &str, pending: bool, width: f32) {
     if pending {
         ui.add(egui::Spinner::new().size(mg_uikit::metrics::ICON));
     }
@@ -317,7 +318,7 @@ fn state_ui(ui: &mut Ui, text: &str, pending: bool, width: f32) {
     let label = egui::Label::new(egui::RichText::new(text).color(ui.tokens().text_2)).truncate();
     ui.allocate_ui(egui::vec2(room, ui.available_height()), |ui| ui.add(label))
         .inner
-        .on_hover_text(text);
+        .on_hover_text(tip);
 }
 
 fn editor_id() -> egui::Id {
@@ -347,9 +348,10 @@ pub fn ui(app: &mut Viewer, ui: &mut Ui) {
     // The editor's header: Save, Compile and Compile and View, and the
     // buffer's state at the right (proposal section 9.17).
     let state = state_text(buffer);
+    let tip = buffer.path.as_ref().map_or_else(|| state.clone(), |p| p.display().to_string());
     let pending = buffer.pending();
     let state_width = state_width(ui, &state, pending);
-    let show_state = move |ui: &mut Ui| state_ui(ui, &state, pending, state_width);
+    let show_state = move |ui: &mut Ui| state_ui(ui, &state, &tip, pending, state_width);
     let out = EditorHeader::new(HEADER)
         .left(Item::button(Icon::Save, "Save").primary().tip("Save the ASCII model (Ctrl+S)"))
         .left(Item::button(Icon::Compile, "Compile").primary().tip("Compile it (Ctrl+B)"))

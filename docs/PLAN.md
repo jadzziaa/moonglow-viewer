@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T14:27:44Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T14:33:32Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -994,8 +994,9 @@ bookkeeping:
   the others are always enabled, as their menu items are).
 - **Docks** (`PanelHeader`, `DockTabs`, `FoldStrip`, `fold_button`,
   `Yields`): the editor area alone is a `DockArea` (3D View | Texture,
-  ASCII; three groups from 2560, laid out at the first frame and by Reset
-  Layout). The panels stand where `shell::place` says: Left Dock
+  ASCII; three groups from 2560, laid out at the first frame, by Reset
+  Layout, and again where the window crosses 2560 while its groups are
+  still the other default's). The panels stand where `shell::place` says: Left Dock
   Resources over Outliner; Right Dock Inspector over Lighting, tabbed at
   280 under 1400, two columns from 2560 (Inspector and Log | Lighting and
   Effects, `Yields::right_first_column`); Bottom Dock Timeline, Effects,
@@ -1018,12 +1019,14 @@ bookkeeping:
   Overlays unfolds, gated on `Yields::wide`, as the toolset gates its
   area header.
 - **ASCII editor**: its header (Save, Compile, Compile and View, the
-  state text at the right, capped at 320 with a form for More); the
+  state text at the right: the file's name, its path in the tip, capped
+  at 320 with a form for More); the
   diagnostics a resizable strip under the text, its `PanelHeader` title
   row with the error and warning counts as badges.
 - **Status Bar** (`status::bar_sized`, `StatusSwitch`, `StatusLog`,
   `Hints`, `StatusItem`, `StatusJob`): the Bottom Dock's switches, the
-  Log's last line while it is out of sight, the hints of the panel under
+  Log's last line while it is out of sight (given what the other parts and
+  all the hints leave, at most 360; none under the kit's `NOTE_LEAST`), the hints of the panel under
   the pointer at the last frame (the 3D view's camera, as `view3d.rs`
   does it; Double-click Apply effect over Effects; Ctrl + Wheel Zoom
   texture over Texture), the document with its dot, its origin and the
