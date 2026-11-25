@@ -18,6 +18,13 @@ node trimesh plane\n  parent tri\n  verts 3\n    0 0 0\n    1 0 0\n    0 1 0\n\
 node dummy hook\n  parent tri\n  position 0 0 2\nendnode\n\
 endmodelgeom tri\ndonemodel tri\n";
 
+/// `MODEL` named `name`: its name words alone (a plain `replace(" tri",
+/// ..)` also makes `node trimesh` a `node othermesh`, a model with no
+/// mesh, which draws nothing).
+fn renamed(model: &str, name: &str) -> String {
+    model.replace(" tri\n", &format!(" {name}\n")).replace(" tri ", &format!(" {name} "))
+}
+
 fn scratch(name: &str) -> PathBuf {
     let d = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(format!("../../target/test-output/ui-{name}-{}", std::process::id()));
@@ -588,7 +595,7 @@ fn the_resources_gallery() {
     let Some(mut h) = harness(false, Box::new(Answer(None))) else { return };
     let dir = scratch("gallery");
     std::fs::write(dir.join("tri.mdl"), MODEL).unwrap();
-    std::fs::write(dir.join("other.mdl"), MODEL.replace(" tri", " other")).unwrap();
+    std::fs::write(dir.join("other.mdl"), renamed(MODEL, "other")).unwrap();
     h.state_mut().actions.push(Action::Open(dir.join("tri.mdl")));
     h.run_steps(3);
     h.get_by_label("Gallery").click();
@@ -606,7 +613,9 @@ fn the_resources_gallery() {
     }
     for what in [other, tri] {
         let picture = h.state_mut().pictures.picture(what);
-        assert!(matches!(picture, mg_uikit::gallery::Picture::Ready(_)), "{what:?}: {picture:?}");
+        let why = h.state().pictures.error(what).map(str::to_owned);
+        let ready = matches!(picture, mg_uikit::gallery::Picture::Ready(_));
+        assert!(ready, "{what:?}: {picture:?} {why:?}");
     }
     // A click shows, as in the list; a double click opens.
     h.get_by_label("other.mdl").click();
