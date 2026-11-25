@@ -1243,6 +1243,10 @@ The items part B left (§10.7), built on `mg-uikit` 5.3.0:
   `panels::tests::the_scrub_bar_seeks`, `the_ruler_steps_as_the_board_s`,
   `the_creature_grid_stands_two_pairs_a_row_where_they_fit`;
   `shell::tests::the_inspector_holds_two_pairs_a_row_in_the_default_layout`;
+  `shell::tests::the_window_tests_drag_and_menu_points_take_the_panels`
+  (the window test's drag by `Shell::first_header` and `zone`: the docks'
+  and panels' accesskit groups carry no bounds, so kittest's `rect()`
+  cannot take them);
   `texture::tests::the_texture_header_and_caption_line`. On the GPU:
   `tests/app.rs`'s `panels_are_dragged_between_docks` and the Timeline's
   labels and scrub in `a_click_opens_and_one_frame_loops_are_a_pose`;

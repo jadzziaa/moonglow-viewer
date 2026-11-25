@@ -616,10 +616,10 @@ fn panels_are_dragged_between_docks() {
     use mgv_ui::shell::Place;
     let Some(mut h) = harness(false, Box::new(Answer(None))) else { return };
     h.run_steps(3);
-    let lighting = h.get_by_label("Lighting panel").rect();
-    let bottom = h.get_by_label("Bottom Dock").rect();
-    let from = egui::pos2(lighting.left() + 40.0, lighting.top() + 12.0);
-    let to = bottom.center() + egui::vec2(0.0, 40.0);
+    // (Points from the shell's zones, taken before the drag: the docks'
+    // and panels' accesskit groups carry no bounds for `rect()`.)
+    let from = h.state().shell.first_header(Place::Right(0)).expect("the Inspector's header");
+    let to = h.state().shell.zone(Place::Bottom).expect("the Bottom Dock").center();
     let button = |pos, pressed| egui::Event::PointerButton {
         pos,
         button: egui::PointerButton::Primary,
@@ -633,19 +633,33 @@ fn panels_are_dragged_between_docks() {
         h.hover_at(from + (to - from) * (i as f32 / 8.0));
         h.step();
     }
-    assert_eq!(h.state().shell.dragging, Some(Tab::Lighting), "dragged");
+    assert_eq!(h.state().shell.dragging, Some(Tab::Inspector), "dragged");
     h.input_mut().events.push(button(to, false));
     h.run_steps(3);
-    assert_eq!(h.state().shell.place(Tab::Lighting), Place::Bottom);
-    assert!(h.state().shell.panel_shown(Tab::Lighting), "in front where it landed");
-    assert!(h.get_by_label("Status Bar").query_by_label("Lighting").is_some(), "its switch");
-    assert_eq!(h.state().settings.layout.docks.get("lighting").map(String::as_str), Some("Bottom"));
-    // The Inspector's header menu: Move to the Left Dock.
-    h.get_by_label("Inspector panel").click_secondary();
+    assert_eq!(h.state().shell.place(Tab::Inspector), Place::Bottom);
+    assert!(h.state().shell.panel_shown(Tab::Inspector), "in front where it landed");
+    assert!(h.get_by_label("Status Bar").query_by_label("Inspector").is_some(), "its switch");
+    assert_eq!(
+        h.state().settings.layout.docks.get("inspector").map(String::as_str),
+        Some("Bottom")
+    );
+    // Lighting's header menu (it heads the Right Dock now): Move to the
+    // Left Dock.
+    let at = h.state().shell.first_header(Place::Right(0)).expect("Lighting's header");
+    let secondary = |pressed| egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Secondary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    h.hover_at(at);
+    h.input_mut().events.push(secondary(true));
+    h.step();
+    h.input_mut().events.push(secondary(false));
     h.run_steps(2);
     h.get_by_label("Move to the Left Dock").click();
     h.run_steps(3);
-    assert_eq!(h.state().shell.place(Tab::Inspector), Place::Left);
+    assert_eq!(h.state().shell.place(Tab::Lighting), Place::Left);
     assert!(h.query_by_label("Right Dock").is_none(), "the Right Dock holds nothing now");
     h.state_mut().actions.push(Action::ResetLayout);
     h.run_steps(3);

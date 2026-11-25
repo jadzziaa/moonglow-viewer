@@ -297,17 +297,19 @@ fn gallery_tab() {
 }
 
 /// M6 part D at 1600 by 900: the Timeline's transport row over its scrub
-/// bar and ruler (an animated creature model), the Texture's header and
-/// caption line, the Inspector's Creature grid with Skin color's color grid
-/// open, and the Lighting panel dragged onto the Bottom Dock (its drop
-/// outlined, then landed).
+/// bar and ruler (a bare creature, its default animation 2 s long), the
+/// Texture's header and caption line, the Inspector's Creature grid with
+/// Skin color's color grid open, and the Inspector dragged onto the Bottom
+/// Dock (its drop outlined, then landed).
 #[test]
 #[ignore]
 fn part_d() {
     use egui_kittest::kittest::Queryable;
+    use mgv_ui::shell::Place;
     mg_testkit::gpu::hold();
     let (mut v, rs) = viewer(mg_testkit::corpus!());
-    v.actions.push(Action::OpenResource(ResKey::parse("c_golemerald", ResType::MDL).unwrap()));
+    let creature = mgv_stage::subject::CreatureLook::new(6);
+    v.actions.push(Action::OpenCreature(creature));
     let mut h = sized(v, rs, egui::vec2(1600.0, 900.0));
     h.run_steps(6);
     h.state_mut().focus(mgv_ui::Tab::Timeline);
@@ -317,7 +319,7 @@ fn part_d() {
             .unwrap_or(ResKey::parse("c_wererat", ResType::TGA).unwrap()),
     ));
     shoot(&mut h, "m6-d-texture");
-    h.state_mut().actions.push(Action::OpenCreature(mgv_stage::subject::CreatureLook::new(6)));
+    h.state_mut().actions.push(Action::OpenCreature(creature));
     h.run_steps(6);
     h.state_mut().focus(mgv_ui::Tab::Inspector);
     h.run_steps(2);
@@ -325,10 +327,10 @@ fn part_d() {
     shoot(&mut h, "m6-d-creature");
     h.key_press(egui::Key::Escape);
     h.run_steps(2);
-    let lighting = h.get_by_label("Lighting panel").rect();
-    let bottom = h.get_by_label("Bottom Dock").rect();
-    let from = egui::pos2(lighting.left() + 40.0, lighting.top() + 12.0);
-    let to = bottom.center() + egui::vec2(0.0, 40.0);
+    // (Points from the shell's zones, taken before the drag: the docks'
+    // and panels' accesskit groups carry no bounds for `rect()`.)
+    let from = h.state().shell.first_header(Place::Right(0)).expect("the Inspector's header");
+    let to = h.state().shell.zone(Place::Bottom).expect("the Bottom Dock").center();
     let button = |pos, pressed| egui::Event::PointerButton {
         pos,
         button: egui::PointerButton::Primary,

@@ -460,6 +460,14 @@ impl Shell {
         self.zones.iter().find(|(z, _)| *z == at).map(|z| z.1)
     }
 
+    /// A point on the header of the first panel in the dock `at` (its tab
+    /// row in the Bottom Dock), where a drag or a right-click takes it.
+    /// For the window tests: the docks' accesskit groups carry no bounds.
+    pub fn first_header(&self, at: Place) -> Option<egui::Pos2> {
+        let zone = self.zone(at)?;
+        Some(zone.left_top() + egui::vec2(40.0, metrics::DOCK_TABS / 2.0))
+    }
+
     /// The seam chosen under `tab` (its height over the next panel).
     fn seam(&self, tab: Tab) -> Option<u32> {
         self.sizes.seams.iter().find(|(t, _)| *t == tab).map(|s| s.1)
@@ -1914,6 +1922,56 @@ mod tests {
         run(&ctx, &mut v, board, 2);
         assert_eq!(v.shell.panels_at(Place::Bottom), [Tab::Log]);
         assert_eq!(v.shell.bottom_front(), Some(Tab::Log));
+    }
+
+    /// The window test's steps (`tests/app.rs`'s
+    /// `panels_are_dragged_between_docks`) without a GPU: the Inspector
+    /// dragged by the point `first_header` gives onto the Bottom Dock's
+    /// zone, then Lighting's header right-clicked at its `first_header`
+    /// and its menu's Move to the Left Dock clicked.
+    #[test]
+    fn the_window_tests_drag_and_menu_points_take_the_panels() {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let board = egui::vec2(1600.0, 900.0);
+        let mut v = viewer();
+        run(&ctx, &mut v, board, 3);
+        let from = v.shell.first_header(Place::Right(0)).unwrap();
+        let to = v.shell.zone(Place::Bottom).unwrap().center();
+        drag(&ctx, &mut v, board, from, to);
+        assert_eq!(v.shell.place(Tab::Inspector), Place::Bottom);
+        assert!(v.shell.panel_shown(Tab::Inspector));
+        let at = v.shell.first_header(Place::Right(0)).unwrap();
+        let secondary = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(&ctx, &mut v, board, vec![egui::Event::PointerMoved(at)]);
+        frame(&ctx, &mut v, board, vec![secondary(true)]);
+        frame(&ctx, &mut v, board, vec![secondary(false)]);
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, board)),
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| v.ui(ui));
+        out.textures_delta.clear();
+        v.run_actions();
+        let item = crate::panels::tests::named_rect(&out, "Move to the Left Dock")
+            .expect("the header's menu");
+        let click = |pressed| egui::Event::PointerButton {
+            pos: item.center(),
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(&ctx, &mut v, board, vec![egui::Event::PointerMoved(item.center())]);
+        frame(&ctx, &mut v, board, vec![click(true)]);
+        frame(&ctx, &mut v, board, vec![click(false)]);
+        run(&ctx, &mut v, board, 2);
+        assert_eq!(v.shell.place(Tab::Lighting), Place::Left);
+        assert!(v.shell.panels_at(Place::Right(0)).is_empty());
     }
 
     /// The Inspector's room in the default layout (the Right Dock at its
