@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:28:23Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:34:38Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1082,12 +1082,12 @@ boards "Resources as a Gallery" and "Gallery Tab at 3440×1440"), in
   `Placeable`, `Door`, `Item`, `Texture`, `Walkmesh`, `Shaders`,
   `File`), said by its file name. The Creatures filter has its gallery
   too (bare creatures by `appearance.2da` row, as `mgv gallery`'s
-  `2da:appearance` pictures them). A click chooses, a double-click or
-  Enter (the grid's `activated`) opens as the list's open does, the
-  arrows move the choice; the Status Bar's hints over a gallery are Click
-  Select, Double-click Open, Up Down Row of pictures, Left Right One
-  picture, Enter Open. (The board's "Click Show" opens on a click, as the
-  list does; part C followed its brief, a click choosing.)
+  `2da:appearance` pictures them). As in the list, a click shows (opens
+  what is not shown already), the arrows step and show, and a
+  double-click or Enter (the grid's `activated`) opens too; the Status
+  Bar's hints over a gallery are the board's: Click Show, Up Down Row of
+  pictures, Left Right One picture (the coordinator's ruling: the board
+  and the list win over the brief's click that only chose).
 - **Open as Tab**: `Icon::OpenInTab` in the Resources header opens the
   **Gallery** document tab (`Tab::Gallery`, closeable, also View ›
   Gallery) in a group of its own left of the 3D View's (the wide board),

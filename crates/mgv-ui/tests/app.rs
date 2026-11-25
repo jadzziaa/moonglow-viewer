@@ -608,24 +608,38 @@ fn the_resources_gallery() {
         let picture = h.state_mut().pictures.picture(what);
         assert!(matches!(picture, mg_uikit::gallery::Picture::Ready(_)), "{what:?}: {picture:?}");
     }
-    // A click chooses; a double click opens.
+    // A click shows, as in the list; a double click opens.
     h.get_by_label("other.mdl").click();
     h.run_steps(2);
-    assert_eq!(h.state().doc.as_ref().unwrap().name(), "tri", "a click chooses");
-    let at = h.get_by_label("other.mdl").rect().center();
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "other", "a click shows");
+    let at = h.get_by_label("tri.mdl").rect().center();
     double_click(&mut h, at);
-    assert_eq!(h.state().doc.as_ref().unwrap().name(), "other", "a double click opens");
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "tri", "a double click opens");
     // Open as Tab: the gallery in the editor area, the panel a list.
     h.get_by_label(mgv_ui::gallery::OPEN_AS_TAB).click();
     h.run_steps(3);
     assert_eq!(h.state().settings.resources_view, ResourcesView::List);
     assert!(h.state().dock.find_tab(&mgv_ui::Tab::Gallery).is_some());
     let d = h.state().browser.drawn[&Place::Tab].clone();
-    let at = d.layout.unwrap().rect(d.rect.unwrap().min, 1).center();
+    let at = d.layout.unwrap().rect(d.rect.unwrap().min, 0).center();
     let (gallery, view) = (h.state().dock.find_tab(&mgv_ui::Tab::Gallery), d.rect.unwrap());
     assert!(gallery.is_some() && view.width() > 100.0, "{view:?}");
-    double_click(&mut h, at);
-    assert_eq!(h.state().doc.as_ref().unwrap().name(), "tri", "opened from the tab");
+    h.hover_at(at);
+    h.input_mut().events.push(egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    });
+    h.step();
+    h.input_mut().events.push(egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    h.run_steps(3);
+    assert_eq!(h.state().doc.as_ref().unwrap().name(), "other", "shown from the tab");
     assert!(h.state().dock.find_tab(&mgv_ui::Tab::Gallery).is_some(), "the tab stays");
     std::fs::remove_dir_all(&dir).unwrap();
 }

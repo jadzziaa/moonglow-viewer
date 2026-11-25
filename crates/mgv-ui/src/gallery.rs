@@ -609,6 +609,20 @@ fn choose(app: &mut Viewer, cells: &Cells, i: usize) {
     }
 }
 
+/// Whether `cells`' `i`th is what the window shows (so it is not opened
+/// again), as the list tells.
+fn shown(app: &Viewer, cells: &Cells, i: usize) -> bool {
+    let doc = app.doc.as_ref();
+    match cells {
+        Cells::Resources { items, .. } => {
+            doc.and_then(|d| d.opened.key.filter(|_| d.creature.is_none())) == Some(items[i].0)
+        }
+        Cells::Creatures(rows) => {
+            doc.and_then(|d| d.creature).map(|c| usize::from(c.appearance)) == Some(rows[i].0)
+        }
+    }
+}
+
 fn open(cells: &Cells, i: usize) -> Action {
     match cells {
         Cells::Resources { items, .. } => Action::OpenResource(items[i].0),
@@ -616,9 +630,10 @@ fn open(cells: &Cells, i: usize) -> Action {
     }
 }
 
-/// The gallery of `cells` in a scroll filling `ui`: a click chooses a
-/// picture, a double click or Enter opens it, the arrows move (the kit's
-/// [`kit::step`]).
+/// The gallery of `cells` in a scroll filling `ui`, as the list: a click
+/// shows a picture's resource, the arrows move (the kit's [`kit::step`])
+/// and show, a double click or Enter opens; what is shown already is not
+/// opened again.
 pub(crate) fn grid(app: &mut Viewer, ui: &mut Ui, cells: &Cells, at: Place) {
     let id = grid_id(at);
     let count = cells.len();
@@ -630,7 +645,7 @@ pub(crate) fn grid(app: &mut Viewer, ui: &mut Ui, cells: &Cells, at: Place) {
         Place::Panel => "Resources gallery",
         Place::Tab => "Gallery",
     };
-    let (mut picked, mut opened) = (None, None);
+    let mut picked = None;
     let pictures = &mut app.pictures;
     let out = egui::ScrollArea::vertical()
         .id_salt(id)
@@ -650,9 +665,7 @@ pub(crate) fn grid(app: &mut Viewer, ui: &mut Ui, cells: &Cells, at: Place) {
                         .lines(1)
                         .selected(current == Some(i))
                         .paint(ui, rect, tile, state, response);
-                    if response.double_clicked() {
-                        opened = Some(i);
-                    } else if response.clicked() {
+                    if response.clicked() || response.double_clicked() {
                         picked = Some(i);
                     }
                     if response.hovered() {
@@ -674,12 +687,11 @@ pub(crate) fn grid(app: &mut Viewer, ui: &mut Ui, cells: &Cells, at: Place) {
         at,
         Drawn { rect: Some(out.rect), layout: out.layout, drawn: out.drawn, ahead: out.ahead },
     );
-    let picked = out.moved.or(picked).or(opened).or(out.activated);
-    if let Some(i) = picked {
+    if let Some(i) = out.moved.or(picked).or(out.activated) {
         choose(app, cells, i);
-    }
-    if let Some(i) = opened.or(out.activated) {
-        app.actions.push(open(cells, i));
+        if !shown(app, cells, i) {
+            app.actions.push(open(cells, i));
+        }
     }
 }
 
@@ -883,7 +895,7 @@ mod tests {
                 v.open_gallery_tab();
             }
             let at = if tab { Place::Tab } else { Place::Panel };
-            v.browser.inject(&v.lib, items.clone());
+            v.browser.inject(items.clone());
             run(&ctx, &mut v, size, 3);
             let check = |v: &Viewer, log: &Arc<Mutex<Log>>, what: &str| {
                 let d = v.browser.drawn[&at].clone();
@@ -1015,8 +1027,9 @@ mod tests {
     }
 
     /// The List and Gallery buttons switch the panel, and the choice is in
-    /// the settings; a click chooses a picture without opening it, a
-    /// double click opens it, the arrows move the choice, Enter opens it.
+    /// the settings; as in the list, a click shows a picture's resource
+    /// (not again if shown), the arrows move and show, a double click and
+    /// Enter open.
     #[test]
     fn the_switch_a_click_a_double_click_and_the_keys() {
         let (mut v, dir) = viewer(12, "keys");
@@ -1033,20 +1046,30 @@ mod tests {
         click(&ctx, &mut v, Place::Panel, 0, false);
         let m = |n: &str| ResKey::parse(n, ResType::MDL).unwrap();
         assert_eq!(v.browser.selected, Some(m("m000")));
-        assert_eq!(named(&v), None, "a click chooses");
+        assert_eq!(named(&v).as_deref(), Some("m000"), "a click shows");
+        // (The same click again: not opened again, the document kept.)
+        let doc = |v: &Viewer| v.doc.as_ref().map(|d| d as *const crate::Doc);
+        let before = doc(&v);
+        click(&ctx, &mut v, Place::Panel, 0, false);
+        assert_eq!(doc(&v), before, "what is shown is not opened again");
         frame(&ctx, &mut v, BOARD, key(egui::Key::ArrowRight));
         run(&ctx, &mut v, BOARD, 1);
         assert_eq!(v.browser.selected, Some(m("m001")), "right: the next picture");
+        assert_eq!(named(&v).as_deref(), Some("m001"), "and shows it");
         frame(&ctx, &mut v, BOARD, key(egui::Key::ArrowDown));
         run(&ctx, &mut v, BOARD, 1);
         let below = format!("m{:03}", 1 + columns);
         assert_eq!(v.browser.selected, Some(m(&below)), "down: a row");
-        assert_eq!(named(&v), None);
+        assert_eq!(named(&v).as_deref(), Some(below.as_str()));
+        // Enter opens what is chosen and not shown (here, after the list
+        // opened another).
+        v.actions.push(Action::OpenResource(m("m000")));
+        v.run_actions();
         frame(&ctx, &mut v, BOARD, key(egui::Key::Enter));
         run(&ctx, &mut v, BOARD, 1);
         assert_eq!(named(&v).as_deref(), Some(below.as_str()), "Enter opens");
-        click(&ctx, &mut v, Place::Panel, 0, true);
-        assert_eq!(named(&v).as_deref(), Some("m000"), "a double click opens");
+        click(&ctx, &mut v, Place::Panel, 2, true);
+        assert_eq!(named(&v).as_deref(), Some("m002"), "a double click opens");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

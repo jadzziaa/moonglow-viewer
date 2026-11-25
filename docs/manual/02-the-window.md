@@ -3,7 +3,7 @@ type: Manual Page
 title: The window
 description: The window's shell (Top Bar, Left, Right and Bottom Docks, editor area, Status Bar), how it gives way in small and wide windows, its panels and the keys.
 tags: [manual, panels, keys]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:21:24Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T15:34:38Z }
 ---
 
 # The window
@@ -33,9 +33,8 @@ The window is Moonglow's shell, as Moonglow Toolset's is:
   (click the one in front to close the dock, another to bring it to the
   front) and, while the Log is out of sight, its last line (click it to
   show the Log); in the middle, what the mouse and the keys do in the
-  panel under the pointer, as key caps (over a gallery: Click Select,
-  Double-click Open, Up Down Row of pictures, Left Right One picture,
-  Enter Open); at the right, the document, where
+  panel under the pointer, as key caps (over a gallery: Click Show,
+  Up Down Row of pictures, Left Right One picture); at the right, the document, where
   it was read from and the game folder.
 
 The window opens 1440 by 900 points the first time, then at the size you
@@ -108,10 +107,11 @@ The panels:
   itself; walkmeshes and TXI show their kind's icon. The type is written
   under each name where the filter lists more than one, a creature's
   `appearance.2da` row under its label. The slider beside the buttons
-  sets the pictures' size (the Gallery tab's slider is the same one). A
-  click chooses a picture, a double-click or Enter opens it, and the
-  arrow keys move the choice (↑ ↓ a row, ← → one picture; Home, End, Page
-  Up and Page Down too). Pictures are made a few at a time, those in
+  sets the pictures' size (the Gallery tab's slider is the same one). As in
+  the list, a click shows the picture's model, texture or creature, and
+  the arrow keys step and show each in turn (↑ ↓ a row, ← → one picture;
+  Home, End, Page Up and Page Down too); a double-click or Enter opens it
+  too. Pictures are made a few at a time, those in
   sight first, the kind's icon standing in until each is ready; one that
   cannot be made says **No picture** (hover it to see why). They are made
   again after **File › Refresh** (F5) or when a folder or hak changes. In
@@ -149,6 +149,6 @@ The panels:
 | F | Frame (in the 3D view) |
 | W A S D, Q E | Move the camera along the ground where it looks, to the sides, down and up (in the 3D view; Shift: faster) |
 | ↑ ↓, Page Up/Down, Home, End | Step through Resources, opening each (after a click in it) |
-| ↑ ↓ ← →, Page Up/Down, Home, End | Move the choice in a gallery (after a click in it) |
+| ↑ ↓ ← →, Page Up/Down, Home, End | Step through a gallery, showing each (after a click in it) |
 | Enter | Open the picture chosen in a gallery |
 | Ctrl+Q | Quit |

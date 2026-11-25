@@ -350,11 +350,9 @@ pub fn hints(over: Option<Tab>, gallery: bool) -> Vec<Hint> {
 /// A gallery's hints (the board "Resources as a Gallery"'s arrows).
 fn gallery_hints() -> Vec<Hint> {
     vec![
-        Hint::keys(["Click"], "Select"),
-        Hint::keys(["Double-click"], "Open"),
+        Hint::keys(["Click"], "Show"),
         Hint::either(["Up", "Down"], "Row of pictures"),
         Hint::either(["Left", "Right"], "One picture"),
-        Hint::keys(["Enter"], "Open"),
     ]
 }
 
@@ -954,7 +952,7 @@ mod tests {
         assert_eq!(words(None), view);
         // Over a gallery: its click, double-click and arrows; the Resources
         // panel's only in Gallery mode.
-        let gallery = ["Select", "Open", "Row of pictures", "One picture", "Open"];
+        let gallery = ["Show", "Row of pictures", "One picture"];
         let over = |tab, mode| -> Vec<String> {
             hints(Some(tab), mode).iter().map(|h| h.word().to_string()).collect()
         };

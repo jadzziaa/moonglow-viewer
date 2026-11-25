@@ -156,6 +156,9 @@ pub struct Browser {
     take_keys: bool,
     /// Where each gallery's grid stood when last drawn.
     pub drawn: HashMap<crate::gallery::Place, crate::gallery::Drawn>,
+    /// A test's long list, listed whatever the library does.
+    #[cfg(test)]
+    injected: Option<Items>,
 }
 
 impl Browser {
@@ -164,11 +167,11 @@ impl Browser {
         self.listing = None;
     }
 
-    /// Lists `items` as though the library had (a test's long list).
+    /// Lists `items` as though the library had, from now on (a test's
+    /// long list; opening one bumps the library's generation).
     #[cfg(test)]
-    pub(crate) fn inject(&mut self, lib: &mgv_library::Library, items: Items) {
-        let want = (lib.generation(), self.query.to_ascii_lowercase(), self.filter);
-        self.listing = Some((want, items));
+    pub(crate) fn inject(&mut self, items: Items) {
+        self.injected = Some(items);
     }
 }
 
@@ -196,6 +199,10 @@ pub(crate) fn current(app: &mut Viewer) -> Cells {
     let b = &mut app.browser;
     if b.filter == Filter::Creatures {
         return Cells::Creatures(Arc::new(creature_rows(app).unwrap_or_default()));
+    }
+    #[cfg(test)]
+    if let Some(items) = &b.injected {
+        return Cells::Resources { items: items.clone(), detail: b.filter != Filter::Models };
     }
     let want = (app.lib.generation(), b.query.to_ascii_lowercase(), b.filter);
     if b.listing.as_ref().is_none_or(|(k, _)| *k != want) {
