@@ -21,14 +21,23 @@
 //!   the modified dot.
 //!
 //! The docks are the kit's, not egui_dock's: their panels stand where
-//! [`place`] says, at the window's width. Nothing of the layout is kept
-//! between runs (only `Settings` is); Reset Layout makes it again.
+//! [`place`] says at the window's width, unless the user dragged one to
+//! another dock (its header, or its tab, dropped on the dock: the
+//! toolset's way of dragging its Right Dock's panels, here between the
+//! Left, Right and Bottom Docks). What the user chose is kept between
+//! runs ([`Shell::layout`], `settings::Layout`): which dock a panel was
+//! dragged to, each dock's size as its edge was dragged, the docks folded
+//! or closed, the tabs in front, the editor area's groups; what the
+//! window's width decides is not (a narrow window folds a side dock
+//! without writing it, as Moonglow Toolset's does). Reset Layout makes it
+//! all again.
 
 use egui::{Rect, Ui};
 use mg_uikit::shell::{self as kit, DockTab, DockTabs, FoldStrip, PanelHeader, Side, Yields};
 use mg_uikit::status::{self, Hint, Hints, StatusItem, StatusJob, StatusLog, StatusSwitch};
 use mg_uikit::{Icon, IconButton, metrics};
 
+use crate::settings::{EditorGroup, Layout};
 use crate::{Action, Buffer, Level, Tab, Viewer};
 
 /// The Left Dock's name (its group, its strip, its fold button's).
@@ -53,6 +62,9 @@ const UPPER_SHARE: f32 = 0.55;
 const BOTTOM_LEAST: f32 = 80.0;
 /// The room round a dock panel's body.
 const BODY_MARGIN: i8 = 6;
+/// How far into the editor area a dock that is folded, closed or holds no
+/// panel takes a dragged panel (and shows where it would land).
+const DROP_BAND: f32 = 96.0;
 
 /// Where a panel stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -67,8 +79,33 @@ pub enum Place {
     Bottom,
 }
 
+impl Place {
+    /// Its name in the kept layout.
+    fn key(self) -> &'static str {
+        match self {
+            Place::Editor => "Editor",
+            Place::Left => "Left",
+            Place::Right(0) => "Right",
+            Place::Right(_) => "Right 2",
+            Place::Bottom => "Bottom",
+        }
+    }
+
+    /// The dock named `key` in a kept layout (not the editor area: a
+    /// panel never stands there).
+    fn from_key(key: &str) -> Option<Place> {
+        match key {
+            "Left" => Some(Place::Left),
+            "Right" => Some(Place::Right(0)),
+            "Right 2" => Some(Place::Right(1)),
+            "Bottom" => Some(Place::Bottom),
+            _ => None,
+        }
+    }
+}
+
 /// The docks' panels, in the order they stand in each.
-const PANELS: [Tab; 7] = [
+pub const PANELS: [Tab; 7] = [
     Tab::Browser,
     Tab::Outliner,
     Tab::Inspector,
@@ -78,10 +115,21 @@ const PANELS: [Tab; 7] = [
     Tab::Effects,
 ];
 
-/// Where `tab` stands, in the wide layout or not (proposal section 9.17,
-/// and the moves' "Viewer at 3440 by 1440": Inspector and Log in the
-/// Right Dock's first column, Lighting and Effects in its second, the
-/// Timeline alone in the Bottom Dock).
+/// The Bottom Dock's order: its own tabs first, then any dragged there.
+const BOTTOM_ORDER: [Tab; 7] = [
+    Tab::Timeline,
+    Tab::Effects,
+    Tab::Log,
+    Tab::Browser,
+    Tab::Outliner,
+    Tab::Inspector,
+    Tab::Lighting,
+];
+
+/// Where `tab` stands by default, in the wide layout or not (proposal
+/// section 9.17, and the moves' "Viewer at 3440 by 1440": Inspector and
+/// Log in the Right Dock's first column, Lighting and Effects in its
+/// second, the Timeline alone in the Bottom Dock).
 pub fn place(tab: Tab, wide: bool) -> Place {
     match tab {
         Tab::View | Tab::Editor | Tab::Texture | Tab::Gallery => Place::Editor,
@@ -94,38 +142,69 @@ pub fn place(tab: Tab, wide: bool) -> Place {
     }
 }
 
-/// The panels at `at`, in their order: Timeline, Effects, Log in the
-/// Bottom Dock (not [`PANELS`]' order, which stacks the columns).
+/// The panels at `at` by default, in their order: Timeline, Effects, Log
+/// in the Bottom Dock (not [`PANELS`]' order, which stacks the columns).
 pub fn panels_at(at: Place, wide: bool) -> Vec<Tab> {
-    match at {
-        Place::Bottom => [Tab::Timeline, Tab::Effects, Tab::Log]
-            .into_iter()
-            .filter(|t| place(*t, wide) == at)
-            .collect(),
-        _ => PANELS.into_iter().filter(|t| place(*t, wide) == at).collect(),
-    }
+    order(at).into_iter().filter(|t| place(*t, wide) == at).collect()
+}
+
+/// The order the panels stand in at `at`.
+fn order(at: Place) -> [Tab; 7] {
+    if at == Place::Bottom { BOTTOM_ORDER } else { PANELS }
+}
+
+/// The docks' sizes as the user dragged their edges (and the seams
+/// between stacked panels), in whole points; `None`: not chosen, the
+/// size the window's width gives. Each is drawn held to what the window
+/// allows and kept as chosen, so that a dock is as large again when the
+/// window is (the toolset's `chosen_size`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Sizes {
+    pub left: Option<u32>,
+    /// The Left Dock's in Gallery mode.
+    pub left_gallery: Option<u32>,
+    pub right: Option<u32>,
+    /// The Right Dock's in the wide layout.
+    pub right_wide: Option<u32>,
+    pub bottom: Option<u32>,
+    /// The height of a panel over another, by the upper panel.
+    pub seams: Vec<(Tab, u32)>,
 }
 
 /// The shell's state: what the window's width yields, the docks folded
-/// or open, the panels in front, and the panel under the pointer.
+/// or open, the panels in front, where each panel was dragged, the
+/// docks' sizes, and the panel under the pointer.
 #[derive(Debug)]
 pub struct Shell {
     /// What the shell yields at this frame's widths.
     pub yields: Yields,
-    /// The Left Dock folded (`Some(true)`) or open by the user's hand;
-    /// `None`: as the window's width says.
-    left_folded: Option<bool>,
+    /// The Left Dock folded by the user, in a window wide enough not to
+    /// fold it (kept between runs).
+    left_hidden: bool,
     /// The Right Dock's, likewise.
-    right_folded: Option<bool>,
-    /// The folds the window's width said when the user's were taken (a
-    /// window crossing a width gives the user's choice up).
-    folds_seen: (bool, bool),
+    right_hidden: bool,
+    /// The Left Dock unfolded by hand in a window that folds it: for as
+    /// long as the window does (not kept).
+    left_here: bool,
+    /// The Right Dock's, likewise.
+    right_here: bool,
     /// The Bottom Dock is open.
     pub bottom_open: bool,
     /// The Bottom Dock's tab in front.
     pub bottom_tab: Tab,
     /// The Right Dock's panel in front where its panels are tabs.
     pub right_tab: Tab,
+    /// The panels the user dragged to another dock than their own.
+    moved: Vec<(Tab, Place)>,
+    /// The docks' sizes as chosen.
+    pub sizes: Sizes,
+    /// The panel being dragged by its header or tab.
+    pub dragging: Option<Tab>,
+    /// Where each dock was drawn at this frame (a column of the Right
+    /// Dock each), for a dragged panel's drop.
+    zones: Vec<(Place, Rect)>,
+    /// The editor area's rectangle at this frame.
+    editor_rect: Option<Rect>,
     /// The panel the pointer was over at the last frame (its hints).
     pub hovered: Option<Tab>,
     /// The panel the pointer is over at this frame.
@@ -135,80 +214,137 @@ pub struct Shell {
     /// Whether the editor area was laid out for the wide layout (`None`
     /// before the first frame).
     pub(crate) laid_out: Option<bool>,
-    /// Bumped by Reset Layout: the docks' sizes, kept under ids salted
-    /// with it, start again.
-    generation: u32,
 }
 
 impl Default for Shell {
     fn default() -> Shell {
         Shell {
             yields: Yields::of(1600.0, 1600.0),
-            left_folded: None,
-            right_folded: None,
-            folds_seen: (false, false),
+            left_hidden: false,
+            right_hidden: false,
+            left_here: false,
+            right_here: false,
             bottom_open: true,
             bottom_tab: Tab::Timeline,
             right_tab: Tab::Inspector,
+            moved: Vec::new(),
+            sizes: Sizes::default(),
+            dragging: None,
+            zones: Vec::new(),
+            editor_rect: None,
             hovered: None,
             hovering: None,
             editor_width: None,
             laid_out: None,
-            generation: 0,
         }
     }
 }
 
 impl Shell {
-    /// Whether the Left Dock shows as its strip.
+    /// Whether the Left Dock shows as its strip: as the window's width
+    /// says where it folds it (unless unfolded there by hand), else as the
+    /// user left it.
     pub fn left_folded(&self) -> bool {
-        self.left_folded.unwrap_or(self.yields.left_dock_folded)
+        match self.yields.left_dock_folded {
+            true => !self.left_here,
+            false => self.left_hidden,
+        }
     }
 
-    /// Whether the Right Dock shows as its strip.
+    /// Whether the Right Dock shows as its strip, likewise.
     pub fn right_folded(&self) -> bool {
-        self.right_folded.unwrap_or(self.yields.right_dock_folded)
+        match self.yields.right_dock_folded {
+            true => !self.right_here,
+            false => self.right_hidden,
+        }
+    }
+
+    /// Folds a side dock or unfolds it, as the user asks: in a window
+    /// whose width folds it, for as long as the window does; else the
+    /// user's own fold (kept).
+    pub fn set_folded(&mut self, side: Side, folded: bool) {
+        match side {
+            Side::Left if self.yields.left_dock_folded => self.left_here = !folded,
+            Side::Left => self.left_hidden = folded,
+            Side::Right if self.yields.right_dock_folded => self.right_here = !folded,
+            Side::Right => self.right_hidden = folded,
+        }
     }
 
     /// The yields of a window `window` wide whose editor area is `editor`
-    /// wide. Where the window crosses a width that folds a dock or
-    /// unfolds it, the user's own fold of that dock gives way.
+    /// wide. A dock unfolded by hand where the window folds it is folded
+    /// again once the window no longer does, and has the user's own fold.
     pub(crate) fn frame_yields(&mut self, window: f32, editor: f32) {
         self.yields = Yields::of(window, editor);
-        let folds = (self.yields.left_dock_folded, self.yields.right_dock_folded);
-        if folds.0 != self.folds_seen.0 {
-            self.left_folded = None;
+        if !self.yields.left_dock_folded {
+            self.left_here = false;
         }
-        if folds.1 != self.folds_seen.1 {
-            self.right_folded = None;
+        if !self.yields.right_dock_folded {
+            self.right_here = false;
         }
-        self.folds_seen = folds;
+        self.zones.clear();
+        self.editor_rect = None;
     }
 
-    /// The layout as a new window has it: both docks as the width says,
-    /// the Bottom Dock open on the Timeline, the docks' sizes their
-    /// defaults.
+    /// The layout as a new window has it: every panel in its own dock,
+    /// both side docks as the width says, the Bottom Dock open on the
+    /// Timeline, the docks' sizes their defaults.
     pub(crate) fn reset(&mut self) {
-        self.left_folded = None;
-        self.right_folded = None;
+        self.left_hidden = false;
+        self.right_hidden = false;
+        self.left_here = false;
+        self.right_here = false;
         self.bottom_open = true;
         self.bottom_tab = Tab::Timeline;
         self.right_tab = Tab::Inspector;
-        self.generation += 1;
+        self.moved.clear();
+        self.sizes = Sizes::default();
+        self.dragging = None;
     }
 
-    /// A dock part's id, salted with the layout's generation.
+    /// A dock part's id.
     fn id(&self, name: impl std::hash::Hash + std::fmt::Debug) -> egui::Id {
-        egui::Id::new(("mgv-shell", name, self.generation))
+        egui::Id::new(("mgv-shell", name))
+    }
+
+    /// Where `tab` stands at this frame's width: where the user dragged
+    /// it, else its own place (a Right Dock's second column is its first
+    /// where the dock stands in one).
+    pub fn place(&self, tab: Tab) -> Place {
+        let wide = self.yields.wide;
+        match self.moved.iter().find(|(t, _)| *t == tab) {
+            Some((_, Place::Right(c))) => Place::Right(if wide { (*c).min(1) } else { 0 }),
+            Some((_, at)) => *at,
+            None => place(tab, wide),
+        }
+    }
+
+    /// The panels at `at` at this frame's width, in their order.
+    pub fn panels_at(&self, at: Place) -> Vec<Tab> {
+        order(at).into_iter().filter(|t| self.place(*t) == at).collect()
+    }
+
+    /// Puts a dock's panel in the dock `to` (dragged there, or its menu's
+    /// Move to): kept where that is not its own place at this width, and
+    /// brought into sight there.
+    pub fn move_panel(&mut self, tab: Tab, to: Place) {
+        if to == Place::Editor || place(tab, false) == Place::Editor {
+            return;
+        }
+        self.moved.retain(|(t, _)| *t != tab);
+        if place(tab, self.yields.wide) != to {
+            self.moved.push((tab, to));
+        }
+        self.show_panel(tab);
     }
 
     /// Brings a dock's panel into sight: its dock unfolded or opened, the
     /// panel in front where it is a tab.
     pub fn show_panel(&mut self, tab: Tab) {
-        match place(tab, self.yields.wide) {
-            Place::Left => self.left_folded = Some(false),
+        match self.place(tab) {
+            Place::Left => self.set_folded(Side::Left, false),
             Place::Right(_) => {
-                self.right_folded = Some(false);
+                self.set_folded(Side::Right, false);
                 self.right_tab = tab;
             }
             Place::Bottom => {
@@ -221,39 +357,184 @@ impl Shell {
 
     /// Whether a dock's panel is in sight.
     pub fn panel_shown(&self, tab: Tab) -> bool {
-        match place(tab, self.yields.wide) {
+        match self.place(tab) {
             Place::Left => !self.left_folded(),
             Place::Right(_) => {
                 !self.right_folded()
-                    && (!self.yields.right_dock_tabbed || self.right_front() == tab)
+                    && (!self.yields.right_dock_tabbed || self.right_front() == Some(tab))
             }
-            Place::Bottom => self.bottom_open && self.bottom_front() == tab,
+            Place::Bottom => self.bottom_open && self.bottom_front() == Some(tab),
             Place::Editor => true,
         }
     }
 
     /// The Bottom Dock's tab in front (its first where the one chosen
-    /// stands elsewhere now).
-    fn bottom_front(&self) -> Tab {
-        let tabs = panels_at(Place::Bottom, self.yields.wide);
-        if tabs.contains(&self.bottom_tab) { self.bottom_tab } else { tabs[0] }
+    /// stands elsewhere now); none where it holds no panel.
+    pub fn bottom_front(&self) -> Option<Tab> {
+        let tabs = self.panels_at(Place::Bottom);
+        if tabs.contains(&self.bottom_tab) { Some(self.bottom_tab) } else { tabs.first().copied() }
     }
 
     /// The Right Dock's panel in front where its panels are tabs.
-    fn right_front(&self) -> Tab {
-        let tabs = panels_at(Place::Right(0), self.yields.wide);
-        if tabs.contains(&self.right_tab) { self.right_tab } else { tabs[0] }
+    fn right_front(&self) -> Option<Tab> {
+        let tabs = self.panels_at(Place::Right(0));
+        if tabs.contains(&self.right_tab) { Some(self.right_tab) } else { tabs.first().copied() }
     }
 
     /// At the frame's end: the panel the pointer was over.
     pub(crate) fn end_frame(&mut self) {
         self.hovered = self.hovering.take();
     }
+
+    /// The layout to keep: what the user chose (`settings::Layout`), with
+    /// the editor area's groups where they are not the default of this
+    /// width.
+    pub fn layout(&self, dock: &egui_dock::DockState<Tab>) -> Layout {
+        let name = |t: Option<Tab>| t.map(|t| t.key().to_string());
+        let editor = editor_groups(dock);
+        let default = editor_groups(&crate::default_dock_for(self.yields.wide));
+        let same = |a: &[EditorGroup], b: &[EditorGroup]| {
+            a.len() == b.len()
+                && a.iter().zip(b).all(|(x, y)| x.tabs == y.tabs && x.front == y.front)
+        };
+        Layout {
+            docks: (self.moved.iter())
+                .map(|(t, at)| (t.key().to_string(), at.key().to_string()))
+                .collect(),
+            left_folded: self.left_hidden,
+            right_folded: self.right_hidden,
+            bottom_closed: !self.bottom_open,
+            bottom_front: name(Some(self.bottom_tab).filter(|t| *t != Tab::Timeline)),
+            right_front: name(Some(self.right_tab).filter(|t| *t != Tab::Inspector)),
+            left_width: self.sizes.left,
+            left_gallery_width: self.sizes.left_gallery,
+            right_width: self.sizes.right,
+            right_wide_width: self.sizes.right_wide,
+            bottom_height: self.sizes.bottom,
+            seams: (self.sizes.seams.iter()).map(|(t, h)| (t.key().to_string(), *h)).collect(),
+            editor: if same(&editor, &default) { Vec::new() } else { editor },
+            ..Layout::default()
+        }
+    }
+
+    /// Takes a kept layout (names this viewer does not know passed by, a
+    /// panel kept in the editor area or a dock it cannot stand in left
+    /// where it is). The window's width rules what it does not keep.
+    pub fn restore(&mut self, layout: &Layout) {
+        let dock_panel = |key: &str| Tab::from_key(key).filter(|t| PANELS.contains(t));
+        self.moved = (layout.docks.iter())
+            .filter_map(|(t, at)| Some((dock_panel(t)?, Place::from_key(at)?)))
+            .collect();
+        self.left_hidden = layout.left_folded;
+        self.right_hidden = layout.right_folded;
+        self.bottom_open = !layout.bottom_closed;
+        if let Some(t) = layout.bottom_front.as_deref().and_then(dock_panel) {
+            self.bottom_tab = t;
+        }
+        if let Some(t) = layout.right_front.as_deref().and_then(dock_panel) {
+            self.right_tab = t;
+        }
+        // (A size of nothing, or larger than any screen, is not one.)
+        let size = |s: Option<u32>| s.filter(|s| (16..=16384).contains(s));
+        self.sizes = Sizes {
+            left: size(layout.left_width),
+            left_gallery: size(layout.left_gallery_width),
+            right: size(layout.right_width),
+            right_wide: size(layout.right_wide_width),
+            bottom: size(layout.bottom_height),
+            seams: (layout.seams.iter())
+                .filter_map(|(t, h)| Some((dock_panel(t)?, size(Some(*h))?)))
+                .collect(),
+        };
+    }
+
+    /// Where the dock `at` was drawn at this frame (a column of the Right
+    /// Dock's two), if it was.
+    pub fn zone(&self, at: Place) -> Option<Rect> {
+        self.zones.iter().find(|(z, _)| *z == at).map(|z| z.1)
+    }
+
+    /// The seam chosen under `tab` (its height over the next panel).
+    fn seam(&self, tab: Tab) -> Option<u32> {
+        self.sizes.seams.iter().find(|(t, _)| *t == tab).map(|s| s.1)
+    }
 }
 
 /// The editor area's groups (each one's tabs), its tabs in front aside.
 pub(crate) fn groups(dock: &egui_dock::DockState<Tab>) -> Vec<Vec<Tab>> {
     dock.iter_leaves().map(|(_, l)| l.tabs.clone()).collect()
+}
+
+/// The editor area's groups as kept: on its main surface, from the left,
+/// each with its tab in front and its share of the area's width as last
+/// drawn (equal before the first frame).
+fn editor_groups(dock: &egui_dock::DockState<Tab>) -> Vec<EditorGroup> {
+    let leaves: Vec<_> = dock.main_surface().iter().filter_map(|n| n.get_leaf()).collect();
+    let whole: f32 = leaves.iter().map(|l| l.rect.width().max(0.0)).sum();
+    let count = leaves.len().max(1) as f32;
+    let mut groups: Vec<(f32, EditorGroup)> = (leaves.iter())
+        .filter(|l| !l.tabs.is_empty())
+        .map(|l| {
+            let share = if whole > 1.0 { l.rect.width() / whole } else { 1.0 / count };
+            let tabs = l.tabs.iter().map(|t| t.key().to_string()).collect();
+            let share = (share * 1000.0).round() / 1000.0;
+            (l.rect.left(), EditorGroup { tabs, front: l.active.0, share })
+        })
+        .collect();
+    // (Left to right where they were drawn; the tree's order before.)
+    if whole > 1.0 {
+        groups.sort_by(|a, b| a.0.total_cmp(&b.0));
+    }
+    groups.into_iter().map(|g| g.1).collect()
+}
+
+/// The editor area made from kept groups, side by side at their shares:
+/// none where they do not make one (no group, a tab twice, a dock panel
+/// among them); the 3D View brought back in a group of its own where it
+/// is missing.
+pub fn editor_dock(groups: &[EditorGroup]) -> Option<egui_dock::DockState<Tab>> {
+    let mut seen = Vec::new();
+    let mut made: Vec<(Vec<Tab>, usize, f32)> = Vec::new();
+    for g in groups {
+        let mut tabs = Vec::new();
+        for key in &g.tabs {
+            let tab = Tab::from_key(key)?;
+            if place(tab, false) != Place::Editor || seen.contains(&tab) {
+                return None;
+            }
+            seen.push(tab);
+            tabs.push(tab);
+        }
+        if !tabs.is_empty() {
+            let front = g.front.min(tabs.len() - 1);
+            made.push((tabs, front, g.share.clamp(0.05, 1.0)));
+        }
+    }
+    if made.is_empty() {
+        return None;
+    }
+    if !seen.contains(&Tab::View) {
+        made.insert(0, (vec![Tab::View], 0, 1.0 / (made.len() + 1) as f32));
+    }
+    let (first, rest) = made.split_first()?;
+    let mut dock = egui_dock::DockState::new(first.0.clone());
+    let mut node = egui_dock::NodeIndex::root();
+    // (Each split gives the group its share of what is left.)
+    let mut left = made.iter().map(|g| g.2).sum::<f32>();
+    let mut at_left = first.2;
+    for (tabs, _, share) in rest {
+        let fraction = (at_left / left).clamp(0.05, 0.95);
+        let [_, new] = dock.main_surface_mut().split_right(node, fraction, tabs.clone());
+        node = new;
+        left -= at_left;
+        at_left = *share;
+    }
+    for (tabs, front, _) in &made {
+        if let Some(at) = dock.find_tab(&tabs[*front]) {
+            let _ = dock.set_active_tab(at);
+        }
+    }
+    Some(dock)
 }
 
 /// The 1 px line egui draws along a panel's edge (counted into a bar's
@@ -462,8 +743,8 @@ pub(crate) fn status_bar(app: &mut Viewer, ui: &mut Ui) {
 fn status_row(app: &mut Viewer, ui: &mut Ui) {
     let t = mg_uikit::tokens(ui.ctx());
     let shell = &app.shell;
-    let switches = panels_at(Place::Bottom, shell.yields.wide);
-    let front = shell.bottom_open.then(|| shell.bottom_front());
+    let switches = shell.panels_at(Place::Bottom);
+    let front = shell.bottom_open.then(|| shell.bottom_front()).flatten();
     let icons = shell.yields.status_switch_icons;
     let last = (!shell.panel_shown(Tab::Log)).then(|| app.log.last()).flatten().map(|l| {
         let color = match l.level {
@@ -538,7 +819,7 @@ fn status_row(app: &mut Viewer, ui: &mut Ui) {
     );
     if let Some(tab) = clicked {
         let shell = &mut app.shell;
-        if shell.bottom_open && shell.bottom_front() == tab {
+        if shell.bottom_open && shell.bottom_front() == Some(tab) {
             shell.bottom_open = false;
         } else {
             shell.show_panel(tab);
@@ -547,6 +828,55 @@ fn status_row(app: &mut Viewer, ui: &mut Ui) {
 }
 
 // ------------------------------------------------------------------ docks
+
+/// Has egui draw its panel `id` `size` points along `axis` at this frame
+/// (the size chosen, held to what the window allows): egui draws a panel
+/// at the size it kept for it and keeps the size it drew, so a window
+/// made smaller would otherwise leave the dock as small as it was drawn
+/// there (the toolset's `size_panel`).
+fn size_panel(ctx: &egui::Context, id: egui::Id, axis: usize, size: f32) {
+    use egui::containers::panel::PanelState;
+    let mut state = PanelState::load(ctx, id).unwrap_or(PanelState {
+        outer_rect: Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(size)),
+    });
+    if (state.size()[axis] - size).abs() > 0.01 {
+        let r = &mut state.outer_rect;
+        if axis == 0 {
+            r.max.x = r.min.x + size;
+        } else {
+            r.max.y = r.min.y + size;
+        }
+        ctx.data_mut(|d| d.insert_persisted(id, state));
+    }
+}
+
+/// Whether the edge of egui's panel `id` is being dragged or was let go
+/// of at this frame (read before the panel is drawn, as egui reads it).
+fn edge_dragged(ctx: &egui::Context, id: egui::Id) -> bool {
+    let handle = id.with("__resize");
+    ctx.read_response(handle).is_some_and(|r| r.dragged() || r.drag_stopped())
+}
+
+/// A dock's size this frame: `kept` (else `default`) held to `range`,
+/// given to egui's panel `id`; whether its edge is dragged (the size it
+/// is drawn at is then the one chosen).
+fn sized(
+    ctx: &egui::Context,
+    id: egui::Id,
+    axis: usize,
+    kept: Option<u32>,
+    default: f32,
+    range: &std::ops::RangeInclusive<f32>,
+) -> bool {
+    let size = kept.map_or(default, |k| k as f32).clamp(*range.start(), *range.end());
+    size_panel(ctx, id, axis, size);
+    edge_dragged(ctx, id)
+}
+
+/// A size as kept: whole points.
+fn kept(size: f32) -> Option<u32> {
+    Some(size.round().max(0.0) as u32)
+}
 
 /// A dock panel's body: the panel's own drawing, with room round it;
 /// notes the panel under the pointer.
@@ -560,24 +890,74 @@ fn body(app: &mut Viewer, ui: &mut Ui, tab: Tab) {
     });
 }
 
+/// The docks a panel can be moved to from where it stands (its menu's
+/// Move to items): the Right Dock's two columns in the wide layout.
+fn other_docks(shell: &Shell, tab: Tab) -> Vec<(Place, String)> {
+    let here = shell.place(tab);
+    let mut to = vec![(Place::Left, format!("Move to the {LEFT_DOCK}"))];
+    match shell.yields.wide {
+        true => {
+            to.push((Place::Right(0), format!("Move to the {RIGHT_DOCK}, First Column")));
+            to.push((Place::Right(1), format!("Move to the {RIGHT_DOCK}, Second Column")));
+        }
+        false => to.push((Place::Right(0), format!("Move to the {RIGHT_DOCK}"))),
+    }
+    to.push((Place::Bottom, format!("Move to the {BOTTOM_DOCK}")));
+    to.into_iter().filter(|(at, _)| *at != here).collect()
+}
+
+/// A dock panel's header or tab: dragged, it is the panel being dragged
+/// (dropped on a dock, it moves there); right-clicked, its menu moves it
+/// to another dock or puts the layout back.
+fn drag_source(app: &mut Viewer, response: &egui::Response, tab: Tab) {
+    if response.drag_started() {
+        app.shell.dragging = Some(tab);
+    }
+    let docks = other_docks(&app.shell, tab);
+    let chosen = mg_uikit::context_menu(response, |ui| {
+        let mut chosen = None;
+        for (at, words) in &docks {
+            if ui.button(words).clicked() {
+                chosen = Some(Some(*at));
+                ui.close();
+            }
+        }
+        mg_uikit::menu_separator(ui);
+        if ui.button("Reset Layout").clicked() {
+            chosen = Some(None);
+            ui.close();
+        }
+        chosen
+    });
+    match chosen.and_then(|c| c.inner) {
+        Some(Some(at)) => app.shell.move_panel(tab, at),
+        Some(None) => app.actions.push(Action::ResetLayout),
+        None => {}
+    }
+}
+
 /// A panel under its header (named "Resources panel"), the dock's fold
 /// button among its tools where `fold` is given; whether it was pressed.
+/// The header drags the panel to another dock.
 fn headed(app: &mut Viewer, ui: &mut Ui, tab: Tab, fold: Option<(Side, &str)>) -> bool {
     let name = format!("{} panel", tab.title());
-    let header = PanelHeader::new(tab.title()).name(name);
-    let (folded, tabbed) = header
-        .show(ui, |ui| {
-            let folded =
-                fold.is_some_and(|(side, dock)| kit::fold_button(ui, side, dock).clicked());
-            // (Resources: its gallery as a tab, the board's icon.)
-            let tabbed = tab == Tab::Browser && {
-                let button = IconButton::new(Icon::OpenInTab, crate::gallery::OPEN_AS_TAB);
-                let tip = "Open the gallery as a tab in the editor area";
-                ui.add(button.icon_only(true)).on_hover_text(tip).clicked()
-            };
-            (folded, tabbed)
-        })
-        .inner;
+    let mut header = PanelHeader::new(tab.title()).name(name).draggable(true);
+    if let Some(detail) = detail(app, tab) {
+        header = header.detail(detail);
+    }
+    let shown = header.show(ui, |ui| {
+        let folded = fold.is_some_and(|(side, dock)| kit::fold_button(ui, side, dock).clicked());
+        // (Resources: its gallery as a tab, the board's icon.)
+        let tabbed = tab == Tab::Browser && {
+            let button = IconButton::new(Icon::OpenInTab, crate::gallery::OPEN_AS_TAB);
+            let tip = "Open the gallery as a tab in the editor area";
+            ui.add(button.icon_only(true)).on_hover_text(tip).clicked()
+        };
+        (folded, tabbed)
+    });
+    let (folded, tabbed) = shown.inner;
+    let tip = "Drag to another dock to move it there; right-click for more";
+    drag_source(app, &shown.response.on_hover_text(tip), tab);
     body(app, ui, tab);
     if tabbed {
         app.open_gallery_tab();
@@ -585,38 +965,60 @@ fn headed(app: &mut Viewer, ui: &mut Ui, tab: Tab, fold: Option<(Side, &str)>) -
     folded
 }
 
-/// The panels of a dock's column, each under its header, the first over
-/// the second at a seam the user drags; whether the fold button (in the
-/// first one's header, where `fold` is given) was pressed.
-fn stack(
-    app: &mut Viewer,
-    ui: &mut Ui,
-    key: &str,
-    tabs: &[Tab],
-    fold: Option<(Side, &str)>,
-) -> bool {
+/// What a panel's header says after its title: the Inspector's what is
+/// open (the board's "Creature", "Model").
+fn detail(app: &Viewer, tab: Tab) -> Option<String> {
+    let doc = app.doc.as_ref().filter(|_| tab == Tab::Inspector)?;
+    Some(match doc.creature {
+        Some(_) => "Creature".into(),
+        None => format!("{:?}", doc.opened.kind),
+    })
+}
+
+/// The panels of a dock's column, each under its header, each over the
+/// next at a seam the user drags (kept as the upper one's height); whether
+/// the fold button (in the first one's header, where `fold` is given) was
+/// pressed.
+fn stack(app: &mut Viewer, ui: &mut Ui, tabs: &[Tab], fold: Option<(Side, &str)>) -> bool {
     match tabs {
         [] => false,
         [one] => headed(app, ui, *one, fold),
         [first, rest @ ..] => {
             let whole = ui.max_rect().height();
-            let most = (whole - PANEL_LEAST).max(PANEL_LEAST);
-            let at_first = (whole * UPPER_SHARE).round().clamp(PANEL_LEAST, most);
+            // (Room for the panels under it at their least.)
+            let under = PANEL_LEAST * rest.len() as f32;
+            let most = (whole - under).max(PANEL_LEAST);
+            let at_first = (whole / (rest.len() + 1) as f32 * 2.0 * UPPER_SHARE).round();
+            let range = PANEL_LEAST..=most;
+            let id = app.shell.id(("seam", *first));
+            let ctx = ui.ctx().clone();
+            let dragged = sized(&ctx, id, 1, app.shell.seam(*first), at_first, &range);
             let mut folded = false;
-            egui::Panel::top(app.shell.id(key))
+            let shown = egui::Panel::top(id)
                 .resizable(true)
-                .default_size(at_first)
-                .size_range(PANEL_LEAST..=most)
+                .default_size(at_first.clamp(PANEL_LEAST, most))
+                .size_range(range)
                 .frame(egui::Frame::new())
                 .show(ui, |ui| folded = headed(app, ui, *first, fold));
-            folded | stack(app, ui, &format!("{key}+"), rest, None)
+            if dragged {
+                let seams = &mut app.shell.sizes.seams;
+                seams.retain(|(t, _)| t != first);
+                seams.extend(kept(shown.response.rect.height()).map(|h| (*first, h)));
+            }
+            folded | stack(app, ui, rest, None)
         }
     }
 }
 
 /// A folded dock: its strip of its panels' icons under the chevron; the
 /// panel clicked (`Some(None)`: the chevron).
-fn strip(app: &Viewer, ui: &mut Ui, dock: &str, side: Side, tabs: &[Tab]) -> Option<Option<Tab>> {
+fn strip(
+    app: &mut Viewer,
+    ui: &mut Ui,
+    dock: &str,
+    side: Side,
+    tabs: &[Tab],
+) -> Option<Option<Tab>> {
     let t = mg_uikit::tokens(ui.ctx());
     let id = app.shell.id((dock, "strip"));
     let panel = match side {
@@ -634,6 +1036,8 @@ fn strip(app: &Viewer, ui: &mut Ui, dock: &str, side: Side, tabs: &[Tab]) -> Opt
             }
             strip.show(ui)
         });
+    let at = if side == Side::Left { Place::Left } else { Place::Right(0) };
+    app.shell.zones.push((at, shown.response.rect));
     shown.inner.map(|click| match click {
         kit::StripClick::Unfold => None,
         kit::StripClick::Panel(i) => tabs.get(i).copied(),
@@ -645,51 +1049,75 @@ fn side_most(ui: &Ui, least: f32) -> f32 {
     (ui.ctx().content_rect().width() * 0.4).max(least)
 }
 
-/// The Left Dock: Resources over the Outliner, or its strip.
+/// The Left Dock: Resources over the Outliner (and any panel dragged
+/// there), or its strip; nothing where it holds no panel.
 pub(crate) fn left_dock(app: &mut Viewer, ui: &mut Ui) {
-    let tabs = panels_at(Place::Left, app.shell.yields.wide);
+    let tabs = app.shell.panels_at(Place::Left);
+    if tabs.is_empty() {
+        return;
+    }
     if app.shell.left_folded() {
-        if strip(app, ui, LEFT_DOCK, Side::Left, &tabs).is_some() {
-            app.shell.left_folded = Some(false);
+        if let Some(chosen) = strip(app, ui, LEFT_DOCK, Side::Left, &tabs) {
+            app.shell.set_folded(Side::Left, false);
+            if let Some(tab) = chosen {
+                app.shell.show_panel(tab);
+            }
         }
         return;
     }
     let t = mg_uikit::tokens(ui.ctx());
-    // (Wider in Gallery mode, three pictures a row: the board's 440.)
-    let gallery = app.settings.resources_view == crate::settings::ResourcesView::Gallery;
-    let width = match gallery {
-        true => app.shell.yields.left_dock_width.max(GALLERY_DOCK),
-        false => app.shell.yields.left_dock_width,
+    let ctx = ui.ctx().clone();
+    // (Wider in Gallery mode, three pictures a row: the board's 440; each
+    // mode keeps its own width.)
+    let gallery = app.settings.resources_view == crate::settings::ResourcesView::Gallery
+        && tabs.contains(&Tab::Browser);
+    let (chosen, default) = match gallery {
+        true => (app.shell.sizes.left_gallery, app.shell.yields.left_dock_width.max(GALLERY_DOCK)),
+        false => (app.shell.sizes.left, app.shell.yields.left_dock_width),
     };
-    let most = side_most(ui, SIDE_LEAST);
-    let wide = app.shell.yields.wide;
+    let range = SIDE_LEAST..=side_most(ui, SIDE_LEAST);
+    let id = app.shell.id("left-dock");
+    let dragged = sized(&ctx, id, 0, chosen, default, &range);
     let mut folded = false;
-    egui::Panel::left(app.shell.id(("left-dock", wide, gallery)))
+    let shown = egui::Panel::left(id)
         .resizable(true)
-        .default_size(width.min(most))
-        .size_range(SIDE_LEAST..=most)
+        .default_size(default.min(*range.end()))
+        .size_range(range)
         .frame(egui::Frame::new().fill(t.panel))
         .show(ui, |ui| {
             mg_uikit::name_group(ui, LEFT_DOCK);
-            folded = stack(app, ui, "left", &tabs, Some((Side::Left, LEFT_DOCK)));
+            folded = stack(app, ui, &tabs, Some((Side::Left, LEFT_DOCK)));
         });
+    let rect = shown.response.rect;
+    if dragged {
+        match gallery {
+            true => app.shell.sizes.left_gallery = kept(rect.width()),
+            false => app.shell.sizes.left = kept(rect.width()),
+        }
+    }
+    app.shell.zones.push((Place::Left, rect));
     if folded {
-        app.shell.left_folded = Some(true);
+        app.shell.set_folded(Side::Left, true);
     }
 }
 
-/// The Right Dock: Inspector over Lighting; their tabs in a narrow
-/// window; two columns in the wide layout; or its strip.
+/// The Right Dock: Inspector over Lighting (and any panel dragged there);
+/// their tabs in a narrow window; two columns in the wide layout; or its
+/// strip; nothing where it holds no panel.
 pub(crate) fn right_dock(app: &mut Viewer, ui: &mut Ui) {
     let y = app.shell.yields;
     let columns: Vec<Vec<Tab>> = match y.wide {
-        true => vec![panels_at(Place::Right(0), true), panels_at(Place::Right(1), true)],
-        false => vec![panels_at(Place::Right(0), false)],
+        true => [0, 1].map(|c| app.shell.panels_at(Place::Right(c))).into(),
+        false => vec![app.shell.panels_at(Place::Right(0))],
     };
+    let columns: Vec<Vec<Tab>> = columns.into_iter().filter(|c| !c.is_empty()).collect();
+    if columns.is_empty() {
+        return;
+    }
     if app.shell.right_folded() {
         let all: Vec<Tab> = columns.concat();
         if let Some(chosen) = strip(app, ui, RIGHT_DOCK, Side::Right, &all) {
-            app.shell.right_folded = Some(false);
+            app.shell.set_folded(Side::Right, false);
             if let Some(tab) = chosen {
                 app.shell.right_tab = tab;
             }
@@ -697,39 +1125,47 @@ pub(crate) fn right_dock(app: &mut Viewer, ui: &mut Ui) {
         return;
     }
     let t = mg_uikit::tokens(ui.ctx());
+    let ctx = ui.ctx().clone();
     let narrow = y.right_dock_narrow;
+    let two = columns.len() == 2;
     // (Each form of the dock keeps its own width: a window narrowed to
     // the tabbed dock and widened again finds it as it was.)
-    let form = match (narrow, y.wide) {
-        (true, _) => 0,
-        (false, false) => 1,
-        (false, true) => 2,
+    let id = app.shell.id(("right-dock", narrow, y.wide));
+    let least = if two { 2.0 * kit::RIGHT_DOCK_NARROW + 1.0 } else { SIDE_LEAST };
+    let range = least..=side_most(ui, least);
+    let (chosen, default) = match y.wide {
+        true if two => (app.shell.sizes.right_wide, y.right_dock_width),
+        true => (app.shell.sizes.right_wide, kit::RIGHT_DOCK_WIDE_SINGLE),
+        false => (app.shell.sizes.right, y.right_dock_width),
     };
-    let least = if y.wide { 2.0 * kit::RIGHT_DOCK_NARROW + 1.0 } else { SIDE_LEAST };
-    let mut panel = egui::Panel::right(app.shell.id(("right-dock", form)))
-        .frame(egui::Frame::new().fill(t.panel));
+    let mut panel = egui::Panel::right(id).frame(egui::Frame::new().fill(t.panel));
+    let mut dragged = false;
     panel = match narrow {
         true => panel.exact_size(kit::RIGHT_DOCK_NARROW).resizable(false),
-        false => panel
-            .resizable(true)
-            .default_size(y.right_dock_width)
-            .size_range(least..=side_most(ui, least)),
+        false => {
+            dragged = sized(&ctx, id, 0, chosen, default, &range);
+            panel.resizable(true).default_size(default.min(*range.end())).size_range(range)
+        }
     };
     let mut folded = false;
-    panel.show(ui, |ui| {
+    let mut first_column = None;
+    let shown = panel.show(ui, |ui| {
         let fold = Some((Side::Right, RIGHT_DOCK));
         if y.right_dock_tabbed {
             let tabs = &columns[0];
-            let front = app.shell.right_front();
+            let front = app.shell.right_front().unwrap_or(tabs[0]);
             let mut i = tabs.iter().position(|t| *t == front).unwrap_or(0);
             let button = IconButton::new(Icon::ChevronRight, "").icon_only(true).width(ui);
-            let mut bar = DockTabs::new(RIGHT_DOCK).tools_width(button);
+            let mut bar = DockTabs::new(RIGHT_DOCK).tools_width(button).draggable(true);
             for tab in tabs {
                 bar = bar.with(DockTab::new(tab.title()).icon(tab.icon()));
             }
             let out =
                 bar.show(ui, &mut i, |ui| kit::fold_button(ui, Side::Right, RIGHT_DOCK).clicked());
             folded = out.inner;
+            for (tab, r) in tabs.iter().zip(&out.tabs) {
+                drag_source(app, r, *tab);
+            }
             app.shell.right_tab = tabs[i];
             body(app, ui, tabs[i]);
             return;
@@ -738,46 +1174,156 @@ pub(crate) fn right_dock(app: &mut Viewer, ui: &mut Ui) {
         if let [first, second] = columns.as_slice() {
             // Two columns, a line between them (`Yields::right_first_column`).
             let width = Yields::right_first_column(ui.max_rect().width());
-            egui::Panel::left(app.shell.id("right-column"))
+            let column = egui::Panel::left(app.shell.id("right-column"))
                 .exact_size(width)
                 .resizable(false)
                 .frame(egui::Frame::new())
-                .show(ui, |ui| folded = stack(app, ui, "right-0", first, fold));
-            stack(app, ui, "right-1", second, None);
+                .show(ui, |ui| folded = stack(app, ui, first, fold));
+            first_column = Some(column.response.rect);
+            stack(app, ui, second, None);
         } else {
-            folded = stack(app, ui, "right", &columns[0], fold);
+            folded = stack(app, ui, &columns[0], fold);
         }
     });
+    let rect = shown.response.rect;
+    if dragged {
+        match y.wide {
+            true => app.shell.sizes.right_wide = kept(rect.width()),
+            false => app.shell.sizes.right = kept(rect.width()),
+        }
+    }
+    match first_column {
+        Some(c) => {
+            app.shell.zones.push((Place::Right(0), c));
+            app.shell.zones.push((Place::Right(1), rect.with_min_x(c.right())));
+        }
+        // (In the wide layout a dock standing in one column takes a panel
+        // into the other at that column's side: its right half for the
+        // second, its left half for the first.)
+        None if y.wide => {
+            let (col, other) = match app.shell.place(columns[0][0]) {
+                Place::Right(1) => (1, 0),
+                _ => (0, 1),
+            };
+            let half = rect.center().x;
+            let band = match other {
+                0 => rect.with_max_x(half),
+                _ => rect.with_min_x(half),
+            };
+            app.shell.zones.push((Place::Right(other), band));
+            app.shell.zones.push((Place::Right(col), rect));
+        }
+        None => app.shell.zones.push((Place::Right(0), rect)),
+    }
     if folded {
-        app.shell.right_folded = Some(true);
+        app.shell.set_folded(Side::Right, true);
     }
 }
 
 /// The Bottom Dock, under the editor area, unless closed: its panels as
-/// tabs.
+/// tabs, which drag to another dock.
 pub(crate) fn bottom_dock(app: &mut Viewer, ui: &mut Ui) {
-    let tabs = panels_at(Place::Bottom, app.shell.yields.wide);
+    let tabs = app.shell.panels_at(Place::Bottom);
     if !app.shell.bottom_open || tabs.is_empty() {
         return;
     }
     let t = mg_uikit::tokens(ui.ctx());
-    let most = (ui.ctx().content_rect().height() * 0.5).max(BOTTOM_LEAST);
-    egui::Panel::bottom(app.shell.id("bottom-dock"))
+    let ctx = ui.ctx().clone();
+    let range = BOTTOM_LEAST..=(ctx.content_rect().height() * 0.5).max(BOTTOM_LEAST);
+    let id = app.shell.id("bottom-dock");
+    let dragged = sized(&ctx, id, 1, app.shell.sizes.bottom, metrics::BOTTOM_DOCK, &range);
+    let shown = egui::Panel::bottom(id)
         .resizable(true)
-        .default_size(metrics::BOTTOM_DOCK)
-        .size_range(BOTTOM_LEAST..=most)
+        .default_size(metrics::BOTTOM_DOCK.min(*range.end()))
+        .size_range(range)
         .frame(egui::Frame::new().fill(t.panel))
         .show(ui, |ui| {
-            let front = app.shell.bottom_front();
+            let front = app.shell.bottom_front().unwrap_or(tabs[0]);
             let mut i = tabs.iter().position(|t| *t == front).unwrap_or(0);
-            let mut bar = DockTabs::new(BOTTOM_DOCK);
+            let mut bar = DockTabs::new(BOTTOM_DOCK).draggable(true);
             for tab in &tabs {
                 bar = bar.with(DockTab::new(tab.title()).icon(tab.icon()));
             }
-            let _ = bar.show(ui, &mut i, |_| {});
+            let out = bar.show(ui, &mut i, |_| {});
+            for (tab, r) in tabs.iter().zip(&out.tabs) {
+                drag_source(app, r, *tab);
+            }
             app.shell.bottom_tab = tabs[i];
             body(app, ui, tabs[i]);
         });
+    if dragged {
+        app.shell.sizes.bottom = kept(shown.response.rect.height());
+    }
+    app.shell.zones.push((Place::Bottom, shown.response.rect));
+}
+
+/// Where a panel dragged to `pos` would land, and the rectangle that
+/// shows it: a dock drawn under the pointer (a column of the Right Dock's
+/// two), else the band of the editor area along a dock that is folded,
+/// closed or holds no panel.
+pub(crate) fn drop_target(shell: &Shell, pos: egui::Pos2) -> Option<(Place, Rect)> {
+    if let Some((at, r)) = shell.zones.iter().find(|(_, r)| r.contains(pos)) {
+        // (A folded dock's strip shows its band too.)
+        let band = band(shell, *at).filter(|b| r.width() < DROP_BAND && b.contains(pos));
+        return Some((*at, band.unwrap_or(*r)));
+    }
+    [Place::Left, Place::Right(0), Place::Bottom]
+        .into_iter()
+        .filter_map(|at| Some((at, band(shell, at)?)))
+        .find(|(_, r)| r.contains(pos))
+}
+
+/// The band of the editor area along the dock `at` (the Right Dock's
+/// first column standing for the dock), where that dock is not drawn
+/// wider than the band.
+fn band(shell: &Shell, at: Place) -> Option<Rect> {
+    let e = shell.editor_rect?;
+    let drawn = shell.zones.iter().filter(|(z, _)| match at {
+        Place::Right(_) => matches!(z, Place::Right(_)),
+        _ => *z == at,
+    });
+    if drawn.clone().any(|(_, r)| r.width() >= DROP_BAND && r.height() >= DROP_BAND) {
+        return None;
+    }
+    let w = DROP_BAND.min(e.width() / 3.0);
+    let h = DROP_BAND.min(e.height() / 3.0);
+    Some(match at {
+        Place::Left => e.with_max_x(e.left() + w),
+        Place::Right(_) => e.with_min_x(e.right() - w),
+        Place::Bottom => e.with_min_y(e.bottom() - h),
+        Place::Editor => return None,
+    })
+}
+
+/// A panel dragged by its header or tab: where it would land outlined in
+/// the accent (the toolset's drop preview), moved there once the button
+/// is let go; Escape gives the drag up.
+pub(crate) fn drop_panel(app: &mut Viewer, ui: &Ui) {
+    let Some(tab) = app.shell.dragging else { return };
+    let ctx = ui.ctx();
+    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        app.shell.dragging = None;
+        return;
+    }
+    ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
+    let pos = ctx.pointer_interact_pos().or_else(|| ctx.pointer_latest_pos());
+    let target = pos.and_then(|p| drop_target(&app.shell, p));
+    if let Some((_, rect)) = target {
+        let t = mg_uikit::tokens(ctx);
+        let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::new("mgv-dock-drop"));
+        let painter = ctx.layer_painter(layer);
+        painter.rect_filled(rect, 2.0, t.accent.gamma_multiply(0.22));
+        let stroke = egui::Stroke::new(2.0, t.accent);
+        painter.rect_stroke(rect, 2.0, stroke, egui::StrokeKind::Inside);
+    }
+    if !ctx.input(|i| i.pointer.any_down()) {
+        app.shell.dragging = None;
+        if let Some((at, _)) = target
+            && at != app.shell.place(tab)
+        {
+            app.shell.move_panel(tab, at);
+        }
+    }
 }
 
 // ------------------------------------------------------------------ editor area
@@ -799,6 +1345,7 @@ pub(crate) fn editor_area(app: &mut Viewer, ui: &mut Ui) {
     let flush = egui::Frame::central_panel(ui.style()).inner_margin(0);
     egui::CentralPanel::default().frame(flush).show(ui, |ui| {
         app.shell.editor_width = Some(ui.available_width());
+        app.shell.editor_rect = Some(ui.max_rect());
         let mut dock = std::mem::replace(&mut app.dock, egui_dock::DockState::new(Vec::new()));
         let fronts =
             (dock.iter_leaves()).filter_map(|(_, l)| l.tabs.get(l.active.0).copied()).collect();
@@ -905,14 +1452,52 @@ mod tests {
     /// Runs `frames` frames of a window `size` big.
     fn run(ctx: &egui::Context, v: &mut Viewer, size: egui::Vec2, frames: usize) {
         for _ in 0..frames {
-            let input = egui::RawInput {
-                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, size)),
-                ..Default::default()
-            };
-            let mut out = ctx.run_ui(input, |ui| v.ui(ui));
-            out.textures_delta.clear();
-            v.run_actions();
+            frame(ctx, v, size, Vec::new());
         }
+    }
+
+    /// One frame of a window `size` big, given `events`.
+    fn frame(ctx: &egui::Context, v: &mut Viewer, size: egui::Vec2, events: Vec<egui::Event>) {
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, size)),
+            events,
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| v.ui(ui));
+        out.textures_delta.clear();
+        v.run_actions();
+    }
+
+    /// The settings as eframe keeps them between runs (RON) and reads them
+    /// back: a new run's viewer.
+    fn next_run(v: &Viewer) -> Viewer {
+        let text = ron::to_string(&v.settings).unwrap();
+        Viewer::new(ron::from_str(&text).unwrap(), Box::new(NoDialogs))
+    }
+
+    /// The left button pressed at `from`, the pointer moved to `to` in
+    /// steps, the button let go there.
+    fn drag(
+        ctx: &egui::Context,
+        v: &mut Viewer,
+        size: egui::Vec2,
+        from: egui::Pos2,
+        to: egui::Pos2,
+    ) {
+        let button = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(ctx, v, size, vec![egui::Event::PointerMoved(from)]);
+        frame(ctx, v, size, vec![button(from, true)]);
+        for i in 1..=8 {
+            let p = from + (to - from) * (i as f32 / 8.0);
+            frame(ctx, v, size, vec![egui::Event::PointerMoved(p)]);
+        }
+        frame(ctx, v, size, vec![button(to, false)]);
+        run(ctx, v, size, 2);
     }
 
     const MODEL: &str = "newmodel tri\nsetsupermodel tri NULL\nclassification character\n\
@@ -1144,5 +1729,234 @@ mod tests {
         v.focus(Tab::Log);
         assert_eq!(v.dock.iter_all_tabs().count(), 2, "no panel among the documents");
         assert!(v.shell.panel_shown(Tab::Log));
+    }
+    /// The layout goes into the settings as the user leaves it and comes
+    /// back from them at the next run (through RON, as eframe keeps it):
+    /// a panel dragged to another dock, the sizes chosen, a dock folded and
+    /// the Bottom Dock's tab, the editor area's groups.
+    #[test]
+    fn the_layout_round_trips_through_the_settings() {
+        let ctx = egui::Context::default();
+        let board = egui::vec2(1600.0, 900.0);
+        let mut v = viewer();
+        run(&ctx, &mut v, board, 2);
+        assert_eq!(v.settings.layout, Layout::default(), "nothing chosen yet");
+        v.shell.move_panel(Tab::Log, Place::Left);
+        v.shell.set_folded(Side::Right, true);
+        v.shell.show_panel(Tab::Effects);
+        v.shell.sizes.left = Some(300);
+        v.shell.sizes.bottom = Some(240);
+        v.close_tab(Tab::Texture);
+        run(&ctx, &mut v, board, 2);
+        let kept = v.settings.layout.clone();
+        assert_eq!(kept.docks.get("log").map(String::as_str), Some("Left"));
+        assert!(kept.right_folded && !kept.left_folded);
+        assert_eq!(kept.bottom_front.as_deref(), Some("effects"));
+        assert_eq!((kept.left_width, kept.bottom_height), (Some(300), Some(240)));
+        assert_eq!(kept.editor.len(), 2, "the groups, without the Texture");
+        // The next run.
+        let ctx = egui::Context::default();
+        let mut w = next_run(&v);
+        run(&ctx, &mut w, board, 3);
+        assert_eq!(w.settings.layout, kept);
+        assert_eq!(w.shell.place(Tab::Log), Place::Left);
+        assert_eq!(w.shell.panels_at(Place::Left), [Tab::Browser, Tab::Outliner, Tab::Log]);
+        assert!(w.shell.right_folded() && !w.shell.left_folded());
+        assert_eq!(w.shell.bottom_front(), Some(Tab::Effects));
+        assert!(w.dock.find_tab(&Tab::Texture).is_none());
+        assert_eq!(groups(&w.dock), groups(&v.dock));
+        // Drawn as chosen.
+        let left = w.shell.zone(Place::Left).unwrap();
+        assert!((left.width() - 300.0).abs() < 1.5, "{left:?}");
+        let bottom = w.shell.zone(Place::Bottom).unwrap();
+        assert!((bottom.height() - 240.0).abs() < 1.5, "{bottom:?}");
+        // Reset Layout puts it all back, and the settings with it.
+        w.actions.push(Action::ResetLayout);
+        run(&ctx, &mut w, board, 2);
+        assert_eq!(w.settings.layout, Layout::default());
+        assert_eq!(w.shell.place(Tab::Log), Place::Bottom);
+    }
+
+    /// A layout that does not read, or of another version, gives the
+    /// default window; one naming panels or tabs this viewer does not
+    /// have, or a panel in the editor area, keeps what it can.
+    #[test]
+    fn an_old_or_garbage_layout_opens_the_default() {
+        let board = egui::vec2(1600.0, 900.0);
+        for text in [
+            "(layout: 17, show_grid: false)",
+            "(layout: (version: 0, left_width: Some(500)), show_grid: false)",
+            "(layout: (docks: {\"log\": 3}), show_grid: false)",
+            "(show_grid: false)",
+        ] {
+            let settings: Settings = ron::from_str(text).unwrap();
+            assert!(!settings.show_grid);
+            let mut v = Viewer::new(settings, Box::new(NoDialogs));
+            run(&egui::Context::default(), &mut v, board, 2);
+            assert_eq!(v.settings.layout, Layout::default(), "{text}");
+            assert_eq!(groups(&v.dock), groups(&crate::default_dock_for(false)), "{text}");
+        }
+        let mut layout = Layout::default();
+        layout.docks.insert("log".into(), "Left".into());
+        layout.docks.insert("timeline".into(), "Ceiling".into());
+        layout.docks.insert("problems".into(), "Right".into());
+        layout.docks.insert("view".into(), "Left".into());
+        layout.bottom_front = Some("problems".into());
+        layout.left_width = Some(0);
+        layout.editor = vec![EditorGroup {
+            tabs: vec!["view".into(), "inspector".into()],
+            ..EditorGroup::default()
+        }];
+        let settings = Settings { layout, ..viewer().settings };
+        let mut v = Viewer::new(settings, Box::new(NoDialogs));
+        run(&egui::Context::default(), &mut v, board, 2);
+        assert_eq!(v.shell.place(Tab::Log), Place::Left);
+        assert_eq!(v.shell.place(Tab::Timeline), Place::Bottom);
+        assert_eq!(v.shell.place(Tab::View), Place::Editor);
+        assert_eq!(v.shell.bottom_front(), Some(Tab::Timeline));
+        assert_eq!(v.shell.sizes.left, None, "no width of nothing");
+        assert_eq!(groups(&v.dock), groups(&crate::default_dock_for(false)));
+        // Groups without the 3D View get it back, in a group of its own.
+        let ascii = vec![EditorGroup { tabs: vec!["ascii".into()], ..EditorGroup::default() }];
+        let dock = editor_dock(&ascii).unwrap();
+        assert_eq!(groups(&dock), [vec![Tab::View], vec![Tab::Editor]]);
+        let twice = [ascii.clone(), ascii].concat();
+        assert!(editor_dock(&twice).is_none());
+    }
+
+    /// The Resources panel dragged by its header from the Left Dock onto
+    /// the Right Dock stands there, under the Right Dock's own panels; it
+    /// stays there at the next run.
+    #[test]
+    fn a_panel_dragged_from_left_to_right_stays_after_a_save_and_load() {
+        let ctx = egui::Context::default();
+        let board = egui::vec2(1600.0, 900.0);
+        let mut v = viewer();
+        run(&ctx, &mut v, board, 3);
+        let left = v.shell.zone(Place::Left).unwrap();
+        let right = v.shell.zone(Place::Right(0)).unwrap();
+        // (The Resources panel's header, at the top of the Left Dock.)
+        let header = left.left_top() + egui::vec2(40.0, metrics::DOCK_TABS / 2.0);
+        drag(&ctx, &mut v, board, header, right.center());
+        assert_eq!(v.shell.place(Tab::Browser), Place::Right(0));
+        assert_eq!(v.shell.panels_at(Place::Left), [Tab::Outliner]);
+        assert_eq!(
+            v.shell.panels_at(Place::Right(0)),
+            [Tab::Browser, Tab::Inspector, Tab::Lighting]
+        );
+        assert!(v.shell.dragging.is_none());
+        assert_eq!(v.settings.layout.docks.get("resources").map(String::as_str), Some("Right"));
+        // A drag let go over the editor area, away from any dock, moves
+        // nothing.
+        let right = v.shell.zone(Place::Right(0)).unwrap();
+        let header = right.left_top() + egui::vec2(40.0, metrics::DOCK_TABS / 2.0);
+        let middle = v.shell.editor_rect.unwrap().center();
+        drag(&ctx, &mut v, board, header, middle);
+        assert_eq!(v.shell.place(Tab::Browser), Place::Right(0));
+        // The next run.
+        let ctx = egui::Context::default();
+        let mut w = next_run(&v);
+        run(&ctx, &mut w, board, 3);
+        assert_eq!(w.shell.place(Tab::Browser), Place::Right(0));
+        assert_eq!(w.shell.panels_at(Place::Left), [Tab::Outliner]);
+        // Dragged back onto its own dock: nothing kept for it.
+        let right = w.shell.zone(Place::Right(0)).unwrap();
+        let left = w.shell.zone(Place::Left).unwrap();
+        let header = right.left_top() + egui::vec2(40.0, metrics::DOCK_TABS / 2.0);
+        drag(&ctx, &mut w, board, header, left.center());
+        assert_eq!(w.shell.place(Tab::Browser), Place::Left);
+        assert!(w.settings.layout.docks.is_empty());
+    }
+
+    /// A Bottom Dock tab dragged onto a folded dock's band unfolds it
+    /// there; docks emptied of panels go, and a panel is dropped on the
+    /// band of the editor area along them; the Status Bar keeps its
+    /// switches for what the Bottom Dock holds.
+    #[test]
+    fn panels_move_to_folded_and_empty_docks() {
+        let ctx = egui::Context::default();
+        let board = egui::vec2(1600.0, 900.0);
+        let mut v = viewer();
+        v.shell.set_folded(Side::Left, true);
+        run(&ctx, &mut v, board, 3);
+        let bottom = v.shell.zone(Place::Bottom).unwrap();
+        // (The Timeline's tab, the first of the Bottom Dock's tab bar.)
+        let tab = bottom.left_top() + egui::vec2(10.0, metrics::DOCK_TABS / 2.0);
+        let band = v.shell.editor_rect.unwrap().left_center() + egui::vec2(20.0, 0.0);
+        assert_eq!(drop_target(&v.shell, band).map(|t| t.0), Some(Place::Left));
+        drag(&ctx, &mut v, board, tab, band);
+        assert_eq!(v.shell.place(Tab::Timeline), Place::Left);
+        assert!(!v.shell.left_folded(), "unfolded where it was dropped");
+        // Every panel out of the Bottom Dock and the Right Dock: neither is
+        // drawn, nothing breaks, and the bands take panels back.
+        for tab in [Tab::Effects, Tab::Log, Tab::Inspector, Tab::Lighting] {
+            v.shell.move_panel(tab, Place::Left);
+        }
+        run(&ctx, &mut v, board, 2);
+        assert!(v.shell.zone(Place::Bottom).is_none() && v.shell.zone(Place::Right(0)).is_none());
+        assert_eq!(v.shell.bottom_front(), None);
+        let e = v.shell.editor_rect.unwrap();
+        let low = egui::pos2(e.center().x, e.bottom() - 10.0);
+        assert_eq!(drop_target(&v.shell, low).map(|t| t.0), Some(Place::Bottom));
+        let side = egui::pos2(e.right() - 10.0, e.center().y);
+        assert_eq!(drop_target(&v.shell, side).map(|t| t.0), Some(Place::Right(0)));
+        // Narrow and wide windows with them so.
+        for size in [egui::vec2(800.0, 600.0), egui::vec2(3440.0, 1440.0)] {
+            run(&ctx, &mut v, size, 2);
+        }
+        v.shell.move_panel(Tab::Log, Place::Bottom);
+        run(&ctx, &mut v, board, 2);
+        assert_eq!(v.shell.panels_at(Place::Bottom), [Tab::Log]);
+        assert_eq!(v.shell.bottom_front(), Some(Tab::Log));
+    }
+
+    /// A layout kept from a wider window still yields to this one's width:
+    /// the Left Dock folds under 1500 and the Right Dock is 280 and tabbed
+    /// under 1400 whatever was kept, a dock wider than two fifths of the
+    /// window is drawn at that, and the wide layout's columns and groups are
+    /// the wide window's alone. The user's own fold is kept where the width
+    /// does not fold; unfolding by hand in a narrow window is not kept.
+    #[test]
+    fn the_width_rules_fold_a_dock_whose_layout_came_from_a_wider_window() {
+        let ctx = egui::Context::default();
+        let mut v = viewer();
+        run(&ctx, &mut v, egui::vec2(3440.0, 1440.0), 3);
+        assert_eq!(groups(&v.dock).len(), 3);
+        v.shell.sizes.left = Some(900);
+        v.shell.sizes.right_wide = Some(1000);
+        run(&ctx, &mut v, egui::vec2(3440.0, 1440.0), 2);
+        assert!(v.settings.layout.editor.is_empty(), "the wide default is not kept");
+        assert!(v.shell.zone(Place::Right(1)).is_some(), "two columns");
+        // At 1200 by 800: the Left Dock folded, the Right Dock tabbed at
+        // 280, the editor area the narrow default.
+        let ctx = egui::Context::default();
+        let mut w = next_run(&v);
+        let small = egui::vec2(1200.0, 800.0);
+        run(&ctx, &mut w, small, 3);
+        assert!(w.shell.left_folded());
+        assert!(w.shell.zone(Place::Left).unwrap().width() < 40.0, "the strip");
+        let right = w.shell.zone(Place::Right(0)).unwrap();
+        assert!((right.width() - kit::RIGHT_DOCK_NARROW).abs() < 2.0, "{right:?}");
+        assert!(w.shell.zone(Place::Right(1)).is_none());
+        assert_eq!(groups(&w.dock), groups(&crate::default_dock_for(false)));
+        // Unfolded by hand here: not kept.
+        w.shell.set_folded(Side::Left, false);
+        run(&ctx, &mut w, small, 2);
+        assert!(!w.shell.left_folded() && !w.settings.layout.left_folded);
+        // At 1600: open, held to two fifths of the window (640, not 900).
+        run(&ctx, &mut w, egui::vec2(1600.0, 900.0), 3);
+        let left = w.shell.zone(Place::Left).unwrap();
+        assert!(!w.shell.left_folded() && (left.width() - 640.0).abs() < 2.0, "{left:?}");
+        assert_eq!(w.shell.sizes.left, Some(900), "kept as chosen");
+        // The user's own fold, in a window that does not fold: kept, and
+        // the narrow window folds it all the same.
+        w.shell.set_folded(Side::Left, true);
+        run(&ctx, &mut w, egui::vec2(1600.0, 900.0), 2);
+        assert!(w.settings.layout.left_folded);
+        let mut x = next_run(&w);
+        run(&egui::Context::default(), &mut x, egui::vec2(1600.0, 900.0), 2);
+        assert!(x.shell.left_folded());
+        run(&egui::Context::default(), &mut x, egui::vec2(3440.0, 1440.0), 2);
+        assert!(x.shell.left_folded(), "the user's fold at any width that does not fold");
     }
 }

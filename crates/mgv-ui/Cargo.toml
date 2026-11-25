@@ -31,6 +31,7 @@ serde_json.workspace = true
 mg-render.workspace = true
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }
 mg-testkit.workspace = true
+ron.workspace = true
 
 [lints]
 workspace = true

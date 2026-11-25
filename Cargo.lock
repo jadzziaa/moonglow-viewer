@@ -2388,6 +2388,7 @@ dependencies = [
  "mgv-library",
  "mgv-mdl",
  "mgv-stage",
+ "ron",
  "serde",
  "serde_json",
  "wgpu",

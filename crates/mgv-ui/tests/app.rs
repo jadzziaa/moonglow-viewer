@@ -584,6 +584,54 @@ fn a_narrow_window_folds_the_left_dock() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// A panel dragged by its header onto another dock moves there (the
+/// drop outlined while it is dragged), a Bottom Dock tab likewise; the
+/// header's menu moves one too; the settings keep it, and Reset Layout
+/// puts every panel back (M6 part D).
+#[test]
+fn panels_are_dragged_between_docks() {
+    use mgv_ui::Tab;
+    use mgv_ui::shell::Place;
+    let Some(mut h) = harness(false, Box::new(Answer(None))) else { return };
+    h.run_steps(3);
+    let lighting = h.get_by_label("Lighting panel").rect();
+    let bottom = h.get_by_label("Bottom Dock").rect();
+    let from = egui::pos2(lighting.left() + 40.0, lighting.top() + 12.0);
+    let to = bottom.center() + egui::vec2(0.0, 40.0);
+    let button = |pos, pressed| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    h.hover_at(from);
+    h.input_mut().events.push(button(from, true));
+    h.step();
+    for i in 1..=8 {
+        h.hover_at(from + (to - from) * (i as f32 / 8.0));
+        h.step();
+    }
+    assert_eq!(h.state().shell.dragging, Some(Tab::Lighting), "dragged");
+    h.input_mut().events.push(button(to, false));
+    h.run_steps(3);
+    assert_eq!(h.state().shell.place(Tab::Lighting), Place::Bottom);
+    assert!(h.state().shell.panel_shown(Tab::Lighting), "in front where it landed");
+    assert!(h.get_by_label("Status Bar").query_by_label("Lighting").is_some(), "its switch");
+    assert_eq!(h.state().settings.layout.docks.get("lighting").map(String::as_str), Some("Bottom"));
+    // The Inspector's header menu: Move to the Left Dock.
+    h.get_by_label("Inspector panel").click_secondary();
+    h.run_steps(2);
+    h.get_by_label("Move to the Left Dock").click();
+    h.run_steps(3);
+    assert_eq!(h.state().shell.place(Tab::Inspector), Place::Left);
+    assert!(h.query_by_label("Right Dock").is_none(), "the Right Dock holds nothing now");
+    h.state_mut().actions.push(Action::ResetLayout);
+    h.run_steps(3);
+    assert_eq!(h.state().shell.place(Tab::Lighting), Place::Right(0));
+    assert_eq!(h.state().shell.place(Tab::Inspector), Place::Right(0));
+    assert!(h.state().settings.layout.docks.is_empty());
+}
+
 /// Gallery mode (M6 part C): the Resources panel's Gallery button, the
 /// pictures made on the window's GPU, a click choosing one and a double
 /// click opening it; Open as Tab puts the gallery beside the 3D View, and

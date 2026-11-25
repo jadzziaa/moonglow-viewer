@@ -53,6 +53,7 @@ fastrand = "2"
 png = "0.18"
 rayon = "1"
 rfd = "0.17"
+ron = "0.12"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"

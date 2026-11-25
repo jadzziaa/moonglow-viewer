@@ -152,6 +152,44 @@ impl Tab {
     pub(crate) fn closeable(self) -> bool {
         matches!(self, Tab::Editor | Tab::Texture | Tab::Gallery)
     }
+
+    /// Every tab.
+    pub const ALL: [Tab; 11] = [
+        Tab::View,
+        Tab::Editor,
+        Tab::Texture,
+        Tab::Browser,
+        Tab::Outliner,
+        Tab::Inspector,
+        Tab::Timeline,
+        Tab::Effects,
+        Tab::Lighting,
+        Tab::Log,
+        Tab::Gallery,
+    ];
+
+    /// Its name in the kept layout (`settings::Layout`), which a rename of
+    /// its title leaves as it is.
+    pub fn key(self) -> &'static str {
+        match self {
+            Tab::View => "view",
+            Tab::Editor => "ascii",
+            Tab::Texture => "texture",
+            Tab::Browser => "resources",
+            Tab::Outliner => "outliner",
+            Tab::Inspector => "inspector",
+            Tab::Timeline => "timeline",
+            Tab::Effects => "effects",
+            Tab::Lighting => "lighting",
+            Tab::Log => "log",
+            Tab::Gallery => "gallery",
+        }
+    }
+
+    /// The tab named `key` in a kept layout, if this viewer has it.
+    pub fn from_key(key: &str) -> Option<Tab> {
+        Tab::ALL.into_iter().find(|t| t.key() == key)
+    }
 }
 
 /// A log line.
@@ -315,7 +353,19 @@ impl Viewer {
             shader_failures_told: Vec::new(),
         };
         v.add_settings_layers();
+        v.restore_layout();
         v
+    }
+
+    /// Takes the layout kept in the settings: the docks as the user left
+    /// them, and the editor area's groups where they were not the default
+    /// (laid out so, they are the user's: the window's width leaves them).
+    fn restore_layout(&mut self) {
+        self.shell.restore(&self.settings.layout);
+        if let Some(dock) = shell::editor_dock(&self.settings.layout.editor) {
+            self.dock = dock;
+            self.shell.laid_out = Some(false);
+        }
     }
 
     /// Gives the viewer the window's GPU (eframe's wgpu state).
@@ -570,7 +620,7 @@ impl Viewer {
     /// where it was closed (Texture and ASCII beside each other, in a
     /// group of their own beside the 3D View).
     pub fn focus(&mut self, tab: Tab) {
-        if shell::place(tab, self.shell.yields.wide) != shell::Place::Editor {
+        if self.shell.place(tab) != shell::Place::Editor {
             self.shell.show_panel(tab);
             return;
         }
@@ -817,7 +867,13 @@ impl Viewer {
         shell::right_dock(self, ui);
         shell::bottom_dock(self, ui);
         shell::editor_area(self, ui);
+        shell::drop_panel(self, ui);
         self.shell.end_frame();
+        // (What the user chose, kept: eframe writes the settings.)
+        let layout = self.shell.layout(&self.dock);
+        if layout != self.settings.layout {
+            self.settings.layout = layout;
+        }
         manual::windows(self, ui.ctx());
         self.run_actions();
         // The pictures the galleries asked for, a few, after the frame.
@@ -1302,19 +1358,7 @@ impl Viewer {
                 .on_hover_text("Drops EE's materials and normals; 17 bones a skin");
             });
             ui.menu_button("View", |ui| {
-                for tab in [
-                    Tab::View,
-                    Tab::Editor,
-                    Tab::Texture,
-                    Tab::Browser,
-                    Tab::Outliner,
-                    Tab::Inspector,
-                    Tab::Timeline,
-                    Tab::Effects,
-                    Tab::Lighting,
-                    Tab::Log,
-                    Tab::Gallery,
-                ] {
+                for tab in Tab::ALL {
                     if ui.button(tab.title()).clicked() {
                         self.focus(tab);
                     }
@@ -1493,15 +1537,17 @@ mod tests {
         }
     }
 
-    /// The ruled names (the proposal's section 9.17). The layout is not
-    /// stored (only `Settings` is: eframe keeps nothing else of the
-    /// window), so no layout from before the renames can name a tab; the
-    /// titles are drawn each run. The Outliner stands in the Left Dock,
-    /// the Timeline in the Bottom Dock.
+    /// The ruled names (the proposal's section 9.17). The kept layout
+    /// names panels by their keys, not their titles, so a rename leaves it
+    /// reading; the titles are drawn each run. The Outliner stands in the
+    /// Left Dock, the Timeline in the Bottom Dock.
     #[test]
     fn the_panels_carry_their_ruled_names() {
         assert_eq!(Tab::Outliner.title(), "Outliner");
         assert_eq!(Tab::Timeline.title(), "Timeline");
+        for tab in Tab::ALL {
+            assert_eq!(Tab::from_key(tab.key()), Some(tab));
+        }
         let titles =
             |at| -> Vec<&str> { shell::panels_at(at, false).into_iter().map(Tab::title).collect() };
         assert_eq!(titles(shell::Place::Left), ["Resources", "Outliner"]);

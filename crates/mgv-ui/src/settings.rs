@@ -98,6 +98,115 @@ pub struct Settings {
     /// The galleries' pictures' side, points (the kit's size slider: 64
     /// to 220), shared by the Resources panel's and the Gallery tab's.
     pub gallery_side: f32,
+    /// The window's layout as the user left it (View › Reset Layout puts
+    /// it back): a layout that does not read, or one of another version,
+    /// loads as the default without taking the other settings with it.
+    #[serde(deserialize_with = "lenient_layout")]
+    pub layout: Layout,
+}
+
+/// The version of [`Layout`] this viewer writes; a layout of another
+/// loads as the default.
+pub const LAYOUT_VERSION: u32 = 1;
+
+/// The window's layout as the user left it, kept between runs (the
+/// toolset's way: what the user chose is kept, what the window's width
+/// decides is not). Panels and tabs are kept by their names
+/// (`Tab::key`); a name this viewer does not know is passed by.
+///
+/// - Which dock a panel was dragged to, where it is not its own.
+/// - Each dock's width or height as its edge was dragged to (`None`: not
+///   chosen, the size the window's width gives); drawn held to what the
+///   window allows, kept as chosen for a larger window.
+/// - The docks folded or closed by the user in a window wide enough not
+///   to fold them (a narrow window folds them without writing it).
+/// - The editor area's groups, where they are not the default of the
+///   window's width.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Layout {
+    pub version: u32,
+    /// The panels dragged to another dock than their own: the panel's
+    /// name and the dock's (`Left`, `Right`, `Right 2`: the Right Dock's
+    /// second column in the wide layout, `Bottom`).
+    pub docks: std::collections::BTreeMap<String, String>,
+    /// The Left Dock folded to its strip by the user.
+    pub left_folded: bool,
+    /// The Right Dock folded to its strip by the user.
+    pub right_folded: bool,
+    /// The Bottom Dock closed by the user.
+    pub bottom_closed: bool,
+    /// The Bottom Dock's tab in front.
+    pub bottom_front: Option<String>,
+    /// The Right Dock's tab in front where its panels are tabs.
+    pub right_front: Option<String>,
+    /// The Left Dock's width (in Gallery mode its own).
+    pub left_width: Option<u32>,
+    pub left_gallery_width: Option<u32>,
+    /// The Right Dock's width, and in the wide layout its own.
+    pub right_width: Option<u32>,
+    pub right_wide_width: Option<u32>,
+    /// The Bottom Dock's height.
+    pub bottom_height: Option<u32>,
+    /// The height of a panel over another in a dock (the seam between
+    /// them as dragged), by the upper panel's name.
+    pub seams: std::collections::BTreeMap<String, u32>,
+    /// The editor area's groups from the left; empty: the default of
+    /// the window's width.
+    pub editor: Vec<EditorGroup>,
+}
+
+impl Default for Layout {
+    fn default() -> Layout {
+        Layout {
+            version: LAYOUT_VERSION,
+            docks: Default::default(),
+            left_folded: false,
+            right_folded: false,
+            bottom_closed: false,
+            bottom_front: None,
+            right_front: None,
+            left_width: None,
+            left_gallery_width: None,
+            right_width: None,
+            right_wide_width: None,
+            bottom_height: None,
+            seams: Default::default(),
+            editor: Vec::new(),
+        }
+    }
+}
+
+/// One of the editor area's groups: its tabs by name and the one in
+/// front, and its share of the area's width.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EditorGroup {
+    pub tabs: Vec<String>,
+    pub front: usize,
+    pub share: f32,
+}
+
+impl Default for EditorGroup {
+    fn default() -> EditorGroup {
+        EditorGroup { tabs: Vec::new(), front: 0, share: 1.0 }
+    }
+}
+
+/// Reads a layout as it was kept, or the default where it does not read
+/// (garbage, a type changed) or is of another version: the other settings
+/// load all the same.
+fn lenient_layout<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Layout, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Kept {
+        Layout(Layout),
+        Other(serde::de::IgnoredAny),
+    }
+    Ok(match Kept::deserialize(d)? {
+        Kept::Layout(l) if l.version == LAYOUT_VERSION => l,
+        _ => Layout::default(),
+    })
 }
 
 impl Default for Settings {
@@ -120,6 +229,7 @@ impl Default for Settings {
             theme: mg_uikit::Theme::Dark,
             resources_view: ResourcesView::List,
             gallery_side: mg_uikit::gallery::SIDE_DEFAULT,
+            layout: Layout::default(),
         }
     }
 }
@@ -203,6 +313,82 @@ mod tests {
         let old = serde_json::from_str::<Settings>(r#"{"show_grid":false}"#).unwrap();
         assert_eq!(old.resources_view, ResourcesView::List);
         assert_eq!(old.gallery_side, mg_uikit::gallery::SIDE_DEFAULT);
+    }
+
+    /// A layout as the user left it, with something in every field.
+    pub(crate) fn a_layout() -> Layout {
+        Layout {
+            docks: [("log".to_string(), "Right".to_string())].into(),
+            left_folded: true,
+            bottom_closed: true,
+            bottom_front: Some("effects".into()),
+            right_front: Some("lighting".into()),
+            left_width: Some(333),
+            right_wide_width: Some(900),
+            bottom_height: Some(222),
+            seams: [("resources".to_string(), 400)].into(),
+            editor: vec![
+                EditorGroup { tabs: vec!["view".into()], front: 0, share: 0.5 },
+                EditorGroup { tabs: vec!["texture".into(), "ascii".into()], front: 0, share: 0.5 },
+            ],
+            ..Layout::default()
+        }
+    }
+
+    /// The layout is kept as eframe keeps the settings (RON) and as JSON;
+    /// a file from before it, one whose layout is garbage or of another
+    /// version, loads the layout's default and every other setting.
+    #[test]
+    fn the_layout_is_kept_and_garbage_loads_the_default() {
+        let s = Settings { layout: a_layout(), show_grid: false, ..Settings::default() };
+        let ron_text = ron::to_string(&s).unwrap();
+        assert_eq!(ron::from_str::<Settings>(&ron_text).unwrap(), s);
+        let json = serde_json::to_string(&s).unwrap();
+        assert_eq!(serde_json::from_str::<Settings>(&json).unwrap(), s);
+        // From before the layout was kept.
+        let old = serde_json::from_str::<Settings>(r#"{"show_grid":false}"#).unwrap();
+        assert_eq!(old.layout, Layout::default());
+        let old: Settings = ron::from_str("(show_grid: false)").unwrap();
+        assert_eq!(old.layout, Layout::default());
+        assert!(!old.show_grid);
+        // Garbage, a type changed, another version: the default, and the
+        // other settings as they were.
+        let recent = r#""recent":["/m/a.mdl"],"show_grid":false"#;
+        for layout in [
+            r#""layout":17"#,
+            r#""layout":"garbage""#,
+            r#""layout":{"left_width":"wide","docks":[1,2]}"#,
+            r#""layout":{"version":99,"left_width":400}"#,
+            r#""layout":[null,{"a":true}]"#,
+        ] {
+            let text = format!("{{{recent},{layout}}}");
+            let s: Settings = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{text}: {e}"));
+            assert_eq!(s.layout, Layout::default(), "{text}");
+            assert_eq!(s.recent, [PathBuf::from("/m/a.mdl")], "{text}");
+            assert!(!s.show_grid);
+        }
+        for layout in [
+            "layout: 17",
+            "layout: \"garbage\"",
+            "layout: (left_width: \"wide\", docks: [1, 2])",
+            "layout: (version: 99, left_width: Some(400))",
+            "layout: Some((version: 1))",
+            "layout: [(), {\"a\": true}]",
+        ] {
+            let text = format!("(recent: [\"/m/a.mdl\"], show_grid: false, {layout})");
+            let s: Settings = ron::from_str(&text).unwrap_or_else(|e| panic!("{text}: {e}"));
+            assert_eq!(s.recent, [PathBuf::from("/m/a.mdl")], "{text}");
+            assert!(!s.show_grid, "{text}");
+            if !layout.contains("Some((version") {
+                assert_eq!(s.layout, Layout::default(), "{text}");
+            }
+        }
+        // A layout written by RON with every optional field set reads back
+        // through the lenient reader whole (RON's Options and maps survive
+        // the untagged buffering).
+        let only = ron::to_string(&a_layout()).unwrap();
+        let text = format!("(layout: {only})");
+        assert_eq!(ron::from_str::<Settings>(&text).unwrap().layout, a_layout());
     }
 
     #[test]
