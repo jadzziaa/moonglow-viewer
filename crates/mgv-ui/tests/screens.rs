@@ -295,3 +295,54 @@ fn gallery_tab() {
     gallery_tab_at("m6-gallery-tab", egui::vec2(1600.0, 900.0), Filter::Models);
     gallery_tab_at("m6-gallery-tab-3440", egui::vec2(3440.0, 1440.0), Filter::Creatures);
 }
+
+/// M6 part D at 1600 by 900: the Timeline's transport row over its scrub
+/// bar and ruler (an animated creature model), the Texture's header and
+/// caption line, the Inspector's Creature grid with Skin color's color grid
+/// open, and the Lighting panel dragged onto the Bottom Dock (its drop
+/// outlined, then landed).
+#[test]
+#[ignore]
+fn part_d() {
+    use egui_kittest::kittest::Queryable;
+    mg_testkit::gpu::hold();
+    let (mut v, rs) = viewer(mg_testkit::corpus!());
+    v.actions.push(Action::OpenResource(ResKey::parse("c_golemerald", ResType::MDL).unwrap()));
+    let mut h = sized(v, rs, egui::vec2(1600.0, 900.0));
+    h.run_steps(6);
+    h.state_mut().focus(mgv_ui::Tab::Timeline);
+    shoot(&mut h, "m6-d-timeline");
+    h.state_mut().actions.push(Action::OpenResource(
+        ResKey::parse("c_wererat", ResType::DDS)
+            .unwrap_or(ResKey::parse("c_wererat", ResType::TGA).unwrap()),
+    ));
+    shoot(&mut h, "m6-d-texture");
+    h.state_mut().actions.push(Action::OpenCreature(mgv_stage::subject::CreatureLook::new(6)));
+    h.run_steps(6);
+    h.state_mut().focus(mgv_ui::Tab::Inspector);
+    h.run_steps(2);
+    h.get_by_label("Skin color swatch").click();
+    shoot(&mut h, "m6-d-creature");
+    h.key_press(egui::Key::Escape);
+    h.run_steps(2);
+    let lighting = h.get_by_label("Lighting panel").rect();
+    let bottom = h.get_by_label("Bottom Dock").rect();
+    let from = egui::pos2(lighting.left() + 40.0, lighting.top() + 12.0);
+    let to = bottom.center() + egui::vec2(0.0, 40.0);
+    let button = |pos, pressed| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    h.hover_at(from);
+    h.input_mut().events.push(button(from, true));
+    h.step();
+    for i in 1..=8 {
+        h.hover_at(from + (to - from) * (i as f32 / 8.0));
+        h.step();
+    }
+    shoot(&mut h, "m6-d-dragging");
+    h.input_mut().events.push(button(to, false));
+    shoot(&mut h, "m6-d-dragged");
+}
