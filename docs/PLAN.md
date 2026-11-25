@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-03T07:29:45Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T14:27:44Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -976,3 +976,76 @@ menu's Grid, Axes, Model lights, Game shaders, Shadow, with the manual.
 The dock layout is not stored (only `Settings` is), so no saved layout
 names a tab. Not yet: the Top Bar, the docks, the 3D View header, the
 editor header, the Status Bar and Gallery mode (parts B and C).
+
+### 10.7 The 5.x shell (M6 part B, 2026-11-25)
+
+The window is built from `mg-uikit`'s shell parts, its `dock` feature
+on against stock egui_dock 0.21 (no patch: the toolset's vendored
+additions serve floating editor windows, which the viewer has none of;
+`allowed_in_windows` is false). `mgv-ui/src/shell.rs` composes them,
+taking the toolset's `mg-ui` as its worked example but none of its
+bookkeeping:
+
+- **Top Bar** (`shell::top_bar`, the kit's `top_bar`, `vsep`,
+  `menu_bar_style`, `menu_style`): the four menus, every item
+  unchanged; Open and Save as icon buttons after them; Decompile, Compile
+  and Compile and View at the right end, their words gone under 1300.
+  Each is enabled by the predicate its menu item uses (`Viewer::can_save`;
+  the others are always enabled, as their menu items are).
+- **Docks** (`PanelHeader`, `DockTabs`, `FoldStrip`, `fold_button`,
+  `Yields`): the editor area alone is a `DockArea` (3D View | Texture,
+  ASCII; three groups from 2560, laid out at the first frame and by Reset
+  Layout). The panels stand where `shell::place` says: Left Dock
+  Resources over Outliner; Right Dock Inspector over Lighting, tabbed at
+  280 under 1400, two columns from 2560 (Inspector and Log | Lighting and
+  Effects, `Yields::right_first_column`); Bottom Dock Timeline, Effects,
+  Log (Timeline alone from 2560), open on the Timeline. `focus` routes a
+  panel to its dock and a closed Texture or ASCII back beside the other.
+  Each dock folds by its one control (the side docks' fold button, the
+  Bottom Dock's Status Bar switch); the window crossing a fold width gives
+  the user's fold up. Nothing is kept between runs; Reset Layout salts
+  the docks' ids so their sizes start again.
+- **Document tabs** (`dock::doc_tabs_style`, `doc_tab_title`,
+  `doc_tab_marks`, `shell::doc_tab_parts`): kind icon, close button on
+  the front and hovered tab (Texture, ASCII), the modified dot on ASCII
+  (said "Modified") in place of the title's " *" (the window's title
+  keeps it); the tab named by its title.
+- **3D View header** (`header::EditorHeader`, `popover::Popover`,
+  `paint_swatch_button`): Frame, the View menu; Grid, Axes, Overlays
+  (Walkmesh, Wireframe, Normals, Nodes, Shadow casters), Shaders, Shadow,
+  Model lights as icon toggles, the background swatch (egui's color
+  picker hung from it). From 2560 the toggles carry their words and
+  Overlays unfolds, gated on `Yields::wide`, as the toolset gates its
+  area header.
+- **ASCII editor**: its header (Save, Compile, Compile and View, the
+  state text at the right, capped at 320 with a form for More); the
+  diagnostics a resizable strip under the text, its `PanelHeader` title
+  row with the error and warning counts as badges.
+- **Status Bar** (`status::bar_sized`, `StatusSwitch`, `StatusLog`,
+  `Hints`, `StatusItem`, `StatusJob`): the Bottom Dock's switches, the
+  Log's last line while it is out of sight, the hints of the panel under
+  the pointer at the last frame (the 3D view's camera, as `view3d.rs`
+  does it; Double-click Apply effect over Effects; Ctrl + Wheel Zoom
+  texture over Texture), the document with its dot, its origin and the
+  game folder (from 1400).
+
+Upstream needs (the viewer's workarounds in place):
+
+- The kit has the wide layout's numbers (`RIGHT_DOCK_WIDE`,
+  `right_first_column`) but no column or stacked-panel layout: the
+  viewer stacks panels with a resizable `Panel::top` and splits columns
+  with a `Panel::left` itself, as `mg-ui` does. A kit `DockStack` would
+  serve both.
+- The document tab's close button (its interaction, name and state) and
+  the menu bar's last-frame width are `mg-ui` code copied in, not the
+  kit's.
+- `PanelHeader` has no badge slot: the diagnostics counts are badges laid
+  out among its tools.
+
+Left: Gallery mode and the Creature section's two-column grid and
+swatch-combo color pickers (part C); the Timeline's one transport row
+over a full-width scrub bar and the texture's caption line are unchanged
+inside; dock panels are no longer dragged between docks or closed one by
+one (the docks fold instead); the layout is not kept between runs. The
+app still opens at 1440 by 900, under the 1500 at which the Left Dock
+folds: the owner's call whether to open wider.

@@ -3,7 +3,7 @@ type: Manual Page
 title: Lighting and visual effects
 description: Lighting a model as the game does (studio, area presets, custom area) and applying the game's visual effects and emitters to it.
 tags: [manual, lighting, visual-effects]
-generated: { by: claude-code/claude-sonnet-5-5, at: 2026-11-25T14:02:46Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T14:27:06Z }
 ---
 
 # Lighting and visual effects
@@ -14,8 +14,8 @@ The view lights models as the game's enhanced lighting does: the sun or
 moon, the model's own lights (switch them off under **Lighting**), tile
 lights, fog, environment maps and EE materials. **Lighting** chooses:
 
-- **Studio**: a neutral daylight on a plain background (pick its color in
-  the 3D view's toolbar). The default.
+- **Studio**: a neutral daylight on a plain background (pick its color
+  with the swatch at the end of the 3D View's header). The default.
 - **An area preset**: the area wizard's lighting schemes
   (`environment.2da`), by day or by night, with or without fog. Tiles'
   main lights take the scheme's colors.

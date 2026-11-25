@@ -1,6 +1,7 @@
 # Update log
 
 ## 2026-11-25
+* **Update**: [The window](manual/02-the-window.md), [editing models](manual/03-editing-models.md), [lighting and effects](manual/04-lighting-and-effects.md) and [the plan](PLAN.md) §10.7: the 5.x shell (M6 part B): the Top Bar with Open, Save, Decompile, Compile and Compile and View; the Left Dock (Resources, Outliner), Right Dock (Inspector, Lighting) and Bottom Dock (Timeline, Effects, Log), folding in small windows and in two columns from 2560; the 3D View's header with the Overlays popover; the ASCII editor's header, modified dot and diagnostics strip with its counts; the Status Bar with the panel's hints as key caps.
 * **Update**: [The window](manual/02-the-window.md), [lighting and effects](manual/04-lighting-and-effects.md) and [the plan](PLAN.md) §10.6: the viewer takes the toolset's 5.x look from `mg-uikit` (theme, fonts, tokens, form helpers; View › Theme, dark or light, kept between runs); the panels Nodes and Animation are now **Outliner** and **Timeline**, and the View menu reads Grid, Axes, Model lights, Game shaders, Shadow (M6 part A).
 * **Update**: [The plan](PLAN.md) §10.5: the toolset's pin is v5.3.0, nothing changed in the viewer; GPU suites run with `MG_TEST_GPUS=1`.
 

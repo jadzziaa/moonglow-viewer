@@ -3,21 +3,27 @@ type: Manual Page
 title: Editing models
 description: The ASCII editor with its live reload and problem list, decompiling compiled models, and compiling with the game's compiler or nwnmdlcomp.
 tags: [manual, ascii, compiling, decompiling]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-01T20:45:29Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T14:27:06Z }
 ---
 
 # Editing models
 
 ## The ASCII editor
 
-An ASCII model opens in the **ASCII** panel beside the view. Each change
+An ASCII model opens in the **ASCII** tab beside the view. Its header
+holds **Save**, **Compile** and **Compile and View** (as the Top Bar and
+the Model menu do), and at its right the file it was read from (or
+"decompiled, not saved"), with "edited" while it has changes not saved;
+the tab shows a dot then. Each change
 reloads the model in the view a moment after you stop typing, keeping the
 camera, the animation and the selection; the file on disk is only written
 when you save (Ctrl+S). The editor stays quick on the largest models (the
 game's `a_ba` animation library is 90,000 lines decompiled).
 
 - Keywords, node types, numbers and comments are colored.
-- **Problems** are listed under the text and marked beside their lines:
+- **Problems** are listed in the **Diagnostics** strip under the text
+  (its title row counts the errors and the warnings; drag its top edge
+  to give it more room) and marked beside their lines:
   keywords the game does not know (it skips them), list counts that do not
   match, faces naming vertices that do not exist, parents that are not
   nodes above, danglymeshes without a constraint per vertex (the game

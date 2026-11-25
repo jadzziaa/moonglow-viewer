@@ -1,18 +1,59 @@
 ---
 type: Manual Page
 title: The window
-description: The panels of the window (3D view, ASCII, texture, resources, outliner, inspector, timeline, effects, lighting, log) and the keys.
+description: The window's shell (Top Bar, Left, Right and Bottom Docks, editor area, Status Bar), how it gives way in small and wide windows, its panels and the keys.
 tags: [manual, panels, keys]
-generated: { by: claude-code/claude-sonnet-5-5, at: 2026-11-25T14:02:46Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T14:27:06Z }
 ---
 
 # The window
 
-The window is made of panels you can drag into other places (**View ›
-Reset Layout** puts them back). **View › Theme** chooses the dark
-or the light look; it is kept for the next run:
+The window is Moonglow's shell, as Moonglow Toolset's is:
 
-- **3D View**: what is open. Drag with the left button to turn around it,
+- The **Top Bar**: the menus File, Model, View and Help, then **Open** and
+  **Save** as buttons, and at its right end **Decompile**, **Compile** and
+  **Compile and View** (each does what its menu item does, and is grayed
+  out where the menu item is; in a window under 1300 points wide they
+  show their icons alone).
+- The **Left Dock**: **Resources** over the **Outliner**. The **Right
+  Dock**: the **Inspector** over **Lighting**. Drag the line between two
+  panels, or a dock's edge, to give one more room. The arrow at the end of
+  a dock's first header folds the dock to a strip of its panels' icons;
+  click the strip's arrow or an icon to bring it back.
+- The **Bottom Dock**, under the editor area: **Timeline**, **Effects**
+  and **Log** as tabs.
+- The **editor area**: the **3D View** in one group, **Texture** and
+  **ASCII** as tabs of a second beside it. Drag a tab to put it
+  elsewhere in the area; close Texture or ASCII with the × on its tab
+  (the View menu brings it back beside the other). The ASCII tab shows a
+  dot while it has edits not saved.
+- The **Status Bar**: at the left, a switch for each Bottom Dock panel
+  (click the one in front to close the dock, another to bring it to the
+  front) and, while the Log is out of sight, its last line (click it to
+  show the Log); in the middle, what the mouse and the keys do in the
+  panel under the pointer, as key caps; at the right, the document, where
+  it was read from and the game folder.
+
+The shell gives way in a smaller window: under 1500 points wide the Left
+Dock folds to its strip, under 1400 the Right Dock is 280 points wide with
+its panels as tabs and the game folder leaves the Status Bar, under 796
+the Right Dock folds too (unfold either by hand when you need it). In a
+window 2560 points wide or more (3440 by 1440, say) the Right Dock stands
+in two columns, the Inspector over the Log and Lighting over Effects,
+the Bottom Dock holds the Timeline alone, the editor area opens with the
+3D View, Texture and ASCII in three groups side by side, and the 3D
+View's toggles carry their words. **View › Reset Layout** puts every dock,
+panel and tab back. **View › Theme** chooses the dark or the light look;
+it is kept for the next run.
+
+The panels:
+
+- **3D View**: what is open. Its header holds, at the left, **Frame**
+  and the **View** menu; at the right, **Grid** and **Axes**, the
+  **Overlays** popover, **Shaders**, **Shadow** and **Model lights**
+  (icons: hover one for its name) and the background's color swatch.
+  Where the view is narrow, what does not fit goes under **More** (⋯) at
+  the header's end. Drag with the left button to turn around it,
   with the right or middle button to move, and turn the wheel to come
   closer; W, A, S and D move it along the ground, Q and E down and up. Double-click (or F) frames it. **View** jumps to the front,
   back, sides, top or bottom of what is open: creatures face +Y, the
@@ -20,7 +61,8 @@ or the light look; it is kept for the next run:
   camera keeps its angle to the front from one model to the next. **Grid** shows the ground (1 m squares,
   10 m across, a tile's size), **Axes** shows X (red), Y (green;
   creatures face +Y, placeables −Y) and Z (blue, up); both hide behind
-  models. **Overlays** adds the walkmesh (faces by
+  models. **Overlays** (a popover; in a window 2560 wide, toggles on the
+  header itself) adds the walkmesh (faces by
   surface material: green where creatures walk, red where they do not),
   the wireframe, the normals and the node tree. Of these, what the model
   hides shows faintly; the node tree and the selected node's box show over everything.
@@ -47,9 +89,11 @@ or the light look; it is kept for the next run:
   opened. It follows the lighting's sun or moon (Lighting tab). It is on
   unless you turn it off. Pictures from `mgv` draw no shadow, as the
   toolset's thumbnails and galleries draw none.
+  **Model lights** lights the scene with the model's own light nodes; the
+  swatch at the header's end picks the background's color.
   Click a part of the model to select its node.
 - **ASCII**: the model's text (see [Editing models](03-editing-models.md)).
-- **Texture**: textures you open.
+- **Texture**: textures you open (Ctrl and the wheel zoom it).
 - **Resources**: the game's resources (see [Getting started](01-getting-started.md)).
 - **Outliner**: the model's node tree; click to select. Parts of a creature
   (head, limbs, equipment, wings) are listed under it.
@@ -65,7 +109,7 @@ or the light look; it is kept for the next run:
 - **Timeline**: the animations the model can play (its own and its
   supermodels'), play and pause, loop or once, speed, and a slider through
   the animation with its events marked.
-- **Effects** and **Lighting**: see [Lighting and visual effects](04-lighting-and-effects.md).
+- **Effects** (double-click an effect to apply it) and **Lighting**: see [Lighting and visual effects](04-lighting-and-effects.md).
 - **Log**: what happened, warnings and errors.
 
 ## Keys
