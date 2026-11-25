@@ -1050,5 +1050,7 @@ swatch-combo color pickers (part C); the Timeline's one transport row
 over a full-width scrub bar and the texture's caption line are unchanged
 inside; dock panels are no longer dragged between docks or closed one by
 one (the docks fold instead); the layout is not kept between runs. The
-app still opens at 1440 by 900, under the 1500 at which the Left Dock
-folds: the owner's call whether to open wider.
+app opens at 1440 by 900, under the 1500 at which the Left Dock folds,
+as the toolset opens at 1280 by 800 with its Left Dock folded: the
+owner ruled to keep it ("Viewer width: keep", 2026-11-25). A size the
+user gives the window is kept between runs.

@@ -34,7 +34,8 @@ The window is Moonglow's shell, as Moonglow Toolset's is:
   panel under the pointer, as key caps; at the right, the document, where
   it was read from and the game folder.
 
-The shell gives way in a smaller window: under 1500 points wide the Left
+The window opens 1440 by 900 points the first time, then at the size you
+left it. The shell gives way in a smaller window: under 1500 points wide the Left
 Dock folds to its strip, under 1400 the Right Dock is 280 points wide with
 its panels as tabs and the game folder leaves the Status Bar, under 796
 the Right Dock folds too (unfold either by hand when you need it). In a
