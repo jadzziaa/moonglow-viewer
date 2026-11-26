@@ -1378,11 +1378,11 @@ pub(crate) fn editor_area(app: &mut Viewer, ui: &mut Ui) {
 }
 
 /// Each document tab's kind icon, modified dot (said "Modified") and
-/// close button (on the tab in front of its group and the one under the
-/// pointer, for Texture and ASCII), the lines between the tabs and the
-/// accent line along the top of the focused group's tab in front.
+/// close button (the kit's `doc_tab_close`, on the tab in front of its
+/// group and the one under the pointer, for Texture and ASCII), the lines
+/// between the tabs and the accent line along the top of the focused
+/// group's tab in front.
 fn doc_tab_parts(app: &mut Viewer, ui: &mut Ui, buttons: &[TabButton]) {
-    use mg_uikit::icons::ButtonState;
     let ctx = ui.ctx().clone();
     let pointer = ctx.pointer_hover_pos();
     let mut marks = Vec::with_capacity(buttons.len());
@@ -1399,23 +1399,9 @@ fn doc_tab_parts(app: &mut Viewer, ui: &mut Ui, buttons: &[TabButton]) {
         let mut state = None;
         if b.tab.closeable() && (active || hovered) && b.shown.contains_rect(parts.close) {
             let id = egui::Id::new(("doc-tab-close", b.tab));
-            let builder = egui::UiBuilder::new().layer_id(b.layer).max_rect(parts.close);
-            let r = ui
-                .scope_builder(builder, |ui| {
-                    ui.set_clip_rect(b.shown);
-                    ui.interact(parts.close, id, egui::Sense::click())
-                })
-                .inner;
             let name = format!("Close {}", b.tab.title());
-            r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &name));
-            state = Some(if r.is_pointer_button_down_on() {
-                ButtonState::Pressed
-            } else if r.hovered() || r.has_focus() {
-                ButtonState::Hovered
-            } else {
-                ButtonState::Rest
-            });
-            let r = r.on_hover_text("Close this tab");
+            let (r, drawn) = kit::doc_tab_close(ui, id, (b.layer, b.shown), parts.close, &name);
+            state = Some(drawn);
             if r.clicked() || r.middle_clicked() {
                 close = Some(b.tab);
             }
