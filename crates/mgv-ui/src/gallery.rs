@@ -5,8 +5,9 @@
 //!
 //! Only the rows in sight are laid out and drawn (the kit's
 //! [`GalleryGrid`]), and only their pictures and the next row's are asked
-//! for. The pictures are made after the frame ([`Pictures::make`]), a few
-//! at a time ([`PER_FRAME`], [`TIME`]), on the window's GPU device: a stage
+//! for. The pictures are made after the frame ([`Pictures::make`], over the
+//! kit's `PaintedPictures`), a few at a time ([`PER_FRAME`], [`TIME`]), on
+//! the caller's thread and the window's GPU device: a stage
 //! and a viewport of their own on it, drawn as `mgv gallery` draws
 //! ([`headless::thumbnail_shot`]), the game's programs never waited for. A
 //! texture's picture is the texture itself, made on the CPU. Pictures are
@@ -15,14 +16,17 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use egui::{ColorImage, TextureHandle, TextureOptions, Ui};
+use egui::{ColorImage, Ui};
 use mg_core::ResType;
 use mg_image::Rgba;
 use mg_resman::ResKey;
 use mg_uikit::Icon;
 use mg_uikit::gallery::{self as kit, GalleryCell, GalleryGrid, GridLayout, Picture};
+use mg_uikit::pictures::{
+    Budget, Painted, PaintedPictures, Picture as Cached, PicturePainter, Retry,
+};
 use mgv_library::{Kind, Library};
 use mgv_stage::headless;
 use mgv_stage::subject::{self, CreatureLook};
@@ -87,45 +91,69 @@ pub const TIME: Duration = Duration::from_millis(4);
 pub const KEPT: usize = 512;
 /// How long a picture waits for the game's programs (a cold shader cache
 /// compiles many) before it is taken as it is drawn (Moonglow's shader for
-/// what still waits).
+/// what still waits): the kit's `Retry::give_up`.
 pub const WAIT_AT_MOST: Duration = Duration::from_secs(20);
-
-/// A picture made: `Ok(None)` not yet (a program of the game's it needs is
-/// being made: asked again later), `Err` none ("No picture", and why).
-pub type Painted = Result<Option<ColorImage>, String>;
+/// How long a picture waiting for the game's programs waits before it is
+/// drawn again: the kit's `Retry::again`.
+pub const AGAIN: Duration = Duration::from_millis(50);
 
 /// What makes the pictures: the window's GPU in the app
-/// ([`ViewerPainter`]), anything at all in a test.
+/// ([`ViewerPainter`]), anything at all in a test. The kit's
+/// [`PicturePainter`] paints them, with the library of the frame
+/// ([`Painting`]).
 pub trait Painter {
-    /// `what`'s picture, [`SIZE`] pixels at most a side. `as_drawn`: take
-    /// it as it is drawn, whatever still waits.
+    /// `what`'s picture, [`SIZE`] pixels at most a side; [`Painted::Later`]
+    /// while a program of the game's it needs is being made. `as_drawn`:
+    /// take it as it is drawn, whatever still waits.
     fn paint(&mut self, lib: &Library, what: Pictured, as_drawn: bool) -> Painted;
     /// The game's data was read again: let go of what was kept of it.
     fn forget(&mut self) {}
 }
 
-/// A picture kept: its texture (none: "No picture", and why), and the
-/// frame it was last asked for in.
-struct Made {
-    texture: Option<TextureHandle>,
-    error: Option<String>,
-    used: u64,
+/// A [`Painter`] with the frame's library: the kit's [`PicturePainter`].
+/// Once a picture waits for the game's programs, those after it in the
+/// frame wait too without being drawn (they likely want the same
+/// programs), unless asked for as drawn.
+struct Painting<'a> {
+    painter: &'a mut dyn Painter,
+    lib: &'a Library,
+    /// The failures' reasons, kept for [`Pictures::error`].
+    reasons: &'a mut HashMap<Pictured, String>,
+    /// Pictures painted in this frame.
+    painted: usize,
+    /// One painted in this frame waits for the game's programs.
+    waiting: bool,
 }
 
-/// The galleries' pictures: asked for while they are in sight
-/// ([`Pictures::picture`], [`Pictures::want`]), made after the frame
-/// ([`Pictures::make`]).
-#[derive(Default)]
+impl PicturePainter<Pictured> for Painting<'_> {
+    fn paint(&mut self, what: Pictured, as_drawn: bool) -> Painted {
+        if self.waiting && !as_drawn {
+            return Painted::Later;
+        }
+        self.painted += 1;
+        let painted = self.painter.paint(self.lib, what, as_drawn);
+        match &painted {
+            Painted::Later => self.waiting = true,
+            Painted::Failed(reason) => {
+                self.reasons.insert(what, reason.clone());
+            }
+            Painted::Ready(_) | Painted::Drawn(_) => {}
+        }
+        painted
+    }
+}
+
+/// The galleries' pictures (the kit's [`PaintedPictures`]): asked for
+/// while they are in sight ([`Pictures::picture`], [`Pictures::want`]),
+/// made after the frame ([`Pictures::make`]).
 pub struct Pictures {
-    made: HashMap<Pictured, Made>,
-    /// Asked for in this frame and not made, in the order asked.
-    wanted: Vec<Pictured>,
-    /// Asked for in this frame, made or not.
+    cache: PaintedPictures<Pictured>,
+    /// Asked for in this frame, made or not (a cell in sight is in the
+    /// grid's `ahead` too: asked once).
     asked: HashSet<Pictured>,
-    /// The pictures drawn while the game's programs were being made, and
-    /// when they first were.
-    tries: HashMap<Pictured, Instant>,
-    frame: u64,
+    /// Why the pictures made with none have none (the kit gives a reason
+    /// only while asking for the picture).
+    reasons: HashMap<Pictured, String>,
     /// The library's layers when the pictures were made.
     layers: u64,
     /// What makes them; made with the first picture asked for, on the
@@ -135,9 +163,24 @@ pub struct Pictures {
     pub painted: usize,
 }
 
+impl Default for Pictures {
+    fn default() -> Pictures {
+        let mut cache = PaintedPictures::default();
+        cache.retry = Retry { again: AGAIN, give_up: WAIT_AT_MOST };
+        Pictures {
+            cache,
+            asked: HashSet::new(),
+            reasons: HashMap::new(),
+            layers: 0,
+            painter: None,
+            painted: 0,
+        }
+    }
+}
+
 impl std::fmt::Debug for Pictures {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Pictures").field("made", &self.made.len()).finish_non_exhaustive()
+        f.debug_struct("Pictures").field("made", &self.kept()).finish_non_exhaustive()
     }
 }
 
@@ -157,8 +200,7 @@ impl Pictures {
     /// A new frame: nothing asked for yet. Where the library's layers
     /// changed (a folder opened, one added), every picture is let go.
     pub(crate) fn begin_frame(&mut self, lib: &Library) {
-        self.frame += 1;
-        self.wanted.clear();
+        self.cache.begin_frame();
         self.asked.clear();
         let layers = layers_of(lib);
         if layers != self.layers {
@@ -173,27 +215,24 @@ impl Pictures {
             // (The kind's icon, dimmed, with no caption: nothing is made.)
             return Picture::Making;
         }
-        self.want(what);
-        match self.made.get(&what) {
-            Some(m) => m.texture.as_ref().map_or(Picture::Missing, |t| Picture::Ready(t.id())),
-            None => Picture::Making,
+        self.asked.insert(what);
+        match self.cache.get(what) {
+            Cached::Ready(id) => Picture::Ready(id),
+            Cached::Failed(_) => Picture::Missing,
+            Cached::Waiting => Picture::Making,
         }
     }
 
     /// Why `what` has no picture, where it was made with none.
     pub fn error(&self, what: Pictured) -> Option<&str> {
-        self.made.get(&what).and_then(|m| m.error.as_deref())
+        self.reasons.get(&what).filter(|_| self.is_made(what)).map(String::as_str)
     }
 
     /// Asks for `what`'s picture in this frame (a row about to come into
     /// sight).
     pub fn want(&mut self, what: Pictured) {
-        if !what.has_picture() || !self.asked.insert(what) {
-            return;
-        }
-        match self.made.get_mut(&what) {
-            Some(m) => m.used = self.frame,
-            None => self.wanted.push(what),
+        if what.has_picture() && self.asked.insert(what) {
+            let _ = self.cache.get(what);
         }
     }
 
@@ -204,24 +243,25 @@ impl Pictures {
 
     /// The pictures asked for in this frame and still to make.
     pub fn waiting(&self) -> usize {
-        self.wanted.len()
+        self.cache.pictures.wanted().len()
     }
 
     /// The pictures kept.
     pub fn kept(&self) -> usize {
-        self.made.len()
+        self.cache.pictures.len()
     }
 
     /// Whether `what`'s picture is made (with something to draw or not).
     pub fn is_made(&self, what: Pictured) -> bool {
-        self.made.contains_key(&what)
+        self.cache.pictures.get(&what).is_some()
     }
 
     /// Lets go of every picture (the game's data read again: the same
     /// names may look different now).
     pub fn forget(&mut self) {
-        self.made.clear();
-        self.tries.clear();
+        // (Every texture is the kit's own: none of the painter's to free.)
+        let _ = self.cache.forget();
+        self.reasons.clear();
         if let Some(p) = &mut self.painter {
             p.forget();
         }
@@ -229,85 +269,45 @@ impl Pictures {
 
     /// Lets go of one picture (its model edited).
     pub fn forget_one(&mut self, what: Pictured) {
-        self.made.remove(&what);
-        self.tries.remove(&what);
+        let _ = self.cache.forget_one(what);
+        self.reasons.remove(&what);
     }
 
     /// After a frame: makes the pictures it asked for and lacks, for
     /// [`TIME`] and at most [`PER_FRAME`], and asks for another frame if
-    /// there are more. `gpu`: the window's device (the painter's, made
-    /// with the first picture).
+    /// there are more (after [`AGAIN`] where they wait for the game's
+    /// programs). Past [`KEPT`], those longest unseen are let go of.
+    /// `gpu`: the window's device (the painter's, made with the first
+    /// picture).
     pub(crate) fn make(
         &mut self,
         ctx: &egui::Context,
         lib: &Library,
         gpu: Option<&mg_render::Gpu>,
     ) {
-        self.painted = 0;
-        // (Waiting no more where no longer asked for.)
-        let asked = &self.asked;
-        self.tries.retain(|k, _| asked.contains(k));
-        let wanted = std::mem::take(&mut self.wanted);
-        if !wanted.is_empty() {
-            let painter =
-                self.painter.get_or_insert_with(|| Box::new(ViewerPainter::new(gpu, ctx)));
-            let started = Instant::now();
-            let (mut left, mut waited) = (0, false);
-            for (i, what) in wanted.iter().copied().enumerate() {
-                if self.painted >= PER_FRAME || self.painted > 0 && started.elapsed() >= TIME {
-                    left = wanted.len() - i;
-                    break;
-                }
-                let first = self.tries.get(&what).copied();
-                let as_drawn = first.is_some_and(|t| t.elapsed() >= WAIT_AT_MOST);
-                let painted = painter.paint(lib, what, as_drawn);
-                self.painted += 1;
-                let (texture, error) = match painted {
-                    Ok(Some(image)) => {
-                        let name = format!("gallery {what:?}");
-                        (Some(ctx.load_texture(name, image, TextureOptions::LINEAR)), None)
-                    }
-                    // (Waiting for the game's programs, which the others
-                    // likely want too: they all wait. The painter's waker
-                    // asks for a frame when one is made.)
-                    Ok(None) => {
-                        self.tries.entry(what).or_insert_with(Instant::now);
-                        left = wanted.len() - i;
-                        waited = true;
-                        break;
-                    }
-                    Err(e) => (None, Some(e)),
-                };
-                self.tries.remove(&what);
-                self.made.insert(what, Made { texture, error, used: self.frame });
+        if !self.cache.pictures.wanted().is_empty() && self.painter.is_none() {
+            self.painter = Some(Box::new(ViewerPainter::new(gpu, ctx)));
+        }
+        let budget = Budget { time: TIME, most: PER_FRAME };
+        let painted = match self.painter.as_deref_mut() {
+            Some(painter) => {
+                let reasons = &mut self.reasons;
+                let mut painting = Painting { painter, lib, reasons, painted: 0, waiting: false };
+                // (Every texture is the kit's own: none of the painter's
+                // to free.)
+                let _ = self.cache.pump(ctx, &mut painting, budget, KEPT);
+                painting.painted
             }
-            if left > 0 {
-                self.wanted = wanted[wanted.len() - left..].to_vec();
-                match waited {
-                    true => ctx.request_repaint_after(Duration::from_millis(50)),
-                    false => ctx.request_repaint(),
-                }
+            // (Nothing asked for, nothing to paint: the waits and the
+            // pictures out of sight let go of all the same.)
+            None => {
+                let _ = self.cache.pump(ctx, &mut |_, _| Painted::Later, budget, KEPT);
+                0
             }
-        }
-        self.let_go();
-    }
-
-    /// Those not shown in this frame or the last go, the longest unseen
-    /// first, when more than [`KEPT`] are kept.
-    fn let_go(&mut self) {
-        if self.made.len() <= KEPT {
-            return;
-        }
-        let frame = self.frame;
-        let mut unseen: Vec<(u64, Pictured)> = (self.made.iter())
-            .filter(|(_, m)| m.used + 1 < frame)
-            .map(|(k, m)| (m.used, *k))
-            .collect();
-        unseen.sort_unstable_by_key(|(used, _)| *used);
-        let over = self.made.len() - KEPT;
-        for (_, k) in unseen.into_iter().take(over) {
-            self.made.remove(&k);
-        }
+        };
+        self.painted = painted;
+        let made = &self.cache.pictures;
+        self.reasons.retain(|k, _| made.get(k).is_some());
     }
 }
 
@@ -348,7 +348,13 @@ impl ViewerPainter {
         ViewerPainter { gpu, palettes: None, drawn: 0 }
     }
 
-    fn model(&mut self, lib: &Library, what: Pictured, as_drawn: bool) -> Painted {
+    /// `Ok(None)`: not yet, a program of the game's being made.
+    fn model(
+        &mut self,
+        lib: &Library,
+        what: Pictured,
+        as_drawn: bool,
+    ) -> Result<Option<ColorImage>, String> {
         let Some((stage, viewport)) = &mut self.gpu else {
             return Err("No GPU".into());
         };
@@ -366,6 +372,8 @@ impl ViewerPainter {
         if self.drawn.is_multiple_of(TEXTURES_KEPT_FOR) {
             viewport.clear_textures();
         }
+        // (As drawn, it is always read back: the kit's "Not drawn within
+        // 20 s" never comes of it.)
         let shot = headless::thumbnail_shot(SIZE);
         match headless::still_unwaited(stage, viewport, lib, &shot, as_drawn) {
             Some(image) => drawn_picture(&image).map(Some),
@@ -392,9 +400,9 @@ impl Painter for ViewerPainter {
     fn paint(&mut self, lib: &Library, what: Pictured, as_drawn: bool) -> Painted {
         match what {
             Pictured::Resource(k) if matches!(Kind::of(k.restype), Kind::Texture | Kind::Plt) => {
-                self.texture(lib, k).map(Some)
+                painted(self.texture(lib, k).map(Some))
             }
-            _ => self.model(lib, what, as_drawn),
+            _ => painted(self.model(lib, what, as_drawn)),
         }
     }
 
@@ -404,6 +412,16 @@ impl Painter for ViewerPainter {
             stage.clear();
             viewport.clear_textures();
         }
+    }
+}
+
+/// A picture made as the kit takes it: `Ok(None)` later, `Err` none
+/// ("No picture", and why).
+fn painted(made: Result<Option<ColorImage>, String>) -> Painted {
+    match made {
+        Ok(Some(image)) => Painted::Ready(image),
+        Ok(None) => Painted::Later,
+        Err(reason) => Painted::Failed(reason),
     }
 }
 
@@ -826,8 +844,8 @@ mod tests {
 
     /// A painter with no GPU: a gray square with a dot for each picture
     /// (as a model is drawn: `drawn_picture`), the background alone for
-    /// the names starting `empty`, none for the names in `fail`,
-    /// `Ok(None)` the first `wait` times.
+    /// the names starting `empty`, none for the names in `fail`, Later
+    /// the first `wait` times.
     struct Fake {
         log: Arc<Mutex<Log>>,
         fail: Vec<&'static str>,
@@ -840,11 +858,11 @@ mod tests {
             if let Pictured::Resource(k) = what
                 && self.fail.iter().any(|f| k.to_string().starts_with(f))
             {
-                return Err("unreadable".into());
+                return Painted::Failed("unreadable".into());
             }
             if self.wait > 0 && !as_drawn {
                 self.wait -= 1;
-                return Ok(None);
+                return Painted::Later;
             }
             let mut image = Rgba::new(4, 4);
             image.data = [90, 90, 90, 255].repeat(16);
@@ -852,16 +870,20 @@ mod tests {
             if !empty {
                 image.data[..4].copy_from_slice(&[200, 40, 40, 255]);
             }
-            drawn_picture(&image).map(Some)
+            painted(drawn_picture(&image).map(Some))
         }
         fn forget(&mut self) {
             self.log.lock().unwrap().forgot += 1;
         }
     }
 
+    /// Installs a [`Fake`]; a picture waiting is drawn again in the next
+    /// frame (the kit's wait between tries is the clock's, not the
+    /// frames').
     fn fake(v: &mut Viewer, fail: Vec<&'static str>, wait: u32) -> Arc<Mutex<Log>> {
         let log = Arc::new(Mutex::new(Log::default()));
         v.pictures.painter = Some(Box::new(Fake { log: log.clone(), fail, wait }));
+        v.pictures.cache.retry.again = Duration::ZERO;
         log
     }
 
@@ -1089,7 +1111,8 @@ mod tests {
     }
 
     /// A picture still waiting after [`WAIT_AT_MOST`] is taken as drawn;
-    /// one no longer asked for stops waiting.
+    /// one no longer asked for stops waiting (its wait starts again when
+    /// it comes back into sight).
     #[test]
     fn a_long_wait_takes_the_picture_as_drawn_and_unseen_ones_stop_waiting() {
         let (mut v, dir) = viewer(3, "wait");
@@ -1098,17 +1121,19 @@ mod tests {
         run(&ctx, &mut v, BOARD, 2);
         let m = Pictured::Resource(ResKey::parse("m000", ResType::MDL).unwrap());
         assert_eq!(v.pictures.picture(m), Picture::Making);
-        let since = v.pictures.tries.get_mut(&m).expect("waiting");
-        *since -= WAIT_AT_MOST;
-        run(&ctx, &mut v, BOARD, 1);
-        assert!(matches!(v.pictures.picture(m), Picture::Ready(_)));
-        assert!(!v.pictures.tries.contains_key(&m));
-        // Out of sight: the waits go.
-        run(&ctx, &mut v, BOARD, 1);
-        assert!(!v.pictures.tries.is_empty(), "the next one waits");
+        assert_eq!(v.pictures.cache.retry.give_up, WAIT_AT_MOST);
+        // Out of sight: the waits go. (Had they stayed, a wait of nothing
+        // would take it as drawn at once when it is back in sight.)
         v.settings.resources_view = ResourcesView::List;
         run(&ctx, &mut v, BOARD, 1);
-        assert!(v.pictures.tries.is_empty(), "{:?}", v.pictures.tries.keys());
+        v.pictures.cache.retry.give_up = Duration::ZERO;
+        v.settings.resources_view = ResourcesView::Gallery;
+        run(&ctx, &mut v, BOARD, 1);
+        assert_eq!(v.pictures.picture(m), Picture::Making, "waiting anew");
+        // The wait over: taken as drawn.
+        run(&ctx, &mut v, BOARD, 1);
+        assert!(matches!(v.pictures.picture(m), Picture::Ready(_)));
+        assert_eq!(v.pictures.error(m), None);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
