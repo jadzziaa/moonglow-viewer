@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T16:18:39Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T14:14:28Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1040,16 +1040,20 @@ bookkeeping:
 
 Upstream needs (the viewer's workarounds in place):
 
-- The kit has the wide layout's numbers (`RIGHT_DOCK_WIDE`,
-  `right_first_column`) but no column or stacked-panel layout: the
-  viewer stacks panels with a resizable `Panel::top` and splits columns
-  with a `Panel::left` itself, as `mg-ui` does. A kit `DockStack` would
-  serve both.
-- The document tab's close button (its interaction, name and state) and
-  the menu bar's last-frame width are `mg-ui` code copied in, not the
-  kit's.
-- `PanelHeader` has no badge slot: the diagnostics counts are badges laid
-  out among its tools.
+- Stacked panels and columns: the kit has them since 5.4.0
+  (`stack::StackLayout`, `stack_heights`, `stack_seams`,
+  `column_seam`; gap closed in the kit), but the viewer keeps its own
+  (§10.10): its docks hold panels in a fixed order by `shell::place`,
+  stacked with a resizable `Panel::top` (the first 55% of its column, 90
+  at least, a seam kept as the upper panel's height in points), where the
+  kit's sections share the height equally, 80 at least, kept as shares.
+- The document tab's close button: the kit's `shell::doc_tab_close`
+  since 5.4.0, which the viewer uses (gap closed). The menu bar's
+  last-frame width is still `mg-ui` code copied in.
+- Badges in a `PanelHeader`: the kit has `PanelHeader::badge` since 5.4.0
+  (gap closed in the kit), but it draws them after the title, and the
+  viewer's diagnostics counts stand among the header's tools at its right
+  end; they stay there until the owner rules on moving them (§10.10).
 
 Left at part B: Gallery mode (built in part C, §10.8); the Creature
 section's two-column grid and swatch-combo color pickers, the Timeline's
@@ -1095,7 +1099,8 @@ boards "Resources as a Gallery" and "Gallery Tab at 3440×1440"), in
   its header the filter, the search, the slider and the count; Resources
   goes back to its list. Opening from it focuses the 3D View in its own
   group, so the gallery stays in sight.
-- **Pictures** (`gallery::Pictures`, after the toolset's `Thumbnails`):
+- **Pictures** (`gallery::Pictures`, after the toolset's `Thumbnails`;
+  since 5.4.0 over the kit's `PaintedPictures`, §10.10):
   each frame the grids ask for the cells in sight and the row under them
   (`GridOutput::drawn`, `ahead`); after the frame those not made are
   made in order, at most 8 and for 4 ms (one in every frame), on the UI
@@ -1149,10 +1154,11 @@ Upstream needs (the viewer's workarounds in place):
 
 - The kit has no List | Gallery control of its own: the viewer pairs two
   `IconButton`s, as the toolset's palette does.
-- `GalleryGrid` makes no picture: what the toolset's `Thumbnails` does
-  (asking, a budget, keeping, letting go) is `mg-ui` code, rewritten
-  here at a smaller scale. A kit picture cache over a painter trait
-  would serve both.
+- A picture cache over a painter trait: the kit's
+  `pictures::PaintedPictures` and `PicturePainter` since 5.4.0, which
+  the viewer uses (gap closed; §10.10). Still missing: a way to read a
+  failed picture's reason without asking for it (`get` takes `&mut`
+  and counts as an ask), so `Pictures::error` keeps the reasons itself.
 - `GridOutput` says what the keys moved to and activated but not a
   double click: the viewer reads each cell's response itself.
 
@@ -1257,18 +1263,20 @@ The items part B left (§10.7), built on `mg-uikit` 5.3.0:
 
 Upstream needs (the viewer's workarounds in place):
 
-- No kit drop zone or drop preview for moving a panel between docks:
-  `PanelHeader::draggable` and `DockTabs::draggable` say a drag started,
-  but the zones, the outline and the drop are the viewer's
-  (`shell::drop_panel`), as the toolset's `AreaDropZone` is `mg-ui`
-  code. A kit `DockDrop` (zones registered by docks, `preview(ui)`,
-  `dropped() -> Option<(panel, zone)>`) would serve both.
-- No kit layout record: what is kept, its validation and the forced
-  sizes are the viewer's, as the toolset's are `mg-ui`'s (`Settings`'s
-  sizes and `shell_migrate` in `mg-ui/src/settings.rs`). A kit
-  `DockLayout` (serde, versioned, `restore(&Yields)` clamping and
-  folding, `capture` on an edge drag) would serve both.
-- No stacked-panel or column helper (still, §10.7).
+- Drop zones and the drop preview: the kit has `stack::DockDrop`,
+  `StackDrop` and `paint_drop_preview` since 5.4.0 (gap closed in the
+  kit). The viewer outlines with `paint_drop_preview`; where a panel
+  lands stays `shell::drop_target`, a whole dock or its 96-wide band:
+  `StackDrop` finds zones within a section (its bar, its top or bottom
+  30%, half the section outlined) and takes nothing on a pane with no
+  sections, which would change what the drag shows and does (§10.10).
+- A layout record: the kit's `stack::KeptLayout` since 5.4.0 keeps a
+  section's front panel and shares, a column's width and a folded front
+  by editor kind, none of the viewer's fields (docks, folds, sizes, seams,
+  editor groups), so `settings::Layout` stays the viewer's (gap still
+  open for the viewer: a kit `DockLayout` with `restore(&Yields)` and
+  `capture` would serve both).
+- Stacked panels and columns (§10.7).
 - No labeled mini slider with its number as a header item: Mip and Zoom
   are `Item::custom` with `.more()` fallbacks, as `mg-ui`'s Appearance
   Gallery header builds its size slider (`appearance_gallery.rs`). A kit
@@ -1297,5 +1305,37 @@ creature holding a torch keeps its arms down (the toolset plays the
 `torchl` overlay), and its items' Light property casts no light.
 5.4.0 brings the kit's `stack` (StackLayout, StackDrop, the stack
 geometry, KeptLayout), `pictures` (PaintedPictures), the PanelHeader
-badge and `dock::doc_tab_close`, which the viewer's own versions from
-§10.7 to §10.9 move onto.
+badge and `shell::doc_tab_close`. What the viewer moved onto, with
+nothing a user sees changed:
+
+- **Pictures** (`gallery::Pictures`): the cache is the kit's
+  `PaintedPictures<Pictured>` (asking, `Budget { 4 ms, 8 }`, 512 kept,
+  `Retry { 50 ms, 20 s }`); the viewer's `Painter` with the frame's
+  library is the kit's `PicturePainter` (`gallery::Painting`), and once
+  a picture waits for the game's programs the rest of that frame's wait
+  undrawn, as before. Kept beside the cache: the set asked for in the
+  frame (a cell in sight is in the grid's `ahead` too), the failures'
+  reasons, the layers check and the painter's `forget`. At 20 s a
+  picture is asked for as drawn, and `still_unwaited` always reads it
+  back, so the kit's "Not drawn within 20 s" never shows: the cell shows
+  the picture as drawn, as it did. Each waiting picture in sight now has
+  its own 20 s clock (before, only the first in line had one), and one
+  waiting is drawn again 50 ms after its last try, not at every frame.
+- **Drop preview**: `stack::paint_drop_preview` (the same tint and rim).
+- **Document tab close button**: `shell::doc_tab_close`.
+
+What stayed the viewer's, and why:
+
+- **Stack arrangement, operations, geometry and drop targets**: the
+  viewer's docks hold no `StackLayout`. A panel stands in a dock by
+  `shell::place` and the panels moved (`Shell::moved`), in a fixed
+  order; a drop lands on a whole dock or its band. The kit's zones
+  within sections, its equal shares and 80 least would change what a
+  drag outlines and does and how high the stacked panels open.
+- **Kept layout**: `KeptLayout`'s fields hold none of
+  `settings::Layout`'s; the record and its version (1) are unchanged, so
+  a part D layout loads as it did
+  (`settings::tests::a_part_d_layout_still_loads`).
+- **Badges**: `PanelHeader::badge` draws them after the title, and the
+  diagnostics counts stand at the header's right end; moving them waits
+  for the owner's ruling.
