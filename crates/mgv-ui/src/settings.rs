@@ -391,6 +391,26 @@ mod tests {
         assert_eq!(ron::from_str::<Settings>(&text).unwrap().layout, a_layout());
     }
 
+    /// A layout as M6 part D wrote it (RON, captured from that viewer with
+    /// every field set) loads whole after the move to Moonglow Toolset
+    /// 5.4.0: the viewer keeps its own record, as the kit's `KeptLayout`
+    /// (a section's front panel and shares, by editor kind) holds none of
+    /// its fields.
+    #[test]
+    fn a_part_d_layout_still_loads() {
+        const PART_D: &str = r#"(version:1,docks:{"log":"Right"},left_folded:true,right_folded:true,bottom_closed:true,bottom_front:Some("effects"),right_front:Some("lighting"),left_width:Some(333),left_gallery_width:Some(440),right_width:Some(352),right_wide_width:Some(900),bottom_height:Some(222),seams:{"resources":400},editor:[(tabs:["view"],front:0,share:0.5),(tabs:["texture","ascii"],front:0,share:0.5)])"#;
+        let s: Settings = ron::from_str(&format!("(show_grid: false, layout: {PART_D})")).unwrap();
+        let want = Layout {
+            right_folded: true,
+            left_gallery_width: Some(440),
+            right_width: Some(352),
+            ..a_layout()
+        };
+        assert_eq!(s.layout, want);
+        assert!(!s.show_grid);
+        assert_eq!(ron::to_string(&s.layout).unwrap(), PART_D, "written as it was read");
+    }
+
     #[test]
     fn recent_files() {
         let mut s = Settings::default();
