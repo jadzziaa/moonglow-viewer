@@ -1310,8 +1310,11 @@ fn band(shell: &Shell, at: Place) -> Option<Rect> {
 }
 
 /// A panel dragged by its header or tab: where it would land outlined in
-/// the accent (the toolset's drop preview), moved there once the button
-/// is let go; Escape gives the drag up.
+/// the accent (the kit's `stack::paint_drop_preview`, the toolset's
+/// preview), moved there once the button is let go; Escape gives the drag
+/// up. Where it lands is the viewer's own (a whole dock, or its band):
+/// the kit's `StackDrop` finds a zone within a section, which the
+/// viewer's docks, panels in a fixed order, do not have.
 pub(crate) fn drop_panel(app: &mut Viewer, ui: &Ui) {
     let Some(tab) = app.shell.dragging else { return };
     let ctx = ui.ctx();
@@ -1323,12 +1326,7 @@ pub(crate) fn drop_panel(app: &mut Viewer, ui: &Ui) {
     let pos = ctx.pointer_interact_pos().or_else(|| ctx.pointer_latest_pos());
     let target = pos.and_then(|p| drop_target(&app.shell, p));
     if let Some((_, rect)) = target {
-        let t = mg_uikit::tokens(ctx);
-        let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::new("mgv-dock-drop"));
-        let painter = ctx.layer_painter(layer);
-        painter.rect_filled(rect, 2.0, t.accent.gamma_multiply(0.22));
-        let stroke = egui::Stroke::new(2.0, t.accent);
-        painter.rect_stroke(rect, 2.0, stroke, egui::StrokeKind::Inside);
+        mg_uikit::stack::paint_drop_preview(ctx, rect);
     }
     if !ctx.input(|i| i.pointer.any_down()) {
         app.shell.dragging = None;
