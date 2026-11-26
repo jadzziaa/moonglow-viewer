@@ -16,7 +16,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use egui::{ColorImage, Ui};
 use mg_core::ResType;
@@ -111,9 +111,9 @@ pub trait Painter {
 }
 
 /// A [`Painter`] with the frame's library: the kit's [`PicturePainter`].
-/// Once a picture waits for the game's programs, those after it in the
-/// frame wait too without being drawn (they likely want the same
-/// programs), unless asked for as drawn.
+/// While a picture waits for the game's programs (one drawn in this frame,
+/// or within the wait between tries), the others wait too without being
+/// drawn (they likely want the same programs), unless asked for as drawn.
 struct Painting<'a> {
     painter: &'a mut dyn Painter,
     lib: &'a Library,
@@ -121,8 +121,10 @@ struct Painting<'a> {
     reasons: &'a mut HashMap<Pictured, String>,
     /// Pictures painted in this frame.
     painted: usize,
-    /// One painted in this frame waits for the game's programs.
+    /// One waits for the game's programs: the others are not drawn.
     waiting: bool,
+    /// One drawn in this frame waits for them.
+    drew_later: bool,
 }
 
 impl PicturePainter<Pictured> for Painting<'_> {
@@ -133,7 +135,7 @@ impl PicturePainter<Pictured> for Painting<'_> {
         self.painted += 1;
         let painted = self.painter.paint(self.lib, what, as_drawn);
         match &painted {
-            Painted::Later => self.waiting = true,
+            Painted::Later => (self.waiting, self.drew_later) = (true, true),
             Painted::Failed(reason) => {
                 self.reasons.insert(what, reason.clone());
             }
@@ -156,6 +158,9 @@ pub struct Pictures {
     reasons: HashMap<Pictured, String>,
     /// The library's layers when the pictures were made.
     layers: u64,
+    /// When a picture drawn last waited for the game's programs: until the
+    /// wait between tries is over, none is drawn but as drawn.
+    later: Option<Instant>,
     /// What makes them; made with the first picture asked for, on the
     /// window's GPU (set by a test to one of its own).
     pub painter: Option<Box<dyn Painter>>,
@@ -172,6 +177,7 @@ impl Default for Pictures {
             asked: HashSet::new(),
             reasons: HashMap::new(),
             layers: 0,
+            later: None,
             painter: None,
             painted: 0,
         }
@@ -262,6 +268,7 @@ impl Pictures {
         // (Every texture is the kit's own: none of the painter's to free.)
         let _ = self.cache.forget();
         self.reasons.clear();
+        self.later = None;
         if let Some(p) = &mut self.painter {
             p.forget();
         }
@@ -289,13 +296,21 @@ impl Pictures {
             self.painter = Some(Box::new(ViewerPainter::new(gpu, ctx)));
         }
         let budget = Budget { time: TIME, most: PER_FRAME };
+        let again = self.cache.retry.again;
+        let waiting = self.later.is_some_and(|t| t.elapsed() < again);
         let painted = match self.painter.as_deref_mut() {
             Some(painter) => {
                 let reasons = &mut self.reasons;
-                let mut painting = Painting { painter, lib, reasons, painted: 0, waiting: false };
+                let mut painting =
+                    Painting { painter, lib, reasons, painted: 0, waiting, drew_later: false };
                 // (Every texture is the kit's own: none of the painter's
                 // to free.)
                 let _ = self.cache.pump(ctx, &mut painting, budget, KEPT);
+                if painting.drew_later {
+                    self.later = Some(Instant::now());
+                } else if painting.painted > 0 {
+                    self.later = None;
+                }
                 painting.painted
             }
             // (Nothing asked for, nothing to paint: the waits and the
@@ -1078,6 +1093,21 @@ mod tests {
         let painted = log.lock().unwrap().painted.clone();
         assert_eq!(painted.iter().filter(|p| **p == m("m001")).count(), 1, "not tried again");
         assert!(painted.len() >= 5, "the two waits drawn again: {painted:?}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// While a picture waits for the game's programs, the others wait
+    /// undrawn: one is drawn again only once the wait between tries is
+    /// over, however many frames go by.
+    #[test]
+    fn while_one_waits_the_others_are_not_drawn() {
+        let (mut v, dir) = viewer(40, "cadence");
+        let log = fake(&mut v, Vec::new(), u32::MAX);
+        v.pictures.cache.retry.again = Duration::from_secs(3600);
+        let ctx = egui::Context::default();
+        run(&ctx, &mut v, BOARD, 6);
+        let painted = log.lock().unwrap().painted.clone();
+        assert_eq!(painted.len(), 1, "drawn once in six frames: {painted:?}");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

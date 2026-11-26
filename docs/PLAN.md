@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T14:14:28Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T14:18:11Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1311,16 +1311,20 @@ nothing a user sees changed:
 - **Pictures** (`gallery::Pictures`): the cache is the kit's
   `PaintedPictures<Pictured>` (asking, `Budget { 4 ms, 8 }`, 512 kept,
   `Retry { 50 ms, 20 s }`); the viewer's `Painter` with the frame's
-  library is the kit's `PicturePainter` (`gallery::Painting`), and once
-  a picture waits for the game's programs the rest of that frame's wait
-  undrawn, as before. Kept beside the cache: the set asked for in the
+  library is the kit's `PicturePainter` (`gallery::Painting`). While a
+  picture waits for the game's programs (one drawn in this frame, or in
+  the last 50 ms), every other waits undrawn unless asked for as drawn,
+  so one model is drawn per try, as before
+  (`while_one_waits_the_others_are_not_drawn`); the kit's budget may run
+  a few frames that draw nothing in between. Kept beside the cache: the set asked for in the
   frame (a cell in sight is in the grid's `ahead` too), the failures'
   reasons, the layers check and the painter's `forget`. At 20 s a
   picture is asked for as drawn, and `still_unwaited` always reads it
   back, so the kit's "Not drawn within 20 s" never shows: the cell shows
   the picture as drawn, as it did. Each waiting picture in sight now has
-  its own 20 s clock (before, only the first in line had one), and one
-  waiting is drawn again 50 ms after its last try, not at every frame.
+  its own 20 s clock (before, only the first in line had one), and the
+  first in line is drawn again 50 ms after the last try, not at every
+  frame.
 - **Drop preview**: `stack::paint_drop_preview` (the same tint and rim).
 - **Document tab close button**: `shell::doc_tab_close`.
 
