@@ -1287,3 +1287,15 @@ Upstream needs (the viewer's workarounds in place):
 
 Left: none of the brief's five items. Dock panels still cannot be closed
 one by one (the toolset's cannot either).
+
+### 10.10 Moonglow Toolset 5.4.0 (2026-11-26)
+
+The pin moved from v5.3.0 to v5.4.0. One test's `mg_preview::Preview`
+initializer took the two new fields, `overlay` and `effect_lights`;
+nothing else changed in the viewer. The stage does not use them yet: a
+creature holding a torch keeps its arms down (the toolset plays the
+`torchl` overlay), and its items' Light property casts no light.
+5.4.0 brings the kit's `stack` (StackLayout, StackDrop, the stack
+geometry, KeptLayout), `pictures` (PaintedPictures), the PanelHeader
+badge and `dock::doc_tab_close`, which the viewer's own versions from
+§10.7 to §10.9 move onto.

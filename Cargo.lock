@@ -180,7 +180,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "parking_lot",
  "percent-encoding",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
  "x11rb",
 ]
 
@@ -1075,7 +1075,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1986,7 +1986,7 @@ dependencies = [
 [[package]]
 name = "mg-2da"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "mg-core",
  "thiserror 2.0.21",
@@ -1995,7 +1995,7 @@ dependencies = [
 [[package]]
 name = "mg-audio"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "mg-core",
  "thiserror 2.0.21",
@@ -2004,7 +2004,7 @@ dependencies = [
 [[package]]
 name = "mg-core"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "encoding_rs",
  "sha2 0.11.1",
@@ -2014,7 +2014,7 @@ dependencies = [
 [[package]]
 name = "mg-erf"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "mg-core",
  "thiserror 2.0.21",
@@ -2024,7 +2024,7 @@ dependencies = [
 [[package]]
 name = "mg-gff"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "base64",
  "mg-core",
@@ -2035,17 +2035,18 @@ dependencies = [
 [[package]]
 name = "mg-image"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "mg-core",
  "png",
+ "rayon",
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "mg-key"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "memmap2",
  "mg-core",
@@ -2055,7 +2056,7 @@ dependencies = [
 [[package]]
 name = "mg-mdl"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "mg-core",
  "thiserror 2.0.21",
@@ -2064,7 +2065,7 @@ dependencies = [
 [[package]]
 name = "mg-module"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "fastrand",
  "indexmap",
@@ -2099,7 +2100,7 @@ dependencies = [
 [[package]]
 name = "mg-preview"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "glam",
  "mg-2da",
@@ -2117,7 +2118,7 @@ dependencies = [
 [[package]]
 name = "mg-render"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "bytemuck",
  "glam",
@@ -2136,7 +2137,7 @@ dependencies = [
 [[package]]
 name = "mg-resman"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "memmap2",
  "mg-core",
@@ -2149,7 +2150,7 @@ dependencies = [
 [[package]]
 name = "mg-rules"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "fastrand",
  "mg-2da",
@@ -2165,7 +2166,7 @@ dependencies = [
 [[package]]
 name = "mg-schema"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "mg-core",
  "mg-gff",
@@ -2174,7 +2175,7 @@ dependencies = [
 [[package]]
 name = "mg-script"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "cc",
  "mg-core",
@@ -2184,12 +2185,12 @@ dependencies = [
 [[package]]
 name = "mg-serve"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 
 [[package]]
 name = "mg-set"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "mg-core",
  "thiserror 2.0.21",
@@ -2198,7 +2199,7 @@ dependencies = [
 [[package]]
 name = "mg-shader"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "glslang",
  "mg-core",
@@ -2210,7 +2211,7 @@ dependencies = [
 [[package]]
 name = "mg-ssf"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "mg-core",
  "thiserror 2.0.21",
@@ -2219,7 +2220,7 @@ dependencies = [
 [[package]]
 name = "mg-testkit"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "mg-resman",
  "mg-serve",
@@ -2231,12 +2232,12 @@ dependencies = [
 [[package]]
 name = "mg-testkit-gpu"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 
 [[package]]
 name = "mg-tiles"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "fastrand",
  "glam",
@@ -2247,7 +2248,7 @@ dependencies = [
 [[package]]
 name = "mg-tlk"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "mg-core",
  "serde_json",
@@ -2257,7 +2258,7 @@ dependencies = [
 [[package]]
 name = "mg-uikit"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "egui",
  "egui_dock",
@@ -2268,7 +2269,7 @@ dependencies = [
 [[package]]
 name = "mg-update"
 version = "0.0.0"
-source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.3.0#290fdef9dbc511705a9c35fdd6a0827955c302ad"
+source = "git+https://github.com/jadzziaa/moonglow-toolset?tag=v5.4.0#0100d844d0ba3ee95544ad55e21ffd9aa4499e6c"
 dependencies = [
  "mg-core",
  "minisign-verify",
@@ -3459,7 +3460,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3818,10 +3819,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.5",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4551,7 +4552,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

@@ -545,7 +545,9 @@ fn a_robe_is_worn_at_its_wearer_s_size() {
         base: part("pmd0"),
         parts: vec![robe, head],
         idle: Some("pause1".into()),
+        overlay: None,
         lights: Vec::new(),
+        effect_lights: Vec::new(),
     };
     let added = stage.add_preview(&lib, &preview, Mat4::IDENTITY).unwrap();
     assert!(added.missing.is_empty(), "{:?}", added.missing);

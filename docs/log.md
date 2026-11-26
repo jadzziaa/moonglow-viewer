@@ -1,6 +1,7 @@
 # Update log
 
 ## 2026-11-26
+* **Update**: [The plan](PLAN.md) §10.10: the toolset's pin is v5.4.0; the preview's torch overlay and item lights are not used yet.
 * **Update**: [The plan](PLAN.md) §10.9: moving panels between docks is kept, as the owner ruled.
 
 ## 2026-11-25
