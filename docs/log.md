@@ -1,5 +1,8 @@
 # Update log
 
+## 2026-11-26
+* **Update**: [The plan](PLAN.md) §10.9: moving panels between docks is kept, as the owner ruled.
+
 ## 2026-11-25
 * **Update**: [The plan](PLAN.md) §10.9: the Right Dock's 352 is ruled (the boards); moving panels between docks awaits the owner's ruling.
 * **Update**: [The window](manual/02-the-window.md) and [the plan](PLAN.md) §10.9 (and §10.7's list of what was left): the rest of the redesign (M6 part D): the Timeline's transport row over a full-width scrub bar with a seconds ruler; the Texture's header (channels, Mip, Zoom) and caption line; the Inspector's Creature grid and PLT colors two pairs a row, each color a swatch and a combo opening the palette's 176 colors; panels dragged between the Left, Right and Bottom Docks (or moved by a header's menu); the layout kept between runs, an old or unreadable one opening as the default; the Right Dock opens 352 wide (the viewer boards') so the Creature grid stands two pairs a row.

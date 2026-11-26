@@ -1195,8 +1195,8 @@ The items part B left (§10.7), built on `mg-uikit` 5.3.0:
   `--right-w`), not the kit's 320, whose room (307) holds one pair a
   row; ruled by the orchestrator on 2026-11-25 ("Right dock: 352, per
   the boards"). Moving panels between the docks goes beyond the
-  toolset, which does not; it stays on this branch until the owner
-  rules whether to keep it. A color (`palette::pick`) is the kit's
+  toolset, which does not; the owner ruled to keep it ("Viewer drag:
+  keep", 2026-11-26). A color (`palette::pick`) is the kit's
   `paint_swatch_button` (28 wide with its padding) showing the color's
   tones and a combo (52) with
   its number; both open the same popup, the kit's `palette_swatches`
