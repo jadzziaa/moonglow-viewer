@@ -620,6 +620,30 @@ fn a_torch_bearer_raises_his_arm_and_lights_around_him() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// A body 1.8 m tall (a triangle from its feet to its head) with a left
+/// hand and a head to hang parts from.
+const HOLDER: &str = "newmodel base\nsetsupermodel base NULL\nclassification character\n\
+beginmodelgeom base\nnode dummy base\n  parent NULL\nendnode\n\
+node trimesh body\n  parent base\n  diffuse 1 1 1\n  verts 3\n    -0.3 0 0\n    0.3 0 0\n    0 0 1.8\n\
+  faces 1\n    0 1 2 1 0 0 0 0\nendnode\n\
+node dummy lhand\n  parent base\n  position 0 0 1\nendnode\n\
+node dummy head\n  parent base\n  position 0 0 1.8\nendnode\n\
+endmodelgeom base\ndonemodel base\n";
+
+/// A torch: a flame emitter born at no rate at rest, keyed to 10 a second
+/// by its `equip` (as `it_torch_000`'s).
+const TORCH: &str = "newmodel torch\nsetsupermodel torch NULL\nclassification item\n\
+        beginmodelgeom torch\nnode dummy torch\n  parent NULL\nendnode\n\
+        node emitter flame\n  parent torch\n  update Fountain\n  render Normal\n\
+          blend Lighten\n  texture flame\n  xgrid 1\n  ygrid 1\n  position 0 0 0.3\n\
+          colorStart 1 1 1\n  colorEnd 1 1 1\n  alphaStart 1\n  alphaEnd 0\n\
+          sizeStart 0.1\n  sizeEnd 0.5\n  birthrate 0\n  lifeExp 2\n  velocity 1\n\
+          spread 0.2\nendnode\nendmodelgeom torch\n\
+        newanim equip torch\n  length 0.1\n  transtime 0\n  animroot torch\n\
+        node dummy torch\n  parent NULL\nendnode\n\
+        node emitter flame\n  parent torch\n  birthratekey 2\n    0 0\n    0.1 10\nendnode\n\
+        doneanim equip torch\ndonemodel torch\n";
+
 /// A held item's emitters stand as its `equip` animation leaves them, as
 /// the client keys them (`part_emitters`): a torch's flame is born at no
 /// rate at rest (`it_torch_000`'s birthrate 0) and only its `equip` keys
@@ -628,25 +652,9 @@ fn a_torch_bearer_raises_his_arm_and_lights_around_him() {
 #[test]
 fn a_held_torch_burns() {
     let Some(gpu) = gpu() else { return };
-    let base = "newmodel base\nsetsupermodel base NULL\nclassification character\n\
-        beginmodelgeom base\nnode dummy base\n  parent NULL\nendnode\n\
-        node dummy lhand\n  parent base\n  position 0 0 1\nendnode\n\
-        node dummy head\n  parent base\n  position 0 0 1.8\nendnode\n\
-        endmodelgeom base\ndonemodel base\n";
-    let torch = "newmodel torch\nsetsupermodel torch NULL\nclassification item\n\
-        beginmodelgeom torch\nnode dummy torch\n  parent NULL\nendnode\n\
-        node emitter flame\n  parent torch\n  update Fountain\n  render Normal\n\
-          blend Lighten\n  texture flame\n  xgrid 1\n  ygrid 1\n  position 0 0 0.3\n\
-          colorStart 1 1 1\n  colorEnd 1 1 1\n  alphaStart 1\n  alphaEnd 0\n\
-          sizeStart 0.1\n  sizeEnd 0.5\n  birthrate 0\n  lifeExp 2\n  velocity 0.2\n\
-          spread 0.2\nendnode\nendmodelgeom torch\n\
-        newanim equip torch\n  length 0.1\n  transtime 0\n  animroot torch\n\
-        node dummy torch\n  parent NULL\nendnode\n\
-        node emitter flame\n  parent torch\n  birthratekey 2\n    0 0\n    0.1 10\nendnode\n\
-        doneanim equip torch\ndonemodel torch\n";
     let dir = scratch("held");
-    std::fs::write(dir.join("base.mdl"), base).unwrap();
-    std::fs::write(dir.join("torch.mdl"), torch).unwrap();
+    std::fs::write(dir.join("base.mdl"), HOLDER).unwrap();
+    std::fs::write(dir.join("torch.mdl"), TORCH).unwrap();
     let mut lib = Library::open(None).unwrap();
     lib.open_file(&dir.join("base.mdl")).unwrap();
     let burns = |attach: &str| {
@@ -665,6 +673,56 @@ fn a_held_torch_burns() {
     };
     assert!(burns("lhand"), "held in the left hand, its flame");
     assert!(!burns("head"), "not held, its model's own rate (none)");
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// Pictures are framed as the toolset frames a preview: on the drawn
+/// meshes, particles counting only where no mesh is drawn. A torch-bearer
+/// is framed as without his torch's flame (rising over his 1.8 m);
+/// an effect made of particles alone is framed on them.
+#[test]
+fn framing_takes_particles_only_where_nothing_else_is_drawn() {
+    let Some(gpu) = gpu() else { return };
+    let fog = "newmodel fog\nsetsupermodel fog NULL\nclassification effect\n\
+        beginmodelgeom fog\nnode dummy fog\n  parent NULL\nendnode\n\
+        node emitter puff\n  parent fog\n  update Fountain\n  render Normal\n\
+          blend Normal\n  texture puff\n  xgrid 1\n  ygrid 1\n\
+          colorStart 1 1 1\n  colorEnd 1 1 1\n  alphaStart 1\n  alphaEnd 1\n\
+          sizeStart 0.2\n  sizeEnd 0.2\n  birthrate 20\n  lifeExp 3\n  velocity 1\n\
+          spread 0.3\nendnode\nendmodelgeom fog\ndonemodel fog\n";
+    let dir = scratch("framing");
+    std::fs::write(dir.join("base.mdl"), HOLDER).unwrap();
+    std::fs::write(dir.join("torch.mdl"), TORCH).unwrap();
+    std::fs::write(dir.join("fog.mdl"), fog).unwrap();
+    let mut lib = Library::open(None).unwrap();
+    lib.open_file(&dir.join("base.mdl")).unwrap();
+    let mut torch = mg_preview::Preview::model("torch").base;
+    torch.item = true;
+    torch.attach = Some("lhand".into());
+    let preview = mg_preview::Preview { parts: vec![torch], ..mg_preview::Preview::model("base") };
+    let mut stage = Stage::new(gpu.clone());
+    let added = stage.add_preview(&lib, &preview, Mat4::IDENTITY).unwrap();
+    for _ in 0..60 {
+        stage.step(&lib, 1.0 / 30.0);
+    }
+    assert!(stage.actor(added.parts[0]).unwrap().particles_live());
+    let flame = stage
+        .scene(Mat4::IDENTITY)
+        .particles
+        .iter()
+        .flat_map(|b| &b.vertices)
+        .fold(f32::MIN, |top, v| top.max(v.pos[2]));
+    assert!(flame > 1.8, "the flame rises over his head: {flame} m");
+    let (_, max) = stage.bounds_with_particles().unwrap();
+    assert!((max.z - 1.8).abs() < 1e-3, "framed on him alone: {max}");
+    // Particles alone: framed on them.
+    let mut stage = Stage::new(gpu);
+    stage.add_model(&lib, "fog", Mat4::IDENTITY).unwrap();
+    for _ in 0..60 {
+        stage.step(&lib, 1.0 / 30.0);
+    }
+    let (min, max) = stage.bounds_with_particles().unwrap();
+    assert!(max.z - min.z > 0.5, "the puffs, rising: {min} {max}");
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

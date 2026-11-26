@@ -3,7 +3,7 @@ type: Manual Page
 title: The command line
 description: The mgv command-line tool - pictures, turntables, galleries, model information, decompiling, compiling and linting without a window.
 tags: [manual, command-line, mgv]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-03T08:07:12Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T21:53:51Z }
 ---
 
 # The command line
@@ -50,9 +50,13 @@ mgv lint mymodel.mdl --notes
   meshes. Pictures are drawn with the game's own shaders, as in the
   window (each compiled once, then kept in the cache folder; one that does
   not compile is drawn with Moonglow's own shader and named on standard
-  error); `--no-game-shaders` draws with Moonglow's own only. A picture is framed as close as shows all of the model from its
-  angle; a turntable from far enough for every side. These apply to
-  galleries and sheets too.
+  error); `--no-game-shaders` draws with Moonglow's own only. A picture
+  is framed as close as shows all of the model's meshes from its angle,
+  as the toolset frames a preview: particles count only for an effect
+  made of particles alone, so a brazier's flame or a torch's smoke can
+  rise past the picture's top. A turntable is framed from far enough for
+  every side. These apply to galleries and sheets too, and to Frame in
+  the window.
 - **Clips** (`clip`): a model and its visual effects (`--vfx`, repeatable)
   as they play, from `--time` for `--duration` seconds at `--fps` frames a
   second (frame *i* is the moment `time + i / fps`), all from one camera

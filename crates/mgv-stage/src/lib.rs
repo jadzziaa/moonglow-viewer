@@ -527,13 +527,18 @@ impl Stage {
         (min.x <= max.x).then_some((min, max))
     }
 
-    /// Where everything showing is (as of the last step): the drawn meshes'
-    /// vertices and the particles, so emitter-only effects count too; and
-    /// where nothing is drawn, the meshes the renderer skips and the
-    /// walkmeshes (a walkmesh opened alone).
+    /// Where what is framed is (as of the last step), as the toolset frames
+    /// a preview: the drawn meshes' vertices; where no mesh is drawn, the
+    /// particles (an effect made of particles alone); where neither, the
+    /// meshes the renderer skips and the walkmeshes (a walkmesh opened
+    /// alone). A torch-bearer is framed on himself, not on his torch's
+    /// smoke.
     pub fn shown_points(&self) -> Vec<Vec3> {
-        let scene = self.scene(Mat4::IDENTITY);
         let mut out: Vec<Vec3> = self.posed(false).into_iter().flat_map(|m| m.positions).collect();
+        if out.is_empty() {
+            let scene = self.scene(Mat4::IDENTITY);
+            out.extend(scene.particles.iter().flat_map(|b| &b.vertices).map(|v| Vec3::from(v.pos)));
+        }
         if out.is_empty() {
             out = self
                 .posed(true)
@@ -542,7 +547,6 @@ impl Stage {
                 .flat_map(|m| m.positions)
                 .collect();
         }
-        out.extend(scene.particles.iter().flat_map(|b| &b.vertices).map(|v| Vec3::from(v.pos)));
         out.retain(|p| p.is_finite());
         out
     }

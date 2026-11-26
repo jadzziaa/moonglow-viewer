@@ -1,6 +1,7 @@
 # Update log
 
 ## 2026-11-26
+* **Update**: [The plan](PLAN.md) §10.10 and [the command line](manual/05-command-line.md): pictures are framed on the drawn meshes, particles only where no mesh is drawn, as the toolset frames a preview (the owner's ruling).
 * **Update**: [The plan](PLAN.md) §10.10 and [lighting and effects](manual/04-lighting-and-effects.md): a held item's emitters are keyed by its `equip` animation as it ends, so a held torch burns (it showed no flame).
 * **Update**: [The plan](PLAN.md) §10.10 and [lighting and effects](manual/04-lighting-and-effects.md): the stage plays a preview's overlay (a torch-bearer's raised arm, worn parts with it) and casts its items' Light property, as the toolset's previews do (the owner's ruling).
 * **Update**: [The plan](PLAN.md) §10.7 and §10.10: the diagnostics strip's error and warning counts are its header's badges (the kit's `PanelHeader::badge`), after the title, as the owner ruled.
