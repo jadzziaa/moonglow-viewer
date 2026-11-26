@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T19:35:55Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T19:41:09Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1299,9 +1299,25 @@ one by one (the toolset's cannot either).
 
 The pin moved from v5.3.0 to v5.4.0. One test's `mg_preview::Preview`
 initializer took the two new fields, `overlay` and `effect_lights`;
-nothing else changed in the viewer. The stage does not use them yet: a
-creature holding a torch keeps its arms down (the toolset plays the
-`torchl` overlay), and its items' Light property casts no light.
+nothing else changed in the viewer then. The owner ruled "Viewer
+lights: add later" (26 Nov), and the stage uses them now, as the
+toolset's previews do
+(`a_torch_bearer_raises_his_arm_and_lights_around_him`):
+
+- **Overlay**: an actor plays `Actor::overlay` (`torchl`, a torch held in
+  the left hand) over whichever animation it plays, moving only the
+  nodes it keys (`anim::locals_layers`); the parts it wears play it too
+  (`anim::pose_worn_layers`, a robe's sleeve with the raised arm). At
+  rest, none.
+- **Effect lights**: each item Light property's effect model gives its
+  light nodes as the effect's animation leaves them at its end
+  (`fx_light_clr`'s `Yello_20m`), at the node named and the offset from
+  there, casting shadows as progfx.2da says. The viewer places it at that
+  node each step; the toolset places it once, where the node stands at
+  the start of the idle (the same place unless the node moves). The
+  Model lights switch turns it off with the model's own.
+- A held torch shows no flame in the viewer before or after this change;
+  that is not part of this work.
 5.4.0 brings the kit's `stack` (StackLayout, StackDrop, the stack
 geometry, KeptLayout), `pictures` (PaintedPictures), the PanelHeader
 badge and `shell::doc_tab_close`. What the viewer moved onto, with

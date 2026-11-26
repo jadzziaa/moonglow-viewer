@@ -525,6 +525,101 @@ fn casters_show_in_place_of_the_model() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// A torch-bearer, as the toolset's previews and the client draw him
+/// (`part_emitters_torch_light`): his overlay (`torchl`) raises the arm it
+/// keys over his idle, which keys the rest, and a worn robe's arm bone
+/// with it; his light is the effect model's light as its animation ends
+/// (`fx_light_clr`'s `Yello_20m`: the color 1.75, 1.5, 1 and radius 13.3),
+/// at his `headconjure` and the offset from there, casting shadows as the
+/// effect says. Without the overlay the arm stays down; an effect whose
+/// model is missing gives no light.
+#[test]
+fn a_torch_bearer_raises_his_arm_and_lights_around_him() {
+    let Some(gpu) = gpu() else { return };
+    let key = |anim: &str, node: &str, z: f32| {
+        format!(
+            "newanim {anim} base\n  length 2\n  transtime 0\n  animroot base\n\
+             node dummy base\n  parent NULL\nendnode\n\
+             node dummy {node}\n  parent base\n  positionkey 2\n    0 0 0 {z}\n    2 0 0 {z}\n\
+             endnode\ndoneanim {anim} base\n"
+        )
+    };
+    let base = format!(
+        "newmodel base\nsetsupermodel base NULL\nclassification character\n\
+         beginmodelgeom base\nnode dummy base\n  parent NULL\nendnode\n\
+         node dummy lhand\n  parent base\n  position 0 0 1\nendnode\n\
+         node dummy head_g\n  parent base\n  position 0 0 1.5\nendnode\n\
+         node dummy headconjure\n  parent base\n  position 0 0.1 2\nendnode\n\
+         endmodelgeom base\n{}{}donemodel base\n",
+        key("pause1", "head_g", 1.6),
+        key("torchl", "lhand", 1.8),
+    );
+    let robe = "newmodel robe\nsetsupermodel robe NULL\nclassification character\n\
+        beginmodelgeom robe\nnode dummy robe\n  parent NULL\nendnode\n\
+        node dummy lhand\n  parent robe\n  position 0 0 1\nendnode\n\
+        endmodelgeom robe\ndonemodel robe\n";
+    let fx = "newmodel fx\nsetsupermodel fx NULL\nclassification effect\n\
+        beginmodelgeom fx\nnode dummy fx\n  parent NULL\nendnode\n\
+        node light glow\n  parent fx\n  position 0 0 0\n  radius 50\n  color 0 0 0\n\
+          shadow 0\nendnode\nendmodelgeom fx\n\
+        newanim Yello_20m fx\n  length 0.3\n  transtime 0\n  animroot fx\n\
+        node dummy fx\n  parent NULL\nendnode\n\
+        node light glow\n  parent fx\n  colorkey 1\n    0.3 1.75 1.5 1\n\
+          radiuskey 2\n    0 0\n    0.3 13.3\nendnode\ndoneanim Yello_20m fx\n\
+        donemodel fx\n";
+    let dir = scratch("torch");
+    std::fs::write(dir.join("base.mdl"), base).unwrap();
+    std::fs::write(dir.join("robe.mdl"), robe).unwrap();
+    std::fs::write(dir.join("fx.mdl"), fx).unwrap();
+    let mut lib = Library::open(None).unwrap();
+    lib.open_file(&dir.join("base.mdl")).unwrap();
+    let light = mg_preview::EffectLight {
+        model: "fx".into(),
+        animation: "yello_20m".into(),
+        shadows: true,
+        attach: Some("headconjure".into()),
+        offset: Vec3::new(0.0, 0.75, 0.6),
+    };
+    let mut robe = mg_preview::Preview::model("robe").base;
+    robe.animated = true;
+    let preview = mg_preview::Preview {
+        parts: vec![robe],
+        idle: Some("pause1".into()),
+        overlay: Some("torchl".into()),
+        effect_lights: vec![light.clone()],
+        ..mg_preview::Preview::model("base")
+    };
+    let at = Mat4::from_translation(Vec3::new(10.0, 0.0, 0.0));
+    let z = |stage: &Stage, id, node: &str| {
+        let a = stage.actor(id).unwrap();
+        let i = a.model.model.node(node).unwrap();
+        a.pose()[i].w_axis.z
+    };
+    let mut stage = Stage::new(gpu);
+    let added = stage.add_preview(&lib, &preview, at).unwrap();
+    assert!(added.missing.is_empty(), "{:?}", added.missing);
+    stage.step(&lib, 0.5);
+    let (base, worn) = (added.base, added.parts[0]);
+    assert_eq!((z(&stage, base, "lhand"), z(&stage, base, "head_g")), (1.8, 1.6));
+    assert_eq!(z(&stage, worn, "lhand"), 1.8, "the robe's arm with it");
+    let lights = stage.actor(base).unwrap().lights().to_vec();
+    assert_eq!(lights.len(), 1, "{lights:?}");
+    let l = lights[0];
+    assert!(l.position.abs_diff_eq(Vec3::new(10.0, 0.85, 2.6), 1e-5), "{l:?}");
+    let linear = (Vec3::new(1.75, 1.5, 1.0) / 1.75).powf(2.2);
+    assert!(l.color.abs_diff_eq(linear, 1e-5) && (l.cutoff - 13.3 * 2.0 * 1.75).abs() < 1e-3);
+    assert!(l.casts_shadows);
+    // Without the overlay, the arm down; without the effect's model, no light.
+    stage.clear();
+    let missing = mg_preview::EffectLight { model: "none".into(), ..light };
+    let plain = mg_preview::Preview { overlay: None, effect_lights: vec![missing], ..preview };
+    let added = stage.add_preview(&lib, &plain, at).unwrap();
+    stage.step(&lib, 0.5);
+    assert_eq!(z(&stage, added.base, "lhand"), 1.0);
+    assert!(stage.actor(added.base).unwrap().lights().is_empty());
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 /// A robe worn by a dwarf plays the dwarf's animation at the dwarf's size
 /// (its skeleton's `setanimationscale`, 0.66): it hangs from the shoulders,
 /// the head above it. Played at the robe model's own scale (1) it stood at

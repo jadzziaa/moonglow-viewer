@@ -1,6 +1,7 @@
 # Update log
 
 ## 2026-11-26
+* **Update**: [The plan](PLAN.md) §10.10 and [lighting and effects](manual/04-lighting-and-effects.md): the stage plays a preview's overlay (a torch-bearer's raised arm, worn parts with it) and casts its items' Light property, as the toolset's previews do (the owner's ruling).
 * **Update**: [The plan](PLAN.md) §10.7 and §10.10: the diagnostics strip's error and warning counts are its header's badges (the kit's `PanelHeader::badge`), after the title, as the owner ruled.
 * **Update**: [The plan](PLAN.md) §10.7 to §10.10: the viewer moved onto Moonglow Toolset 5.4.0's kit parts where nothing a user sees changes: the gallery's picture cache is the kit's `PaintedPictures`, the drop preview `stack::paint_drop_preview`, the document tab's close button `shell::doc_tab_close`; the docks' stacking and drop targets, the kept layout and the diagnostics' badges stay the viewer's, with the reasons and each kit gap's state.
 * **Update**: [The plan](PLAN.md) §10.10: the toolset's pin is v5.4.0; the preview's torch overlay and item lights are not used yet.

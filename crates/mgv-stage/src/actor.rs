@@ -157,6 +157,24 @@ pub struct Actor {
     /// Lights the actor carries besides its model's (a placeable
     /// blueprint's light): offset from its origin, colour, radius.
     pub carried: Vec<(Vec3, Vec3, f32)>,
+    /// An animation it plays over whichever it plays, moving only the
+    /// nodes it keys (`torchl`: a torch-bearer's left arm raised,
+    /// [`mg_preview::Preview::overlay`]); the parts it wears follow it.
+    pub overlay: Option<String>,
+    /// The lights of its effects (its items' Light property,
+    /// [`mg_preview::Preview::effect_lights`]).
+    pub(crate) effect_lamps: Vec<EffectLamp>,
+}
+
+/// An effect's light on an actor ([`mg_preview::EffectLight`]): the effect
+/// model's light as its animation leaves it at its end, at one of the
+/// actor's nodes (none: its origin) and an offset from there in the
+/// actor's space, not turned by the node.
+#[derive(Debug, Clone)]
+pub(crate) struct EffectLamp {
+    pub(crate) node: Option<usize>,
+    pub(crate) offset: Vec3,
+    pub(crate) lamp: anim::Lamp,
 }
 
 /// A transition from a pose into an animation over its `transtime`.
@@ -242,6 +260,8 @@ impl Actor {
             lights: Vec::new(),
             current: None,
             carried: Vec::new(),
+            overlay: None,
+            effect_lamps: Vec::new(),
         }
     }
 
@@ -324,11 +344,21 @@ impl Actor {
     }
 
     /// The nodes' transforms (relative to their parents) and the mesh state
-    /// for an animation at a time.
-    pub(crate) fn sample(&self, anim: Option<&Animation>, t: f32) -> (Vec<Local>, MeshState) {
+    /// for an animation at a time, `over` played over it (its overlay; at
+    /// rest, none).
+    pub(crate) fn sample(
+        &self,
+        anim: Option<&Animation>,
+        over: Option<&Animation>,
+        t: f32,
+    ) -> (Vec<Local>, MeshState) {
+        let model = &self.model.model;
         match anim {
-            Some(a) => (anim::locals(&self.model.model, a, t), anim::mesh_state(&self.model, a, t)),
-            None => (anim::rest_locals(&self.model.model), MeshState::new(&self.model)),
+            Some(a) => {
+                let layers: Vec<&Animation> = std::iter::once(a).chain(over).collect();
+                (anim::locals_layers(model, &layers, t), anim::mesh_state(&self.model, a, t))
+            }
+            None => (anim::rest_locals(model), MeshState::new(&self.model)),
         }
     }
 
@@ -338,17 +368,22 @@ impl Actor {
     /// bones. A robe's own model says 1: a dwarf's (0.66) played at a
     /// human's size, its hem below the feet and its collar over the head.
     /// The part's very own animations keep theirs.
+    /// The wearer's overlay (`over`) moves it too: a robe's sleeve follows
+    /// a torch-bearer's raised arm.
     pub(crate) fn sample_worn(
         &self,
         anim: Option<&Animation>,
+        over: Option<&Animation>,
         t: f32,
         worn: f32,
     ) -> (Vec<Local>, MeshState) {
-        let Some(a) = anim else { return self.sample(anim, t) };
+        let Some(a) = anim else { return self.sample(anim, None, t) };
         let model = &self.model.model;
         // (The toolset gives the worn pose composed: back to each node's
         // place relative to its parent, for the transitions.)
-        let pose = anim::pose_worn(model, a, t, worn);
+        let layers: Vec<(&Animation, f32)> =
+            std::iter::once((a, worn)).chain(over.map(|o| (o, worn))).collect();
+        let pose = anim::pose_worn_layers(model, &layers, t);
         let locals = model
             .nodes
             .iter()

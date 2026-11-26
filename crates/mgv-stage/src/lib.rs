@@ -29,7 +29,7 @@ use std::sync::Arc;
 
 use glam::{Mat4, Vec3};
 use mg_mdl::Model;
-use mg_preview::Preview;
+use mg_preview::{EffectLight, Preview};
 use mg_render::{Gpu, GpuModel, Instance, MeshState, PointLight, Scene, anim};
 use mgv_library::Library;
 use thiserror::Error;
@@ -46,7 +46,7 @@ pub use render::{Viewport, set_shader_cache, shader_cache_dir};
 /// does not compile.
 pub const GAME_SHADERS_BY_DEFAULT: bool = true;
 
-use actor::Current;
+use actor::{Current, EffectLamp};
 
 #[derive(Debug, Error)]
 pub enum StageError {
@@ -266,6 +266,8 @@ impl Stage {
             base.player.play(Some(idle), PlayMode::Loop);
         }
         base.carried = preview.lights.iter().map(|l| (l.offset, l.color, l.radius)).collect();
+        base.overlay = preview.overlay.clone();
+        base.effect_lamps = effect_lamps(lib, &model, &preview.effect_lights);
         let base = self.add(base);
         let mut parts = Vec::new();
         let mut missing = Vec::new();
@@ -350,9 +352,14 @@ impl Stage {
             let worn = parent
                 .filter(|_| actor.follows_parent)
                 .map(|(p, ..)| p.model.model.animation_scale);
+            // (Its overlay over it, or its wearer's.)
+            let over = match parent.filter(|_| actor.follows_parent) {
+                Some((p, ..)) => p.overlay.as_deref().and_then(|n| p.animations.find(n)),
+                None => actor.overlay.as_deref().and_then(|n| actor.animations.find(n)),
+            };
             let (locals, mut state) = match worn {
-                Some(worn) => actor.sample_worn(anim, t, worn),
-                None => actor.sample(anim, t),
+                Some(worn) => actor.sample_worn(anim, over, t, worn),
+                None => actor.sample(anim, over, t),
             };
             let name = |c: &Option<Current>| c.as_ref().map(|c| c.name.to_ascii_lowercase());
             let changed = (name(&current) != name(&actor.current)).then_some(anim);
@@ -391,6 +398,12 @@ impl Stage {
                     false,
                     4,
                 ));
+            }
+            for e in &actor.effect_lamps {
+                let node =
+                    e.node.and_then(|n| pose.get(n)).map_or(Vec3::ZERO, |m| m.w_axis.truncate());
+                let at = world * Mat4::from_translation(node + e.offset);
+                lights.extend(e.lamp.placed(at, &main_light));
             }
 
             actor.world = world;
@@ -630,4 +643,27 @@ fn look(p: &mg_preview::Part, lib: &Library) -> Look {
         colors: p.colors,
         env_map: p.env_map.clone(),
     }
+}
+
+/// The lights of a preview's effects on its base `model` ([`EffectLamp`]):
+/// each effect model's light nodes as its animation leaves them at its end
+/// (`fx_light_clr`'s `Yello_20m` keys the radius up to 13.3 m), casting
+/// shadows as the effect says. An effect whose model or animation is
+/// missing gives none.
+fn effect_lamps(lib: &Library, model: &Model, effects: &[EffectLight]) -> Vec<EffectLamp> {
+    let mut out = Vec::new();
+    for e in effects {
+        let Some(m) = lib.model(&e.model) else { continue };
+        let Some(a) = m.animation(&e.animation) else { continue };
+        let node = e
+            .attach
+            .as_deref()
+            .and_then(|name| model.nodes.iter().position(|n| n.name.eq_ignore_ascii_case(name)));
+        let rest = anim::compose(&m, &anim::rest_locals(&m));
+        for lamp in anim::lamps_layers(&m, &[a], a.length, &rest) {
+            let lamp = anim::Lamp { shadow: e.shadows, ..lamp };
+            out.push(EffectLamp { node, offset: e.offset, lamp });
+        }
+    }
+    out
 }
