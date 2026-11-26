@@ -508,7 +508,8 @@ fn the_overlays_popover_toggles() {
 
 /// The ASCII tab shows the modified dot (no " *" in its title) while its
 /// edits are unsaved; its header's Save takes it away. The diagnostics
-/// strip under the text counts the errors and the warnings.
+/// strip under the text counts the errors and the warnings in its
+/// header's badges, after the title.
 #[test]
 fn the_ascii_tab_s_dot_and_the_diagnostics_counts() {
     use mgv_ui::editor::{DIAGNOSTICS, HEADER, counts, plural};
@@ -528,6 +529,14 @@ fn the_ascii_tab_s_dot_and_the_diagnostics_counts() {
         h.get_by_label(DIAGNOSTICS).query_by_label(what).is_some()
     };
     assert!(strip(&h, "0 errors") && strip(&h, "0 warnings"));
+    // The counts are the header's badges, after its title (the kit's
+    // slot), not at its right end.
+    let header = h.get_by_label(DIAGNOSTICS).rect();
+    let errors = h.get_by_label(DIAGNOSTICS).get_by_label("0 errors").rect();
+    let warnings = h.get_by_label(DIAGNOSTICS).get_by_label("0 warnings").rect();
+    assert!(errors.left() - header.left() < 120.0, "{errors:?} in {header:?}");
+    assert!(warnings.left() > errors.right() && warnings.left() - errors.right() < 16.0);
+    assert!(header.right() - warnings.right() > 200.0, "{warnings:?} in {header:?}");
     // A node without a name, and an endnode without a node.
     let broken = MODEL.replace("endmodelgeom tri", "node\nendnode\nendnode\nendmodelgeom tri");
     let now = h.ctx.input(|i| i.time);

@@ -390,7 +390,7 @@ pub fn ui(app: &mut Viewer, ui: &mut Ui) {
     }
 
     // The diagnostics, a strip under the text: its title row with the
-    // error and warning counts, the lines (a click goes to the line).
+    // error and warning counts after the title (the kit's badges), the lines (a click goes to the line).
     let mut jump: Option<usize> = app.jump_to_line.take();
     let (errors, warnings) = counts(&buffer.diagnostics);
     egui::Panel::bottom("diagnostics")
@@ -399,14 +399,13 @@ pub fn ui(app: &mut Viewer, ui: &mut Ui) {
         .size_range(mg_uikit::metrics::DOCK_TABS + 1.0..=f32::INFINITY)
         .frame(egui::Frame::new().fill(tokens.panel))
         .show(ui, |ui| {
-            PanelHeader::new(DIAGNOSTICS).show(ui, |ui| {
-                let kind = |n: usize, k: BadgeKind| if n > 0 { k } else { BadgeKind::Plain };
-                ui.add(Badge::new(plural(errors, "error")).kind(kind(errors, BadgeKind::Error)));
-                ui.add_space(4.0);
-                ui.add(
+            let kind = |n: usize, k: BadgeKind| if n > 0 { k } else { BadgeKind::Plain };
+            PanelHeader::new(DIAGNOSTICS)
+                .badge(Badge::new(plural(errors, "error")).kind(kind(errors, BadgeKind::Error)))
+                .badge(
                     Badge::new(plural(warnings, "warning")).kind(kind(warnings, BadgeKind::Warn)),
-                );
-            });
+                )
+                .show(ui, |_| {});
             egui::Frame::new().inner_margin(egui::Margin::symmetric(6, 2)).show(ui, |ui| {
                 egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                     if buffer.diagnostics.is_empty() {

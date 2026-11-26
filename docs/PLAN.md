@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T14:18:11Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T19:35:55Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1022,7 +1022,7 @@ bookkeeping:
   state text at the right: the file's name, its path in the tip, capped
   at 320 with a form for More); the
   diagnostics a resizable strip under the text, its `PanelHeader` title
-  row with the error and warning counts as badges.
+  row with the error and warning counts as its badges, after the title.
 - **Status Bar** (`status::bar_sized`, `StatusSwitch`, `StatusLog`,
   `Hints`, `StatusItem`, `StatusJob`): the Bottom Dock's switches, the
   Log's last line while it is out of sight, the hints of the panel under
@@ -1050,10 +1050,9 @@ Upstream needs (the viewer's workarounds in place):
 - The document tab's close button: the kit's `shell::doc_tab_close`
   since 5.4.0, which the viewer uses (gap closed). The menu bar's
   last-frame width is still `mg-ui` code copied in.
-- Badges in a `PanelHeader`: the kit has `PanelHeader::badge` since 5.4.0
-  (gap closed in the kit), but it draws them after the title, and the
-  viewer's diagnostics counts stand among the header's tools at its right
-  end; they stay there until the owner rules on moving them (§10.10).
+- Badges in a `PanelHeader`: the kit's `PanelHeader::badge` since 5.4.0,
+  which the viewer uses (gap closed): the diagnostics counts stand after
+  the title, as the owner ruled ("Viewer badges: kit slot", §10.10).
 
 Left at part B: Gallery mode (built in part C, §10.8); the Creature
 section's two-column grid and swatch-combo color pickers, the Timeline's
@@ -1340,6 +1339,9 @@ What stayed the viewer's, and why:
   `settings::Layout`'s; the record and its version (1) are unchanged, so
   a part D layout loads as it did
   (`settings::tests::a_part_d_layout_still_loads`).
-- **Badges**: `PanelHeader::badge` draws them after the title, and the
-  diagnostics counts stand at the header's right end; moving them waits
-  for the owner's ruling.
+- **Badges** (kept until the owner ruled): `PanelHeader::badge` draws
+  them after the title, where the viewer had the diagnostics counts at
+  the header's right end. The owner ruled "Viewer badges: kit slot"
+  (26 Nov): the counts are the header's badges now, after the title
+  (`the_ascii_tab_s_dot_and_the_diagnostics_counts` holds where they
+  stand).
