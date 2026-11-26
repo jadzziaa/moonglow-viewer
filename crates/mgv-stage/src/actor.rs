@@ -164,6 +164,10 @@ pub struct Actor {
     /// The lights of its effects (its items' Light property,
     /// [`mg_preview::Preview::effect_lights`]).
     pub(crate) effect_lamps: Vec<EffectLamp>,
+    /// An item held in a hand (a weapon, a shield, a torch): its emitters
+    /// stand as its `equip` animation leaves them, as the client keys them
+    /// (a torch's flame and smoke are born only there).
+    pub held: bool,
 }
 
 /// An effect's light on an actor ([`mg_preview::EffectLight`]): the effect
@@ -262,6 +266,7 @@ impl Actor {
             carried: Vec::new(),
             overlay: None,
             effect_lamps: Vec::new(),
+            held: false,
         }
     }
 
@@ -445,6 +450,21 @@ impl Actor {
             }
         }
         (min.x <= max.x).then_some((min, max))
+    }
+}
+
+/// The animation and time an actor's emitters are keyed by: a held item's
+/// `equip` as it ends ([`Actor::held`], of its `model`), else what it
+/// plays.
+pub(crate) fn emitter_keys<'a>(
+    held: bool,
+    model: &'a Model,
+    anim: Option<&'a Animation>,
+    t: f32,
+) -> (Option<&'a Animation>, f32) {
+    match held.then(|| model.animation("equip")).flatten() {
+        Some(equip) => (Some(equip), equip.length),
+        None => (anim, t),
     }
 }
 

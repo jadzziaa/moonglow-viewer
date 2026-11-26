@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T19:41:09Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T20:35:43Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1316,8 +1316,14 @@ toolset's previews do
   node each step; the toolset places it once, where the node stands at
   the start of the idle (the same place unless the node moves). The
   Model lights switch turns it off with the model's own.
-- A held torch shows no flame in the viewer before or after this change;
-  that is not part of this work.
+- **A held item's emitters** stand as its `equip` animation leaves them,
+  as the client keys them and `mg_preview` does (`Actor::held`: an item
+  part in `rhand`, `lhand` or `lforearm`): `it_torch_000`'s flame and
+  smoke are born at rate 0 at rest and only its `equip` keys them, so a
+  held torch showed no flame before (owner: "Torch flame: fix";
+  `a_held_torch_burns`). Pictures frame on the particles too
+  (`Stage::shown_points`), so a torch-bearer's picture takes in its
+  smoke; the toolset frames a preview on its meshes.
 5.4.0 brings the kit's `stack` (StackLayout, StackDrop, the stack
 geometry, KeptLayout), `pictures` (PaintedPictures), the PanelHeader
 badge and `shell::doc_tab_close`. What the viewer moved onto, with

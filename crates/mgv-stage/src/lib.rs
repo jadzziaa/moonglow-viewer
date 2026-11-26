@@ -288,6 +288,11 @@ impl Stage {
             };
             actor.look = part_look;
             actor.follows_parent = p.animated;
+            actor.held = p.item
+                && !p.animated
+                && p.attach
+                    .as_deref()
+                    .is_some_and(|n| HANDS.iter().any(|h| h.eq_ignore_ascii_case(n)));
             parts.push(self.add(actor));
         }
         Ok(Added { base, parts, missing })
@@ -385,8 +390,9 @@ impl Stage {
             actor.dangly.update(step_dt, &pose, world, Vec3::ZERO);
             actor.dangly.apply(&mut state, &pose, world);
             let model = actor.model.model.clone();
-            actor.particles.update(&model, anim, t, step_dt, &pose, world);
-            for c in actor.particles.chunks(&model, anim, t, &pose, world) {
+            let (keys, kt) = actor::emitter_keys(actor.held, &model, anim, t);
+            actor.particles.update(&model, keys, kt, step_dt, &pose, world);
+            for c in actor.particles.chunks(&model, keys, kt, &pose, world) {
                 chunk_requests.push(c);
             }
             let mut lights = anim::lights(&model, anim, t, &pose, world, &main_light);
@@ -466,7 +472,8 @@ impl Stage {
                 textures: a.look.textures.clone(),
                 ..Instance::new(a.model.clone(), a.world)
             });
-            particles.extend(a.particles.batches(&a.model.model, anim, t, &a.pose, a.world, view));
+            let (keys, kt) = actor::emitter_keys(a.held, &a.model.model, anim, t);
+            particles.extend(a.particles.batches(&a.model.model, keys, kt, &a.pose, a.world, view));
             if self.model_lights {
                 lights.extend(a.lights.iter().cloned());
             }
@@ -644,6 +651,10 @@ fn look(p: &mg_preview::Part, lib: &Library) -> Look {
         env_map: p.env_map.clone(),
     }
 }
+
+/// The nodes a held item hangs from (a weapon, a shield, a torch), as
+/// `mg_preview` tells them.
+const HANDS: [&str; 3] = ["rhand", "lhand", "lforearm"];
 
 /// The lights of a preview's effects on its base `model` ([`EffectLamp`]):
 /// each effect model's light nodes as its animation leaves them at its end

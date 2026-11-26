@@ -620,6 +620,54 @@ fn a_torch_bearer_raises_his_arm_and_lights_around_him() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// A held item's emitters stand as its `equip` animation leaves them, as
+/// the client keys them (`part_emitters`): a torch's flame is born at no
+/// rate at rest (`it_torch_000`'s birthrate 0) and only its `equip` keys
+/// one, so held and keyed by nothing it showed no flame. The same item
+/// not held (a helmet's place) keeps its model's own rate.
+#[test]
+fn a_held_torch_burns() {
+    let Some(gpu) = gpu() else { return };
+    let base = "newmodel base\nsetsupermodel base NULL\nclassification character\n\
+        beginmodelgeom base\nnode dummy base\n  parent NULL\nendnode\n\
+        node dummy lhand\n  parent base\n  position 0 0 1\nendnode\n\
+        node dummy head\n  parent base\n  position 0 0 1.8\nendnode\n\
+        endmodelgeom base\ndonemodel base\n";
+    let torch = "newmodel torch\nsetsupermodel torch NULL\nclassification item\n\
+        beginmodelgeom torch\nnode dummy torch\n  parent NULL\nendnode\n\
+        node emitter flame\n  parent torch\n  update Fountain\n  render Normal\n\
+          blend Lighten\n  texture flame\n  xgrid 1\n  ygrid 1\n  position 0 0 0.3\n\
+          colorStart 1 1 1\n  colorEnd 1 1 1\n  alphaStart 1\n  alphaEnd 0\n\
+          sizeStart 0.1\n  sizeEnd 0.5\n  birthrate 0\n  lifeExp 2\n  velocity 0.2\n\
+          spread 0.2\nendnode\nendmodelgeom torch\n\
+        newanim equip torch\n  length 0.1\n  transtime 0\n  animroot torch\n\
+        node dummy torch\n  parent NULL\nendnode\n\
+        node emitter flame\n  parent torch\n  birthratekey 2\n    0 0\n    0.1 10\nendnode\n\
+        doneanim equip torch\ndonemodel torch\n";
+    let dir = scratch("held");
+    std::fs::write(dir.join("base.mdl"), base).unwrap();
+    std::fs::write(dir.join("torch.mdl"), torch).unwrap();
+    let mut lib = Library::open(None).unwrap();
+    lib.open_file(&dir.join("base.mdl")).unwrap();
+    let burns = |attach: &str| {
+        let mut part = mg_preview::Preview::model("torch").base;
+        part.item = true;
+        part.attach = Some(attach.into());
+        let preview =
+            mg_preview::Preview { parts: vec![part], ..mg_preview::Preview::model("base") };
+        let mut stage = Stage::new(gpu.clone());
+        let added = stage.add_preview(&lib, &preview, Mat4::IDENTITY).unwrap();
+        assert!(added.missing.is_empty(), "{:?}", added.missing);
+        for _ in 0..30 {
+            stage.step(&lib, 1.0 / 30.0);
+        }
+        stage.actor(added.parts[0]).unwrap().particles_live()
+    };
+    assert!(burns("lhand"), "held in the left hand, its flame");
+    assert!(!burns("head"), "not held, its model's own rate (none)");
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 /// A robe worn by a dwarf plays the dwarf's animation at the dwarf's size
 /// (its skeleton's `setanimationscale`, 0.66): it hangs from the shoulders,
 /// the head above it. Played at the robe model's own scale (1) it stood at

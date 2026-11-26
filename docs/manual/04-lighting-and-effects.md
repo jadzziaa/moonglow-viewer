@@ -3,7 +3,7 @@ type: Manual Page
 title: Lighting and visual effects
 description: Lighting a model as the game does (studio, area presets, custom area) and applying the game's visual effects and emitters to it.
 tags: [manual, lighting, visual-effects]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T19:41:09Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T20:35:43Z }
 ---
 
 # Lighting and visual effects
@@ -14,7 +14,7 @@ The view lights models as the game's enhanced lighting does: the sun or
 moon, the model's own lights (switch them off under **Lighting**), tile
 lights, fog, environment maps and EE materials. A creature lights what is
 around it with its items' Light property, as the game does, and one
-holding a torch raises that arm; the Model lights switch turns their
+holding a torch raises that arm, the torch burning; the Model lights switch turns their
 light off too. **Lighting** chooses:
 
 - **Studio**: a neutral daylight on a plain background (pick its color
