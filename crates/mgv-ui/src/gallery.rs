@@ -14,7 +14,7 @@
 //! kept by what they are of and let go of when the game's data is read
 //! again ([`Pictures::forget`]).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -117,8 +117,6 @@ pub trait Painter {
 struct Painting<'a> {
     painter: &'a mut dyn Painter,
     lib: &'a Library,
-    /// The failures' reasons, kept for [`Pictures::error`].
-    reasons: &'a mut HashMap<Pictured, String>,
     /// Pictures painted in this frame.
     painted: usize,
     /// One waits for the game's programs: the others are not drawn.
@@ -134,12 +132,8 @@ impl PicturePainter<Pictured> for Painting<'_> {
         }
         self.painted += 1;
         let painted = self.painter.paint(self.lib, what, as_drawn);
-        match &painted {
-            Painted::Later => (self.waiting, self.drew_later) = (true, true),
-            Painted::Failed(reason) => {
-                self.reasons.insert(what, reason.clone());
-            }
-            Painted::Ready(_) | Painted::Drawn(_) => {}
+        if let Painted::Later = painted {
+            (self.waiting, self.drew_later) = (true, true);
         }
         painted
     }
@@ -153,9 +147,6 @@ pub struct Pictures {
     /// Asked for in this frame, made or not (a cell in sight is in the
     /// grid's `ahead` too: asked once).
     asked: HashSet<Pictured>,
-    /// Why the pictures made with none have none (the kit gives a reason
-    /// only while asking for the picture).
-    reasons: HashMap<Pictured, String>,
     /// The library's layers when the pictures were made.
     layers: u64,
     /// When a picture drawn last waited for the game's programs: until the
@@ -172,15 +163,7 @@ impl Default for Pictures {
     fn default() -> Pictures {
         let mut cache = PaintedPictures::default();
         cache.retry = Retry { again: AGAIN, give_up: WAIT_AT_MOST };
-        Pictures {
-            cache,
-            asked: HashSet::new(),
-            reasons: HashMap::new(),
-            layers: 0,
-            later: None,
-            painter: None,
-            painted: 0,
-        }
+        Pictures { cache, asked: HashSet::new(), layers: 0, later: None, painter: None, painted: 0 }
     }
 }
 
@@ -229,9 +212,10 @@ impl Pictures {
         }
     }
 
-    /// Why `what` has no picture, where it was made with none.
+    /// Why `what` has no picture, where it was made with none (the kit's
+    /// [`PaintedPictures::failed`]).
     pub fn error(&self, what: Pictured) -> Option<&str> {
-        self.reasons.get(&what).filter(|_| self.is_made(what)).map(String::as_str)
+        self.cache.failed(&what)
     }
 
     /// Asks for `what`'s picture in this frame (a row about to come into
@@ -267,7 +251,6 @@ impl Pictures {
     pub fn forget(&mut self) {
         // (Every texture is the kit's own: none of the painter's to free.)
         let _ = self.cache.forget();
-        self.reasons.clear();
         self.later = None;
         if let Some(p) = &mut self.painter {
             p.forget();
@@ -277,7 +260,6 @@ impl Pictures {
     /// Lets go of one picture (its model edited).
     pub fn forget_one(&mut self, what: Pictured) {
         let _ = self.cache.forget_one(what);
-        self.reasons.remove(&what);
     }
 
     /// After a frame: makes the pictures it asked for and lacks, for
@@ -300,9 +282,8 @@ impl Pictures {
         let waiting = self.later.is_some_and(|t| t.elapsed() < again);
         let painted = match self.painter.as_deref_mut() {
             Some(painter) => {
-                let reasons = &mut self.reasons;
                 let mut painting =
-                    Painting { painter, lib, reasons, painted: 0, waiting, drew_later: false };
+                    Painting { painter, lib, painted: 0, waiting, drew_later: false };
                 // (Every texture is the kit's own: none of the painter's
                 // to free.)
                 let _ = self.cache.pump(ctx, &mut painting, budget, KEPT);
@@ -321,8 +302,6 @@ impl Pictures {
             }
         };
         self.painted = painted;
-        let made = &self.cache.pictures;
-        self.reasons.retain(|k, _| made.get(k).is_some());
     }
 }
 
@@ -622,7 +601,7 @@ pub enum Place {
 
 /// A gallery's grid's id (its keys' cursor is kept under it).
 pub fn grid_id(at: Place) -> egui::Id {
-    egui::Id::new(("mgv-gallery", at))
+    egui::Id::unique(("mgv-gallery", at))
 }
 
 /// Where a gallery's grid stood in the last frame it was drawn in, and

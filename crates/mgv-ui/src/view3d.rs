@@ -352,9 +352,7 @@ fn background_swatch(ui: &mut egui::Ui, bg: &mut [f32; 3]) {
     let t = ui.tokens();
     let side = mg_uikit::metrics::ICON_BUTTON;
     let (rect, response) = ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::click());
-    response.widget_info(|| {
-        egui::WidgetInfo::labeled(egui::WidgetType::ColorButton, true, "Background")
-    });
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ColorWell, true, "Background"));
     let popup = egui::Popup::from_toggle_button_response(&response)
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
     let open = egui::Popup::is_id_open(ui.ctx(), popup.get_id());

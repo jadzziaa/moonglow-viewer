@@ -49,6 +49,7 @@ pub(crate) fn ui(app: &mut Viewer, ui: &mut Ui) {
                 }
             })
             .response
+            .accessible_name("Effect size")
             .on_hover_text("Ground effects have a model per creature size");
         if ui.add_enabled(!e.applied.is_empty(), egui::Button::new("Clear")).clicked() {
             app.actions.push(Action::ClearEffects);

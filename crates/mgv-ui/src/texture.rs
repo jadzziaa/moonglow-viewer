@@ -245,7 +245,7 @@ fn header(v: &mut TextureView, ui: &mut Ui) {
         ui.spacing_mut().slider_width = MINI_SLIDER;
         let slider = egui::Slider::new(&mut m, 0..=most).show_value(false);
         mg_uikit::slider(ui, slider)
-            .widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Slider, true, "Mip level"));
+            .widget_info(|| egui::WidgetInfo::labeled(egui::Role::Slider, true, "Mip level"));
         let number = egui::DragValue::new(&mut m).range(0..=most);
         ui.add_sized([MINI_NUMBER, ui.spacing().interact_size.y], number);
         mip.set(m);
@@ -257,7 +257,7 @@ fn header(v: &mut TextureView, ui: &mut Ui) {
         let slider = egui::Slider::new(&mut z, 0.125..=8.0).logarithmic(true).show_value(false);
         mg_uikit::slider(ui, slider)
             .on_hover_text("Ctrl + Wheel over the picture")
-            .widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Slider, true, "Zoom"));
+            .widget_info(|| egui::WidgetInfo::labeled(egui::Role::Slider, true, "Zoom"));
         let number = egui::DragValue::new(&mut z).range(0.125..=8.0).speed(0.01).fixed_decimals(2);
         ui.add_sized([MINI_NUMBER, ui.spacing().interact_size.y], number);
         zoom.set(z);
@@ -294,8 +294,8 @@ pub(crate) fn caption(ui: &mut Ui, name: &str, info: &str) {
     let at = egui::pos2(x + name_width + 8.0, y(info_galley.size().y));
     painter.galley(at, info_galley, t.text_3);
     let words = format!("{name} {info}");
-    let r = ui.interact(rect, ui.id().with("texture-caption"), egui::Sense::hover());
-    r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &words));
+    let r = ui.interact(rect, ui.scope_id().with("texture-caption"), egui::Sense::hover());
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, &words));
 }
 
 /// The picture, a PLT's layers' colors and the TXI.
