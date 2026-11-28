@@ -1,5 +1,8 @@
 # Update log
 
+## 2026-11-28
+* **Update**: [The plan](PLAN.md) §10.11: inputs with no label are named for egui_kittest 0.37's check; egui_dock is the toolset's patched copy, its separators named.
+
 ## 2026-11-27
 * **Update**: [The plan](PLAN.md) §10.11: Moonglow Toolset 5.5.0 and egui 0.37; the kept layout is the kit's `DockRecord` (a 0.4 layout moved over once); the panels' ids under egui 0.37; picture failures from the kit.
 

@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-28T04:45:26Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-28T07:45:15Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1404,6 +1404,12 @@ viewer:
   Going back to 0.4 after this opens the default layout once.
 - **Pictures**: a failure's reason is the kit's `PaintedPictures::failed`;
   the gallery's own map of reasons is gone.
+- **Accessible names**: egui_kittest 0.37 fails a test on any input with
+  no name. The viewer's combo boxes with no label beside them are named
+  (Type filter, Lighting rig, Effect size), and egui_dock is the
+  toolset's patched 0.22.0 (`[patch.crates-io]` on the same tag), whose
+  separators are named Resize; crates.io's leaves the editor area's
+  splitter nameless.
 
 Not taken: the kit's `stack_seams_least`. The viewer's docks stack their
 panels in egui panels of their own (§10.9), not in a `StackLayout`, so

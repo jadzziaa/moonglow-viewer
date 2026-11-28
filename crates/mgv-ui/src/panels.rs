@@ -187,11 +187,12 @@ pub(crate) fn search_field(app: &mut Viewer, ui: &mut Ui, width: f32) {
 pub(crate) fn filter_combo(app: &mut Viewer, ui: &mut Ui, salt: &str, width: f32) {
     let b = &mut app.browser;
     let combo = egui::ComboBox::from_id_salt(salt).width(width);
-    combo.selected_text(b.filter.name()).show_ui(ui, |ui| {
+    let shown = combo.selected_text(b.filter.name()).show_ui(ui, |ui| {
         for f in Filter::ALL {
             ui.selectable_value(&mut b.filter, f, f.name());
         }
     });
+    let _ = shown.response.accessible_name("Type filter");
 }
 
 /// What the browser lists as its filter and query stand: the resources

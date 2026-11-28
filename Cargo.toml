@@ -82,3 +82,9 @@ inherits = "release"
 lto = "thin"
 codegen-units = 1
 strip = "debuginfo"
+
+# The toolset's egui_dock 0.22.0 with its patches (vendor/egui_dock/MOONGLOW.md
+# there): the viewer needs the sixth, the separators' accessible name, which
+# egui_kittest 0.37's a11y check asks of every split editor area.
+[patch.crates-io]
+egui_dock = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }

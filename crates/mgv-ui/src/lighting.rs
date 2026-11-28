@@ -99,9 +99,10 @@ pub(crate) fn ui(app: &mut Viewer, ui: &mut Ui) {
             .map_or_else(|| format!("Preset {r}"), |(_, l)| l.clone()),
     };
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        egui::ComboBox::from_id_salt("rig").selected_text(name(rig.kind)).height(400.0).show_ui(
-            ui,
-            |ui| {
+        let shown = egui::ComboBox::from_id_salt("rig")
+            .selected_text(name(rig.kind))
+            .height(400.0)
+            .show_ui(ui, |ui| {
                 ui.selectable_value(&mut rig.kind, RigKind::Studio, "Studio")
                     .on_hover_text("A neutral daylight for looking at models");
                 ui.separator();
@@ -111,8 +112,8 @@ pub(crate) fn ui(app: &mut Viewer, ui: &mut Ui) {
                 }
                 ui.separator();
                 ui.selectable_value(&mut rig.kind, RigKind::Custom, "Custom area");
-            },
-        );
+            });
+        let _ = shown.response.accessible_name("Lighting rig");
         if rig.kind != RigKind::Studio {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut rig.night, false, "Day");
