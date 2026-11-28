@@ -499,6 +499,7 @@ impl Stage {
             sky: None,
             sky_fade: None,
             lines: Vec::new(),
+            boxes: Vec::new(),
             time: self.elapsed,
             // (No area: the game's shaders read no wind, weather or
             // module clock of one; noon of a new module's day.)

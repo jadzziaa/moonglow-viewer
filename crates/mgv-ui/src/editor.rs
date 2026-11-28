@@ -322,7 +322,7 @@ fn state_ui(ui: &mut Ui, text: &str, tip: &str, pending: bool, width: f32) {
 }
 
 fn editor_id() -> egui::Id {
-    egui::Id::new("mgv-ascii-editor")
+    egui::Id::unique("mgv-ascii-editor")
 }
 
 /// The editor tab.

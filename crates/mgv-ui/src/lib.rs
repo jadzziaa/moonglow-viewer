@@ -362,7 +362,7 @@ impl Viewer {
     /// (laid out so, they are the user's: the window's width leaves them).
     fn restore_layout(&mut self) {
         self.shell.restore(&self.settings.layout);
-        if let Some(dock) = shell::editor_dock(&self.settings.layout.editor) {
+        if let Some(dock) = shell::editor_dock(&self.settings.layout.groups) {
             self.dock = dock;
             self.shell.laid_out = Some(false);
         }
@@ -1231,7 +1231,7 @@ impl Viewer {
     /// as they took it in the last frame, the Top Bar's buttons follow
     /// them; when that changes, the frame is drawn again.
     pub(crate) fn menu_bar(&mut self, ui: &mut Ui) {
-        let width_id = ui.id().with("menu-bar-width");
+        let width_id = ui.scope_id().with("menu-bar-width");
         let start = ui.cursor().min.x;
         let width = ui.data(|d| d.get_temp::<f32>(width_id)).unwrap_or(ui.available_width());
         let size = egui::vec2(width.min(ui.available_width()), ui.available_height());
@@ -1469,7 +1469,7 @@ impl TabViewer for Tabs<'_> {
     type Tab = Tab;
 
     fn id(&mut self, tab: &mut Tab) -> egui::Id {
-        egui::Id::new(("tab", *tab))
+        egui::Id::unique(("tab", *tab))
     }
 
     fn title(&mut self, tab: &mut Tab) -> WidgetText {
@@ -1499,7 +1499,7 @@ impl TabViewer for Tabs<'_> {
         });
         let front = self.fronts.contains(tab);
         response.widget_info(|| {
-            egui::WidgetInfo::selected(egui::WidgetType::Button, true, front, tab.title())
+            egui::WidgetInfo::selected(egui::Role::Button, true, front, tab.title())
         });
     }
 

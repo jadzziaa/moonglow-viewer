@@ -3,7 +3,7 @@ type: Plan
 title: 'Moonglow Viewer: Plan'
 description: The plan of Moonglow Viewer with its current status - what it does, the landscape of other tools, principles, architecture, phases, testing tiers, packaging and release, licensing.
 tags: [plan, architecture, testing, release]
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T21:53:51Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-28T04:45:26Z }
 ---
 
 # Moonglow Viewer: Plan
@@ -1374,3 +1374,37 @@ What stayed the viewer's, and why:
   (26 Nov): the counts are the header's badges now, after the title
   (`the_ascii_tab_s_dot_and_the_diagnostics_counts` holds where they
   stand).
+
+### 10.11 Moonglow Toolset 5.5.0 and egui 0.37 (2026-11-27)
+
+The pin moved from v5.4.0 to v5.5.0, and with it egui, egui-wgpu and
+egui_kittest to 0.37, egui_commonmark to 0.26 and egui_dock to 0.22 (the
+crates.io release: the toolset's vendored patches do not reach the
+viewer). egui takes `default_fonts` and `monochrome_emoji_fonts`, eframe
+`accesskit` and `system_fonts`, as the toolset's do. What changed in the
+viewer:
+
+- **Renames**: `egui::Id::new` is `Id::unique` (the same id),
+  `Ui::id` is `Ui::scope_id`, `WidgetType` is `Role` (`ColorButton` is
+  `ColorWell`, `Other` is `Unknown`), a scroll's `state.offset` is
+  `clamped_offset()`. mgv-stage's `Scene` takes `boxes` (none).
+- **Panel ids**: egui 0.37 keeps a panel's state under its salt within
+  the ui it is shown in (`ui.scope_id().with_salt(...)`), not under the
+  value given to `Panel::left`. The docks' sizes, forced each frame
+  through `PanelState`, went unread and every dock opened at its default
+  until `shell::panel_id` found the real id
+  (`the_layout_round_trips_through_the_settings`).
+- **The kept layout is the kit's `stack::DockRecord`** (version 2): the
+  docks named as the kit names them (`left`, `right`, `right-2`,
+  `bottom`; a closed Bottom Dock is folded), the sizes by name (`left`,
+  `left-gallery`, `right`, `right-wide`, `bottom`), the seams, the editor
+  groups. A version 1 layout (M6 part D to 0.4) is read once and moved
+  over (`a_part_d_layout_moves_to_the_kit_s_record`); garbage or another
+  version opens the default, the other settings loading all the same.
+  Going back to 0.4 after this opens the default layout once.
+- **Pictures**: a failure's reason is the kit's `PaintedPictures::failed`;
+  the gallery's own map of reasons is gone.
+
+Not taken: the kit's `stack_seams_least`. The viewer's docks stack their
+panels in egui panels of their own (§10.9), not in a `StackLayout`, so
+the kit's seams have nothing to hold.

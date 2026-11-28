@@ -122,7 +122,7 @@ fn step_keys(
 /// still take the clicks; a focused widget needs an accessibility node).
 fn list_widget(ui: &mut Ui, id: egui::Id, rect: egui::Rect, label: &str) {
     let r = ui.interact(rect, id, egui::Sense::focusable_noninteractive());
-    r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, label));
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Unknown, true, label));
 }
 
 /// The scroll offset that brings row `index` into a view at `offset` of
@@ -300,7 +300,7 @@ fn resources(app: &mut Viewer, ui: &mut Ui, items: &[(ResKey, String)]) {
     let mut open = None;
     // After a click, the arrow keys step through the list. (The list takes
     // the keyboard the frame after: egui gives a click's frame to the row.)
-    let list = ui.id().with("resource-list");
+    let list = ui.scope_id().with("resource-list");
     if std::mem::take(&mut b.take_keys) {
         ui.memory_mut(|m| m.request_focus(list));
     }
@@ -332,7 +332,7 @@ fn resources(app: &mut Viewer, ui: &mut Ui, items: &[(ResKey, String)]) {
             }
         }
     });
-    b.view = (out.state.offset.y, out.inner_rect.height());
+    b.view = (out.state.clamped_offset().y, out.inner_rect.height());
     list_widget(ui, list, out.inner_rect, "Resources");
     if let Some(k) = open {
         app.actions.push(Action::OpenResource(k));
@@ -362,7 +362,7 @@ fn creatures(app: &mut Viewer, ui: &mut Ui, rows: &[(usize, String)]) {
     let row = ui.text_style_height(&egui::TextStyle::Body) + 2.0;
     let pitch = row + ui.spacing().item_spacing.y;
     let mut open = None;
-    let list = ui.id().with("creature-list");
+    let list = ui.scope_id().with("creature-list");
     if std::mem::take(&mut app.browser.take_keys) {
         ui.memory_mut(|m| m.request_focus(list));
     }
@@ -392,7 +392,7 @@ fn creatures(app: &mut Viewer, ui: &mut Ui, rows: &[(usize, String)]) {
             }
         }
     });
-    app.browser.view = (out.state.offset.y, out.inner_rect.height());
+    app.browser.view = (out.state.clamped_offset().y, out.inner_rect.height());
     app.browser.take_keys |= take_keys;
     list_widget(ui, list, out.inner_rect, "Creatures");
     if let Some(r) = open {
@@ -496,7 +496,8 @@ pub(crate) fn inspector(app: &mut Viewer, ui: &mut Ui) {
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         // (The room the sections get, for the tests of the pair grid.)
         #[cfg(test)]
-        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(INSPECTOR_ROOM), ui.available_width()));
+        ui.ctx()
+            .data_mut(|d| d.insert_temp(egui::Id::unique(INSPECTOR_ROOM), ui.available_width()));
         if app.doc.is_none() {
             ui.weak("Nothing open.");
             return;
@@ -1017,9 +1018,9 @@ pub(crate) fn timeline(app: &mut Viewer, ui: &mut Ui) {
                     }
                 }
             });
-        combo.response.widget_info(|| {
-            egui::WidgetInfo::labeled(egui::WidgetType::ComboBox, true, "Animation")
-        });
+        combo
+            .response
+            .widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, true, "Animation"));
         ui.scope(|ui| {
             ui.spacing_mut().item_spacing.x = mg_uikit::joined_spacing(ui);
             let (icon, words) = match a.player.playing {
@@ -1051,9 +1052,8 @@ pub(crate) fn timeline(app: &mut Viewer, ui: &mut Ui) {
                 let slider = egui::Slider::new(&mut a.player.speed, 0.05..=4.0)
                     .logarithmic(true)
                     .show_value(false);
-                mg_uikit::slider(ui, slider).widget_info(|| {
-                    egui::WidgetInfo::labeled(egui::WidgetType::Slider, true, "Speed")
-                });
+                mg_uikit::slider(ui, slider)
+                    .widget_info(|| egui::WidgetInfo::labeled(egui::Role::Slider, true, "Speed"));
             }
             ui.label("Speed");
         });
@@ -1099,7 +1099,7 @@ pub(crate) fn scrub(ui: &mut Ui, time: f32, length: f32, events: &[(f32, String)
             ui.spacing_mut().slider_width = (ui.available_width() - after).max(40.0);
             let slider = egui::Slider::new(&mut time, 0.0..=length).show_value(false);
             let r = mg_uikit::slider(ui, slider);
-            r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Slider, true, "Time"));
+            r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Slider, true, "Time"));
             changed |= r.changed();
             let number =
                 egui::DragValue::new(&mut time).range(0.0..=length).speed(0.01).fixed_decimals(2);

@@ -19,33 +19,33 @@ mgv-ui = { path = "crates/mgv-ui" }
 
 # Moonglow Toolset crates, pinned by Cargo.lock: move the pin with
 # `cargo update -p mg-core` (all of them move together).
-mg-2da = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-core = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-gff = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-image = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-mdl = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-preview = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-render = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-resman = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-module = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-rules = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-schema = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-set = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-testkit = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-tlk = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
-mg-uikit = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.4.0" }
+mg-2da = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-core = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-gff = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-image = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-mdl = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-preview = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-render = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-resman = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-module = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-rules = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-schema = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-set = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-testkit = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-tlk = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
+mg-uikit = { git = "https://github.com/jadzziaa/moonglow-toolset", tag = "v5.5.0" }
 
 # Third party (the toolset's versions)
 ab_glyph = "0.2"
 anyhow = "1"
 bytemuck = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
-eframe = { version = "0.36", default-features = false, features = ["wgpu", "default_fonts", "links", "wayland", "x11", "persistence"] }
-egui = "0.36"
-egui-wgpu = "0.36"
-egui_commonmark = { version = "0.25", default-features = false, features = ["pulldown_cmark"] }
-egui_dock = "0.21"
-egui_kittest = "0.36"
+eframe = { version = "0.37", default-features = false, features = ["accesskit", "wgpu", "default_fonts", "system_fonts", "links", "wayland", "x11", "persistence"] }
+egui = { version = "0.37", features = ["default_fonts", "monochrome_emoji_fonts"] }
+egui-wgpu = "0.37"
+egui_commonmark = { version = "0.26", default-features = false, features = ["pulldown_cmark"] }
+egui_dock = "0.22"
+egui_kittest = "0.37"
 glam = { version = "0.30", features = ["bytemuck"] }
 notify = "8"
 epaint_default_fonts = "0.36"

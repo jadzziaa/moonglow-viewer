@@ -1,5 +1,8 @@
 # Update log
 
+## 2026-11-27
+* **Update**: [The plan](PLAN.md) §10.11: Moonglow Toolset 5.5.0 and egui 0.37; the kept layout is the kit's `DockRecord` (a 0.4 layout moved over once); the panels' ids under egui 0.37; picture failures from the kit.
+
 ## 2026-11-26
 * **Update**: [The plan](PLAN.md) §10.10 and [the command line](manual/05-command-line.md): pictures are framed on the drawn meshes, particles only where no mesh is drawn, as the toolset frames a preview (the owner's ruling).
 * **Update**: [The plan](PLAN.md) §10.10 and [lighting and effects](manual/04-lighting-and-effects.md): a held item's emitters are keyed by its `equip` animation as it ends, so a held torch burns (it showed no flame).

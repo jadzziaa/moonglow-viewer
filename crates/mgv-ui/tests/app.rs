@@ -650,7 +650,7 @@ fn panels_are_dragged_between_docks() {
     assert!(h.get_by_label("Status Bar").query_by_label("Inspector").is_some(), "its switch");
     assert_eq!(
         h.state().settings.layout.docks.get("inspector").map(String::as_str),
-        Some("Bottom")
+        Some("bottom")
     );
     // Lighting's header menu (it heads the Right Dock now): Move to the
     // Left Dock.

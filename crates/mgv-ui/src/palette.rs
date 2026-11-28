@@ -87,7 +87,7 @@ pub fn pick(ui: &mut Ui, palette: Option<&Rgba>, what: &str, color: &mut u8) -> 
         let size = egui::vec2(TONES + side, ui.spacing().interact_size.y.max(16.0 + side));
         let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
         let name = format!("{what} swatch");
-        r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::ColorButton, true, &name));
+        r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ColorWell, true, &name));
         let look = mg_uikit::SwatchLook { hovered: r.hovered(), open, focused: r.has_focus() };
         let t = ui.tokens();
         let tones = tones(p, current);
@@ -110,7 +110,7 @@ pub fn pick(ui: &mut Ui, palette: Option<&Rgba>, what: &str, color: &mut u8) -> 
                 }
             });
         combo.response.widget_info(|| {
-            egui::WidgetInfo::labeled(egui::WidgetType::ComboBox, true, format!("{what} color"))
+            egui::WidgetInfo::labeled(egui::Role::ComboBox, true, format!("{what} color"))
         });
     });
     match pick.filter(|&v| v != *color) {
