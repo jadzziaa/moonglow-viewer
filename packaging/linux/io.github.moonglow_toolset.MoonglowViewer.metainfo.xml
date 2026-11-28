@@ -50,6 +50,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.5.0" date="2026-11-28">
+      <description>
+        <p>A creature holding a torch raises it, its flame burns and its light lights what is around it. Pictures are framed on the model, not its smoke and flames. The Diagnostics counts stand after the title. Moonglow Toolset 5.5.0 and egui 0.37; the kept layout moves to the toolset's format.</p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-11-26">
       <description>
         <p>The Moonglow 5.x look and window, shared with Moonglow Toolset, and a light theme: a Top Bar, docks, headers on the 3D view and the ASCII editor, and a Status Bar. Gallery mode shows Resources as pictures. A one-row Timeline over a scrub bar, a texture caption line, the creature fields two pairs a row with color grids, panels moved between docks, and the layout kept between runs. Moonglow Toolset 5.4.0.</p>
